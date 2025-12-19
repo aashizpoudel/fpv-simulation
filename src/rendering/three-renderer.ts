@@ -89,14 +89,12 @@ export class ThreejsRenderer implements IRenderer {
 
         // 2. place it where the real cam sits on the frame
         fpvCam.position.set(this.getFpvOffsetX(), 0, 0);
-        fpvCam.rotation.set(0, -Math.PI / 2, 0); // look along +X in X-forward space
+        fpvCam.rotation.set(0, -Math.PI / 2, -Math.PI / 2); // look along +X in X-forward space
         // 3. glue it to the drone so it moves/rotates with it
         this.drone.add(fpvCam);
         this.fpvCamera = fpvCam;
 
         this.updateDroneSizeFromConfig();
-        this.noseMarker = this.createNoseMarker();
-        this.drone.add(this.noseMarker);
 
         this.scene.add(this.drone);
       },
