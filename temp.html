@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Rapier.js + CesiumJS Physics Example</title>
+        <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js"></script>
+        <link
+            href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css"
+            rel="stylesheet"
+        />
+        <script type="module">
+            import("@dimforge/rapier3d").then((RAPIER) => {
+                // Initialize Cesium
+                const viewer = new Cesium.Viewer("cesiumContainer", {
+                    terrainProvider: Cesium.createWorldTerrain(),
+                });
+
+                // Create a cube entity in Cesium
+                const cubeSize = 10.0;
+                const cubeEntity = viewer.entities.add({
+                    name: "Physics Cube",
+                    position: Cesium.Cartesian3.fromDegrees(
+                        -75.59777,
+                        40.03883,
+                        100,
+                    ),
+                    box: {
+                        dimensions: new Cesium.Cartesian3(
+                            cubeSize,
+                            cubeSize,
+                            cubeSize,
+                        ),
+                        material: Cesium.Color.RED,
+                    },
+                });
+
+                // Initialize Rapier physics world
+                const gravity = { x: 0.0, y: 0.0, z: -9.81 };
+                const world = new RAPIER.World(gravity);
+
+                // Create ground collider
+                const groundColliderDesc = RAPIER.ColliderDesc.cuboid(
+                    500,
+                    500,
+                    1,
+                ).setTranslation(0, 0, -1);
+                world.createCollider(groundColliderDesc);
+
+                // Create cube rigid body
+                const bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(
+                    0,
+                    0,
+                    100,
+                ); // Start height
+                const cubeBody = world.createRigidBody(bodyDesc);
+
+                const colliderDesc = RAPIER.ColliderDesc.cuboid(
+                    cubeSize / 2,
+                    cubeSize / 2,
+                    cubeSize / 2,
+                );
+                world.createCollider(colliderDesc, cubeBody);
+
+                // Animation loop
+                viewer.scene.preRender.addEventListener(() => {
+                    world.step();
+
+                    // Get physics position
+                    const pos = cubeBody.translation();
+
+                    // Convert Rapier coords to Cesium coords
+                    cubeEntity.position = Cesium.Cartesian3.fromDegrees(
+                        -75.59777, // fixed longitude
+                        40.03883, // fixed latitude
+                        pos.z, // height from physics
+                    );
+                });
+            });
+        </script>
+        <style>
+            html,
+            body,
+            #cesiumContainer {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="cesiumContainer"></div>
+    </body>
+</html>
