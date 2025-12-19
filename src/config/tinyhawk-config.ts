@@ -11,13 +11,12 @@ export interface RotorConfig {
 export interface DroneConfig {
   // Physical dimensions (full extents)
   width: number; // meters
-  depth: number; // meters
+  length: number; // meters
   height: number; // meters
 
   mass: number; // kg
 
   // Physics / collider parameters
-  density: number;
   linearDamping: number;
   angularDamping: number;
 
@@ -33,55 +32,52 @@ export interface DroneConfig {
   // Force application mode
   rotorMode: boolean; // true = per-rotor at offsets, false = aggregate at body center
 }
-
-// Tinyhawk 3–style configuration
+// Tinyhawk 3 – geometry-corrected, Z-up world
 export const Tinyhawk3Config: DroneConfig = {
-  // Approx Tinyhawk 3 dimensions
-  width: 0.105, // 10.5 cm
-  depth: 0.105, // 10.5 cm
-  height: 0.045, // 4.5 cm
+  // Outer shell size (only used for visuals / collision box)
+  width: 0.105,
+  length: 0.105,
+  height: 0.045,
 
-  // Approx mass ~30 g
+  // Mass
   mass: 0.03,
 
-  // Physics tuning (adjust as needed)
-  density: 0.5,
-  linearDamping: 0.5,
-  angularDamping: 0.5,
+  // Damping – start low, tune later
+  linearDamping: 0.05,
+  angularDamping: 0.03,
 
-  // 4 rotors at corners in local space
+  // Rotors – real 76 mm wheel-base, symmetrical X
   rotors: (() => {
-    const halfW = 0.105 / 2;
-    const halfD = 0.105 / 2;
-    const armHeight = 0.0; // rotors in body plane
-    const maxThrustPerRotor = 0.3;
+    const d = 0.076 / Math.SQRT2; // 0.0537 m diagonal arm length
+    const armHeight = 0.0; // props in body X-Y plane
+    const maxThrustPerRotor = 0.12; // N (gives ~2:1 T/W)
 
     return [
       {
         name: "frontRight",
-        position: { x: +halfW, y: armHeight, z: +halfD },
+        position: { x: +d, y: +d, z: armHeight },
         maxThrust: maxThrustPerRotor,
       },
       {
         name: "frontLeft",
-        position: { x: -halfW, y: armHeight, z: +halfD },
+        position: { x: -d, y: +d, z: armHeight },
         maxThrust: maxThrustPerRotor,
       },
       {
         name: "rearLeft",
-        position: { x: -halfW, y: armHeight, z: -halfD },
+        position: { x: -d, y: -d, z: armHeight },
         maxThrust: maxThrustPerRotor,
       },
       {
         name: "rearRight",
-        position: { x: +halfW, y: armHeight, z: -halfD },
+        position: { x: +d, y: -d, z: armHeight },
         maxThrust: maxThrustPerRotor,
       },
     ];
   })(),
 
-  // Control tuning
-  hoverThrottle: 0.4,
+  // Control
+  hoverThrottle: 0.6, // 0.03·9.81 / (4·0.12) ≈ 0.61
   maxTiltAngleDeg: 45,
   throttleRate: 0.2,
   stickRate: 0.4,

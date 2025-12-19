@@ -8,6 +8,9 @@ export default defineConfig({
   define: {
     CESIUM_BASE_URL: JSON.stringify(`/${cesiumBaseUrl}`),
   },
+  build: {
+    outDir: "build",
+  },
   plugins: [
     viteStaticCopy({
       targets: [
