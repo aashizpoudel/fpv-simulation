@@ -15,6 +15,7 @@ export interface DroneConfig {
   width: number; // meters
   length: number; // meters
   height: number; // meters
+  modelUrl: string;
 
   mass: number; // kg
 
@@ -46,10 +47,11 @@ export interface DroneConfig {
 }
 // Tinyhawk 3 – geometry-corrected, Z-up world
 export const Tinyhawk3Config: DroneConfig = {
-  // Outer shell size (only used for visuals / collision box)
+  // Outer shell size (only used for collision box)
   width: 0.105,
   length: 0.105,
   height: 0.045,
+  modelUrl: "/drone_models/tinyhawk.gltf",
 
   // Mass
   mass: 0.03,

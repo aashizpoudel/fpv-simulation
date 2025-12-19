@@ -10,6 +10,7 @@ import { createRenderer, RendererType } from "./rendering/renderer-factory";
 import type { CameraMode, DronePose, DroneTelemetry } from "./types";
 import { IPhysics } from "./physics/physics-interface";
 import { IRenderer } from "./rendering/renderer-interface";
+import { Tinyhawk3Config } from "./config/tinyhawk-config";
 
 // --- Configuration ---
 const RENDERER_TYPE: RendererType = "threejs";
@@ -209,9 +210,10 @@ function animate() {
 
 async function start() {
   renderer = createRenderer(RENDERER_TYPE);
-  renderer.init("cesiumContainer", startPosition);
   renderer.setFeedCanvas("cameraFeed");
   renderer.setFeedMode("auto");
+  renderer.setDroneConfig(Tinyhawk3Config);
+  renderer.init("cesiumContainer", startPosition);
 
   physics = createPhysics(PHYSICS_TYPE);
   await physics.init();

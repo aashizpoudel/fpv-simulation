@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { IRenderer } from "./renderer-interface";
 import type { CameraMode, DronePose, Vec3 } from "../types";
+import type { DroneConfig } from "../config/tinyhawk-config";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 export class ThreejsRenderer implements IRenderer {
@@ -20,6 +21,7 @@ export class ThreejsRenderer implements IRenderer {
   private hasOrbitOffset = false;
   private noseMarker?: THREE.Mesh;
   private feedMode: "auto" | "fpv" | "third" = "auto";
+  private droneConfig?: DroneConfig;
 
   public init(containerId: string, startPosition: Vec3): void {
     this.container = document.getElementById(containerId);
@@ -67,7 +69,7 @@ export class ThreejsRenderer implements IRenderer {
     // Drone
     const loader = new GLTFLoader();
     loader.load(
-      "/drone_models/tinyhawk.gltf",
+      this.droneConfig?.modelUrl ?? "/drone_models/tinyhawk.gltf",
       (gltf) => {
         this.drone = gltf.scene;
         const mesh = gltf.scene.children[0]; // or scene.getObjectByName("xxx")
@@ -86,12 +88,13 @@ export class ThreejsRenderer implements IRenderer {
         );
 
         // 2. place it where the real cam sits on the frame
-        fpvCam.position.set(0.1, 0, 0); // 10 cm in front of body origin
-        fpvCam.rotation.set(0, -Math.PI / 2, -Math.PI / 2); // look along +X in X-forward space
+        fpvCam.position.set(this.getFpvOffsetX(), 0, 0);
+        fpvCam.rotation.set(0, -Math.PI / 2, 0); // look along +X in X-forward space
         // 3. glue it to the drone so it moves/rotates with it
         this.drone.add(fpvCam);
         this.fpvCamera = fpvCam;
 
+        this.updateDroneSizeFromConfig();
         this.noseMarker = this.createNoseMarker();
         this.drone.add(this.noseMarker);
 
@@ -106,6 +109,7 @@ export class ThreejsRenderer implements IRenderer {
           color: 0xff0000,
         });
         this.drone = new THREE.Mesh(droneGeometry, droneMaterial);
+        this.updateDroneSizeFromConfig();
         this.noseMarker = this.createNoseMarker();
         this.drone.add(this.noseMarker);
         this.scene.add(this.drone);
@@ -206,6 +210,14 @@ export class ThreejsRenderer implements IRenderer {
     this.feedMode = mode;
   }
 
+  public setDroneConfig(config: DroneConfig): void {
+    this.droneConfig = config;
+    if (this.fpvCamera) {
+      this.fpvCamera.position.set(this.getFpvOffsetX(), 0, 0);
+    }
+    this.hasOrbitOffset = false;
+  }
+
   private updateCamera(pose: DronePose, cameraMode: CameraMode): void {
     const dronePosition = new THREE.Vector3(
       pose.localPosition.x,
@@ -217,7 +229,8 @@ export class ThreejsRenderer implements IRenderer {
       this.activeCamera = this.camera;
       this.orbitControls.enabled = true;
       if (!this.hasOrbitOffset) {
-        const orbitOffset = new THREE.Vector3(-2.5, 0, 1.2)
+        const { behind, height } = this.getCameraOffsets();
+        const orbitOffset = new THREE.Vector3(-behind * 1.25, 0, height * 1.1)
           .applyQuaternion(this.drone.quaternion)
           .add(dronePosition);
         this.camera.position.copy(orbitOffset);
@@ -256,7 +269,8 @@ export class ThreejsRenderer implements IRenderer {
   }
 
   private updateThirdPersonCamera(dronePosition: THREE.Vector3): void {
-    const chaseOffset = new THREE.Vector3(-2, 0, 1.2).applyQuaternion(
+    const { behind, height } = this.getCameraOffsets();
+    const chaseOffset = new THREE.Vector3(-behind, 0, height).applyQuaternion(
       this.drone.quaternion,
     );
     const desiredPosition = new THREE.Vector3().addVectors(
@@ -298,6 +312,38 @@ export class ThreejsRenderer implements IRenderer {
     this.feedRenderer.render(this.scene, feedCamera);
     feedCamera.aspect = previousAspect;
     feedCamera.updateProjectionMatrix();
+  }
+
+  private getCameraOffsets(): { behind: number; height: number } {
+    const base = this.droneConfig
+      ? Math.max(
+          this.droneConfig.length,
+          this.droneConfig.width,
+          this.droneConfig.height,
+        )
+      : 0.12;
+    return {
+      behind: Math.max(base * 6, 0.9),
+      height: Math.max(base * 3, 0.5),
+    };
+  }
+
+  private getFpvOffsetX(): number {
+    const base = this.droneConfig
+      ? Math.max(
+          this.droneConfig.length,
+          this.droneConfig.width,
+          this.droneConfig.height,
+        )
+      : 0.12;
+    return base * 0.5;
+  }
+
+  private updateDroneSizeFromConfig(): void {
+    if (!this.droneConfig) return;
+    if (this.fpvCamera) {
+      this.fpvCamera.position.set(this.getFpvOffsetX(), 0, 0);
+    }
   }
 
   private createSkyDome(): THREE.Mesh {

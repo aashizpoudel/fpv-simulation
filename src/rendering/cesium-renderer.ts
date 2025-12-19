@@ -1,6 +1,7 @@
 import * as Cesium from "cesium";
 import { IRenderer } from "./renderer-interface";
 import type { CameraMode, DronePose, Vec3, Quaternion } from "../types";
+import type { DroneConfig } from "../config/tinyhawk-config";
 
 type PoseState = {
   position: Cesium.Cartesian3;
@@ -16,6 +17,7 @@ export class CesiumRenderer implements IRenderer {
   private enuQuaternion: Cesium.Quaternion;
   private feedViewer?: Cesium.Viewer;
   private feedMode: "auto" | "fpv" | "third" = "auto";
+  private droneConfig?: DroneConfig;
 
   constructor() {
     Cesium.Ion.defaultAccessToken =
@@ -150,6 +152,10 @@ export class CesiumRenderer implements IRenderer {
     this.feedMode = mode;
   }
 
+  public setDroneConfig(config: DroneConfig): void {
+    this.droneConfig = config;
+  }
+
   public update(pose: DronePose, cameraMode: CameraMode): void {
     const worldPosition = this.toCesiumPosition(pose.localPosition);
     const worldOrientation = this.toCesiumOrientation(pose.localOrientation);
@@ -159,9 +165,14 @@ export class CesiumRenderer implements IRenderer {
 
     const hpr = Cesium.HeadingPitchRoll.fromQuaternion(worldOrientation);
 
+    const thirdRange = this.getThirdPersonRange();
     this.viewer.camera.lookAt(
       worldPosition,
-      new Cesium.HeadingPitchRange(hpr.heading, Cesium.Math.toRadians(-20), 5),
+      new Cesium.HeadingPitchRange(
+        hpr.heading,
+        Cesium.Math.toRadians(-20),
+        thirdRange,
+      ),
     );
 
     this.viewer.render();
@@ -188,15 +199,46 @@ export class CesiumRenderer implements IRenderer {
     if (mode === "fpv") {
       this.feedViewer.camera.lookAt(
         position,
-        new Cesium.HeadingPitchRange(hpr.heading, hpr.pitch, 0.1),
+        new Cesium.HeadingPitchRange(
+          hpr.heading,
+          hpr.pitch,
+          this.getFpvRange(),
+        ),
       );
       return;
     }
 
+    const thirdRange = this.getThirdPersonRange();
     this.feedViewer.camera.lookAt(
       position,
-      new Cesium.HeadingPitchRange(hpr.heading, Cesium.Math.toRadians(-20), 5),
+      new Cesium.HeadingPitchRange(
+        hpr.heading,
+        Cesium.Math.toRadians(-20),
+        thirdRange,
+      ),
     );
+  }
+
+  private getThirdPersonRange(): number {
+    const base = this.droneConfig
+      ? Math.max(
+          this.droneConfig.length,
+          this.droneConfig.width,
+          this.droneConfig.height,
+        )
+      : 0.12;
+    return Math.max(base * 6, 0.9);
+  }
+
+  private getFpvRange(): number {
+    const base = this.droneConfig
+      ? Math.max(
+          this.droneConfig.length,
+          this.droneConfig.width,
+          this.droneConfig.height,
+        )
+      : 0.12;
+    return Math.max(base * 0.5, 0.1);
   }
 
   private toCesiumPosition(position: Vec3): Cesium.Cartesian3 {
