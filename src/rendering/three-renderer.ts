@@ -23,6 +23,8 @@ export class ThreejsRenderer implements IRenderer {
 
     // Set up
     THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+    THREE.Scene.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+    THREE.Camera.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
 
     // Scene
     this.scene = new THREE.Scene();
@@ -76,8 +78,8 @@ export class ThreejsRenderer implements IRenderer {
         );
 
         // 2. place it where the real cam sits on the frame
-        fpvCam.position.set(0.1, 0, 0); // 2 cm in front of body origin
-        fpvCam.rotation.set(0, 0, 0); // look straight ahead (adjust as needed)
+        fpvCam.position.set(0, 0.1, 0); // 2 cm in front of body origin
+        fpvCam.rotation.set(1, 0, 0); // look straight ahead (adjust as needed)
 
         // 3. glue it to the drone so it moves/rotates with it
         this.drone.add(fpvCam);

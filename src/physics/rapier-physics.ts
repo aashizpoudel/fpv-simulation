@@ -1,7 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { IPhysics } from "./physics-interface";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
-import { AcroController } from "../acroController";
+import { AcroController } from "../controllers/acroController";
 import { DroneConfig, Tinyhawk3Config } from "../config/tinyhawk-config";
 
 const GRAVITY = 9.81;
@@ -138,9 +138,9 @@ export class RapierPhysics implements IPhysics {
     if (!this.crashed) {
       if (this.armed) {
         this.controller.update(controls, deltaTime);
-        this.controller.applyForces(this.body, deltaTime);
+        this.controller.applyForces(this.body);
       }
-      this.world.timestep = deltaTime;
+      // this.world.timestep = deltaTime;
       this.world.step();
     }
 

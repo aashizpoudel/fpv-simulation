@@ -138,7 +138,7 @@ function animate() {
   const deltaTime = (now - lastTime) / 1000;
   lastTime = now;
 
-  updateControls();
+  updateControls(deltaTime);
   const telemetry = physics.step(controls, deltaTime);
 
   if (telemetry.crashed) {

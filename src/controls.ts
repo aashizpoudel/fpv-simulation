@@ -30,6 +30,17 @@ export function setupControls(callbacks: ControlCallbacks) {
 
   const keys: Record<string, boolean> = {};
 
+  // "Analog" axis state (smoothed)
+  const axis = { thrust: 0, pitch: 0, roll: 0, yaw: 0 };
+
+  // Move current value toward target at `rate` units per second
+  function approach(current: number, target: number, rate: number, dt: number) {
+    const delta = target - current;
+    const maxStep = rate * dt;
+    if (Math.abs(delta) <= maxStep) return target;
+    return current + Math.sign(delta) * maxStep;
+  }
+
   // Track key state and trigger one-off actions.
   const handleKeyDown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
@@ -70,11 +81,34 @@ export function setupControls(callbacks: ControlCallbacks) {
   document.addEventListener("keyup", handleKeyUp);
 
   // Map current key state to control inputs.
-  const updateControls = () => {
-    controls.thrust = (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
-    controls.pitch = (keys.arrowup ? 1 : 0) - (keys.arrowdown ? 1 : 0);
-    controls.roll = (keys.arrowright ? 1 : 0) - (keys.arrowleft ? 1 : 0);
-    controls.yaw = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+  const updateControls = (dt: number) => {
+    // Targets from your existing keys (digital -> -1/0/+1)
+    const targetThrust = (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
+    const targetPitch = (keys.arrowup ? 1 : 0) - (keys.arrowdown ? 1 : 0);
+    const targetRoll = (keys.arrowright ? 1 : 0) - (keys.arrowleft ? 1 : 0);
+    const targetYaw = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+
+    // Tuning: units per second to reach the target
+    // Higher = snappier, lower = smoother.
+    const THRUST_AXIS_RATE = 8;
+    const STICK_AXIS_RATE = 0.5;
+    const YAW_AXIS_RATE = 2;
+
+    axis.thrust = approach(axis.thrust, targetThrust, THRUST_AXIS_RATE, dt);
+    axis.pitch = approach(axis.pitch, targetPitch, STICK_AXIS_RATE, dt);
+    axis.roll = approach(axis.roll, targetRoll, STICK_AXIS_RATE, dt);
+    axis.yaw = approach(axis.yaw, targetYaw, YAW_AXIS_RATE, dt);
+
+    // Optional: tiny deadzone to remove drift near 0
+    const deadzone = 0.02;
+    const dz = (v: number) => (Math.abs(v) < deadzone ? 0 : v);
+
+    controls.thrust = dz(axis.thrust);
+    controls.pitch = dz(axis.pitch);
+    controls.roll = dz(axis.roll);
+    controls.yaw = dz(axis.yaw);
+
+    console.log(axis);
   };
 
   return { controls, updateControls };

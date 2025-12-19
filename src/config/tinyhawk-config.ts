@@ -31,6 +31,7 @@ export interface DroneConfig {
 
   // Force application mode
   rotorMode: boolean; // true = per-rotor at offsets, false = aggregate at body center
+  yawTorquePerNewton: number;
 }
 // Tinyhawk 3 – geometry-corrected, Z-up world
 export const Tinyhawk3Config: DroneConfig = {
@@ -44,13 +45,13 @@ export const Tinyhawk3Config: DroneConfig = {
 
   // Damping – start low, tune later
   linearDamping: 0.05,
-  angularDamping: 0.03,
+  angularDamping: 0.07,
 
   // Rotors – real 76 mm wheel-base, symmetrical X
   rotors: (() => {
     const d = 0.076 / Math.SQRT2; // 0.0537 m diagonal arm length
     const armHeight = 0.0; // props in body X-Y plane
-    const maxThrustPerRotor = 0.12; // N (gives ~2:1 T/W)
+    const maxThrustPerRotor = 0.15; // N (gives ~2:1 T/W)
 
     return [
       {
@@ -80,6 +81,7 @@ export const Tinyhawk3Config: DroneConfig = {
   hoverThrottle: 0.6, // 0.03·9.81 / (4·0.12) ≈ 0.61
   maxTiltAngleDeg: 45,
   throttleRate: 0.2,
-  stickRate: 0.4,
+  stickRate: 0.08,
   rotorMode: false,
+  yawTorquePerNewton: 0.002,
 };
