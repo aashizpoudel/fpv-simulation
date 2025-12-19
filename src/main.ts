@@ -32,6 +32,7 @@ const ui = {
   throttle: requireElement("throttle"),
   thrustBar: requireElement("thrustBar"),
   rotorThrusts: requireElement("rotorThrusts"),
+  armStatus: requireElement("armStatus"),
   fps: requireElement("fps"),
   statusBanner: requireElement("statusBanner"),
   attitudeInner: requireSelector<HTMLElement>(".attitude-inner"),
@@ -53,8 +54,8 @@ function requireSelector<T extends Element>(selector: string): T {
 const startPosition = { x: 0, y: 0, z: 1 };
 let renderer: IRenderer;
 let physics: IPhysics;
-let cameraMode: CameraMode = "free";
-let snapFreeCamera = false;
+let cameraMode: CameraMode = "third";
+let isArmed = false;
 
 // Keyboard controls and callbacks for reset/camera toggle.
 const { controls, updateControls } = setupControls({
@@ -62,18 +63,22 @@ const { controls, updateControls } = setupControls({
     if (physics) {
       physics.reset();
       ui.statusBanner.classList.remove("show");
+      isArmed = false;
     }
   },
   onToggleCamera: () => {
-    if (cameraMode === "fpv") cameraMode = "chase";
-    else if (cameraMode === "chase") {
-      cameraMode = "free";
-      snapFreeCamera = true;
-    } else cameraMode = "fpv";
+    if (cameraMode === "fpv") {
+      cameraMode = "third";
+    } else if (cameraMode === "third") {
+      cameraMode = "orbit";
+    } else {
+      cameraMode = "fpv";
+    }
   },
   onToggleArm: () => {
     if (physics) {
       physics.setArmed(true);
+      isArmed = true;
     }
   },
   onPushBody: (direction) => {
@@ -86,13 +91,18 @@ const { controls, updateControls } = setupControls({
 function updateHUD(pose: DronePose) {
   // This function will need to be adapted depending on the renderer
   // For now, we'll just display the raw data.
+
+  const { rollDeg, pitchDeg, yawDeg } = quaternionToEulerDeg(
+    pose.localOrientation,
+  );
+
   ui.altitude.textContent = `${pose.worldPosition.z.toFixed(1)} m`;
   ui.speed.textContent = `${Math.sqrt(pose.worldVelocity.x ** 2 + pose.worldVelocity.y ** 2 + pose.worldVelocity.z ** 2).toFixed(1)} m/s`;
-  ui.pitch.textContent = `${pose.localOrientation.x.toFixed(1)} deg`;
-  ui.roll.textContent = `${pose.localOrientation.y.toFixed(1)} deg`;
-  ui.yaw.textContent = `${pose.localOrientation.z.toFixed(1)} deg`;
+  ui.pitch.textContent = `${pitchDeg.toFixed(1)} deg`;
+  ui.roll.textContent = `${rollDeg.toFixed(1)} deg`;
+  ui.yaw.textContent = `${yawDeg.toFixed(1)} deg`;
   ui.position.textContent = `${pose.localPosition.x.toFixed(2)},${pose.localPosition.y.toFixed(2)},${pose.localPosition.z.toFixed(2)}`;
-  ui.orientation.textContent = `${pose.localOrientation.x.toFixed(2)},${pose.localOrientation.y.toFixed(2)},${pose.localOrientation.z.toFixed(2)}`;
+  ui.orientation.textContent = `${rollDeg.toFixed(1)},${pitchDeg.toFixed(1)},${yawDeg.toFixed(1)}`;
   ui.cameraMode.textContent = cameraMode.toUpperCase();
   ui.latitude.textContent = `N/A`;
   ui.longitude.textContent = `N/A`;
@@ -103,9 +113,46 @@ function updateHUD(pose: DronePose) {
     .map((t) => t.toFixed(2))
     .join(", ");
 
-  // Attitude indicator might need renderer-specific data.
-  // ui.attitudeInner.style.transform = `rotate(${rollDeg}deg)`;
-  // ui.attitudeInner.style.backgroundPosition = `0 ${pitchDeg * 2}px`;
+  ui.armStatus.textContent = isArmed
+    ? "ARMED"
+    : "DISARMED - Press Shift + M to arm";
+  ui.altitude.closest(".hud")?.classList.toggle("hud--disarmed", !isArmed);
+
+  ui.attitudeInner.style.transform = `rotate(${rollDeg}deg)`;
+  ui.attitudeInner.style.backgroundPosition = `0 -${pitchDeg * 2}px`;
+}
+
+function quaternionToEulerDeg(q: {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+}) {
+  // Roll (X), pitch (Y), yaw (Z) in degrees.
+  const sinrCosp = 2 * (q.w * q.x + q.y * q.z);
+  const cosrCosp = 1 - 2 * (q.x * q.x + q.y * q.y);
+  const roll = Math.atan2(sinrCosp, cosrCosp);
+
+  const sinp = 2 * (q.w * q.y - q.z * q.x);
+  const pitch = Math.asin(clamp(sinp, -1, 1));
+
+  const sinyCosp = 2 * (q.w * q.z + q.x * q.y);
+  const cosyCosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+  const yaw = Math.atan2(sinyCosp, cosyCosp);
+
+  return {
+    rollDeg: radiansToDegrees(roll),
+    pitchDeg: radiansToDegrees(pitch),
+    yawDeg: radiansToDegrees(yaw),
+  };
+}
+
+function radiansToDegrees(radians: number) {
+  return (radians * 180) / Math.PI;
+}
+
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v));
 }
 
 let lastTime = performance.now();
@@ -147,7 +194,7 @@ function animate() {
 
   const pose = telemetryToPose(telemetry);
 
-  renderer.update(pose, cameraMode, snapFreeCamera);
+  renderer.update(pose, cameraMode);
   updateHUD(pose);
 
   frameCount += 1;
@@ -157,13 +204,14 @@ function animate() {
     fpsTime = now;
   }
 
-  snapFreeCamera = false;
   requestAnimationFrame(animate);
 }
 
 async function start() {
   renderer = createRenderer(RENDERER_TYPE);
   renderer.init("cesiumContainer", startPosition);
+  renderer.setFeedCanvas("cameraFeed");
+  renderer.setFeedMode("auto");
 
   physics = createPhysics(PHYSICS_TYPE);
   await physics.init();

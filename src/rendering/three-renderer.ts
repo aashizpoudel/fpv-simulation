@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { IRenderer } from "./renderer-interface";
-import type { DronePose, Vec3 } from "../types";
+import type { CameraMode, DronePose, Vec3 } from "../types";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 export class ThreejsRenderer implements IRenderer {
@@ -10,10 +10,16 @@ export class ThreejsRenderer implements IRenderer {
   private fpvCamera?: THREE.PerspectiveCamera;
   private activeCamera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
+  private feedRenderer?: THREE.WebGLRenderer;
+  private feedCanvas?: HTMLCanvasElement;
   private drone: THREE.Object3D;
   private container: HTMLElement;
   private orbitControls: OrbitControls;
   private skyDome?: THREE.Mesh;
+  private orbitOffset = new THREE.Vector3();
+  private hasOrbitOffset = false;
+  private noseMarker?: THREE.Mesh;
+  private feedMode: "auto" | "fpv" | "third" = "auto";
 
   public init(containerId: string, startPosition: Vec3): void {
     this.container = document.getElementById(containerId);
@@ -41,6 +47,8 @@ export class ThreejsRenderer implements IRenderer {
       this.container.clientHeight,
     );
     this.container.appendChild(this.renderer.domElement);
+
+    this.setFeedCanvas("cameraFeed");
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -78,12 +86,14 @@ export class ThreejsRenderer implements IRenderer {
         );
 
         // 2. place it where the real cam sits on the frame
-        fpvCam.position.set(0, 0.1, 0); // 2 cm in front of body origin
-        fpvCam.rotation.set(1, 0, 0); // look straight ahead (adjust as needed)
-
+        fpvCam.position.set(0.1, 0, 0); // 10 cm in front of body origin
+        fpvCam.rotation.set(0, -Math.PI / 2, -Math.PI / 2); // look along +X in X-forward space
         // 3. glue it to the drone so it moves/rotates with it
         this.drone.add(fpvCam);
         this.fpvCamera = fpvCam;
+
+        this.noseMarker = this.createNoseMarker();
+        this.drone.add(this.noseMarker);
 
         this.scene.add(this.drone);
       },
@@ -96,6 +106,8 @@ export class ThreejsRenderer implements IRenderer {
           color: 0xff0000,
         });
         this.drone = new THREE.Mesh(droneGeometry, droneMaterial);
+        this.noseMarker = this.createNoseMarker();
+        this.drone.add(this.noseMarker);
         this.scene.add(this.drone);
       },
     );
@@ -135,13 +147,10 @@ export class ThreejsRenderer implements IRenderer {
       this.container.clientWidth,
       this.container.clientHeight,
     );
+    this.updateFeedRendererSize();
   }
 
-  public update(
-    pose: DronePose,
-    cameraMode: string,
-    snapFreeCamera: boolean,
-  ): void {
+  public update(pose: DronePose, cameraMode: CameraMode): void {
     if (!this.drone) {
       return;
     }
@@ -160,30 +169,71 @@ export class ThreejsRenderer implements IRenderer {
     );
 
     // Update camera
-    this.updateCamera(pose, cameraMode, snapFreeCamera);
+    this.updateCamera(pose, cameraMode);
 
     this.renderer.render(this.scene, this.activeCamera);
+    this.renderFeed(cameraMode);
   }
 
-  private updateCamera(
-    pose: DronePose,
-    cameraMode: string,
-    snapFreeCamera: boolean,
-  ): void {
+  public setFeedCanvas(canvasId: string | null): void {
+    if (!canvasId) {
+      this.feedRenderer?.dispose();
+      this.feedRenderer = undefined;
+      this.feedCanvas = undefined;
+      return;
+    }
+
+    const canvas = document.getElementById(
+      canvasId,
+    ) as HTMLCanvasElement | null;
+    if (!canvas) {
+      this.feedRenderer?.dispose();
+      this.feedRenderer = undefined;
+      this.feedCanvas = undefined;
+      return;
+    }
+
+    this.feedCanvas = canvas;
+    this.feedRenderer?.dispose();
+    this.feedRenderer = new THREE.WebGLRenderer({
+      antialias: true,
+      canvas: this.feedCanvas,
+    });
+    this.updateFeedRendererSize();
+  }
+
+  public setFeedMode(mode: "auto" | "fpv" | "third"): void {
+    this.feedMode = mode;
+  }
+
+  private updateCamera(pose: DronePose, cameraMode: CameraMode): void {
     const dronePosition = new THREE.Vector3(
       pose.localPosition.x,
       pose.localPosition.y,
       pose.localPosition.z,
     );
 
-    if (cameraMode === "orbit" || cameraMode === "free") {
+    if (cameraMode === "orbit") {
       this.activeCamera = this.camera;
       this.orbitControls.enabled = true;
-      if (snapFreeCamera) {
-        const orbitOffset = new THREE.Vector3(0, -2.5, 1.2)
+      if (!this.hasOrbitOffset) {
+        const orbitOffset = new THREE.Vector3(-2.5, 0, 1.2)
           .applyQuaternion(this.drone.quaternion)
           .add(dronePosition);
         this.camera.position.copy(orbitOffset);
+        this.orbitOffset.copy(
+          new THREE.Vector3().subVectors(this.camera.position, dronePosition),
+        );
+        this.hasOrbitOffset = true;
+      } else {
+        const currentOffset = new THREE.Vector3().subVectors(
+          this.camera.position,
+          this.orbitControls.target,
+        );
+        this.orbitOffset.copy(currentOffset);
+        this.camera.position.copy(
+          new THREE.Vector3().addVectors(dronePosition, this.orbitOffset),
+        );
       }
       this.orbitControls.target.copy(dronePosition);
       this.orbitControls.update(); // apply damping etc.
@@ -195,24 +245,59 @@ export class ThreejsRenderer implements IRenderer {
 
     if (cameraMode === "fpv") {
       this.activeCamera = this.fpvCamera ?? this.camera;
+      this.updateThirdPersonCamera(dronePosition);
       return;
     }
 
-    if (cameraMode === "chase") {
+    if (cameraMode === "third") {
       this.activeCamera = this.camera;
-      const chaseOffset = new THREE.Vector3(0, -1, 0.8).applyQuaternion(
-        this.drone.quaternion,
-      );
-      const desiredPosition = new THREE.Vector3().addVectors(
-        dronePosition,
-        chaseOffset,
-      );
-      this.camera.position.lerp(desiredPosition, 0.1);
-      const lookAhead = new THREE.Vector3(0, 1, 0)
-        .applyQuaternion(this.drone.quaternion)
-        .add(dronePosition);
-      this.camera.lookAt(lookAhead);
+      this.updateThirdPersonCamera(dronePosition);
     }
+  }
+
+  private updateThirdPersonCamera(dronePosition: THREE.Vector3): void {
+    const chaseOffset = new THREE.Vector3(-2, 0, 1.2).applyQuaternion(
+      this.drone.quaternion,
+    );
+    const desiredPosition = new THREE.Vector3().addVectors(
+      dronePosition,
+      chaseOffset,
+    );
+    this.camera.position.lerp(desiredPosition, 0.1);
+    const lookAhead = new THREE.Vector3(1, 0, 0)
+      .applyQuaternion(this.drone.quaternion)
+      .add(dronePosition);
+    this.camera.lookAt(lookAhead);
+  }
+
+  private updateFeedRendererSize(): void {
+    if (!this.feedRenderer || !this.feedCanvas) return;
+    const rect = this.feedCanvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    this.feedRenderer.setSize(rect.width, rect.height, false);
+  }
+
+  private renderFeed(cameraMode: CameraMode): void {
+    if (!this.feedRenderer || !this.feedCanvas) return;
+    const rect = this.feedCanvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    let feedCamera: THREE.PerspectiveCamera;
+    if (this.feedMode === "fpv") {
+      feedCamera = this.fpvCamera ?? this.camera;
+    } else if (this.feedMode === "third") {
+      feedCamera = this.camera;
+    } else {
+      feedCamera =
+        cameraMode === "fpv" ? this.camera : (this.fpvCamera ?? this.camera);
+    }
+
+    const previousAspect = feedCamera.aspect;
+    feedCamera.aspect = rect.width / rect.height;
+    feedCamera.updateProjectionMatrix();
+    this.feedRenderer.render(this.scene, feedCamera);
+    feedCamera.aspect = previousAspect;
+    feedCamera.updateProjectionMatrix();
   }
 
   private createSkyDome(): THREE.Mesh {
@@ -327,5 +412,20 @@ export class ThreejsRenderer implements IRenderer {
       metalness: 0,
       side: THREE.DoubleSide,
     });
+  }
+
+  private createNoseMarker(): THREE.Mesh {
+    const radius = 0.03;
+    const length = 0.08;
+    const geometry = new THREE.CylinderGeometry(radius, radius, length, 3);
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffcc00,
+      roughness: 0.6,
+      metalness: 0.1,
+    });
+    const marker = new THREE.Mesh(geometry, material);
+    marker.rotation.z = Math.PI / 2; // align cylinder axis with +X
+    marker.position.set(0.4, 0, 0);
+    return marker;
   }
 }

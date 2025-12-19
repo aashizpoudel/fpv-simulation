@@ -51,4 +51,4 @@ export type Controls = {
   speedMultiplier: number;
 };
 
-export type CameraMode = "fpv" | "chase" | "free";
+export type CameraMode = "fpv" | "third" | "orbit";

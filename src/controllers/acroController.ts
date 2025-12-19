@@ -7,6 +7,7 @@
 
 import type { RigidBody } from "@dimforge/rapier3d-compat";
 import type { Controls, Vec3, Quaternion } from "../types";
+import type { ControllerTelemetry, IController } from "./controller-interface";
 
 /* ---------- types ---------- */
 
@@ -25,7 +26,7 @@ type AcroConfig = {
 
 /* ---------- controller ---------- */
 
-export class AcroController {
+export class AcroController implements IController {
   private readonly rotors: RotorConfig[];
   private readonly config: AcroConfig;
   private throttle = 0; // 0-1
@@ -46,8 +47,8 @@ export class AcroController {
     this.rotorThrusts.fill(0);
   }
 
-  /* 1. convert sticks -> per-rotor thrust (Newtons) */
-  update(controls: Controls, dt: number) {
+  /* Update thrusts and apply forces for this step */
+  update(controls: Controls, body: RigidBody, dt: number) {
     // smooth throttle with expo-like feel
     const throttleDelta =
       controls.thrust *
@@ -65,9 +66,9 @@ export class AcroController {
 
       // sign convention: front-right motor ↓ pitch, ↓ roll, +yaw
       const pitchMix =
-        (r.position.y >= 0 ? -pitch : pitch) * this.config.maxThrustPerRotor;
+        (r.position.x >= 0 ? -pitch : pitch) * this.config.maxThrustPerRotor;
       const rollMix =
-        (r.position.x >= 0 ? -roll : roll) * this.config.maxThrustPerRotor;
+        (r.position.y >= 0 ? -roll : roll) * this.config.maxThrustPerRotor;
       const yawMix = r.yawSign * yaw * this.config.maxThrustPerRotor;
 
       this.rotorThrusts[i] = clamp(
@@ -76,6 +77,7 @@ export class AcroController {
         this.config.maxThrustPerRotor,
       );
     });
+    this.applyForces(body);
   }
 
   /* 2. apply forces (Newtons) once per physics step */
@@ -94,6 +96,13 @@ export class AcroController {
   }
   getRotorThrusts() {
     return [...this.rotorThrusts];
+  }
+
+  getTelemetry(): ControllerTelemetry {
+    return {
+      throttlePercent: this.getThrottlePercent(),
+      rotorThrusts: this.getRotorThrusts(),
+    };
   }
 
   /* ---------- private ---------- */

@@ -8,6 +8,8 @@ export interface RotorConfig {
   maxThrust: number;
 }
 
+export type ControllerType = "acro" | "simple";
+
 export interface DroneConfig {
   // Physical dimensions (full extents)
   width: number; // meters
@@ -28,6 +30,15 @@ export interface DroneConfig {
   maxTiltAngleDeg: number;
   throttleRate: number;
   stickRate: number;
+
+  // Controller selection
+  controllerType: ControllerType;
+  simpleController?: {
+    maxThrust?: number;
+    maxAngularSpeed?: number;
+    throttleRate?: number;
+    damping?: number;
+  };
 
   // Force application mode
   rotorMode: boolean; // true = per-rotor at offsets, false = aggregate at body center
@@ -82,6 +93,7 @@ export const Tinyhawk3Config: DroneConfig = {
   maxTiltAngleDeg: 45,
   throttleRate: 0.2,
   stickRate: 0.08,
+  controllerType: "simple",
   rotorMode: false,
   yawTorquePerNewton: 0.002,
 };

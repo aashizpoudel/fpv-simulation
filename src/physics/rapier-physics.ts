@@ -2,14 +2,16 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { IPhysics } from "./physics-interface";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
 import { AcroController } from "../controllers/acroController";
+import { SimpleController } from "../controllers/simpleController";
 import { DroneConfig, Tinyhawk3Config } from "../config/tinyhawk-config";
+import type { IController } from "../controllers/controller-interface";
 
 const GRAVITY = 9.81;
 
 export class RapierPhysics implements IPhysics {
   private world: RAPIER.World;
   private body: RAPIER.RigidBody;
-  private controller: AcroController;
+  private controller: IController;
   private crashed: boolean;
   private lastVelocity: Vec3;
   private spawnHeight: number;
@@ -64,12 +66,24 @@ export class RapierPhysics implements IPhysics {
 
     this.rotorOffsets = this.config.rotors.map((r) => r.position);
 
-    this.controller = new AcroController(this.rotorOffsets, {
-      maxThrustPerRotor: this.config.rotors[0]?.maxThrust ?? 12,
-      throttleRate: this.config.throttleRate,
-      stickRate: this.config.stickRate,
-      rotorMode: this.config.rotorMode,
-    });
+    if (this.config.controllerType === "simple") {
+      const maxThrust = this.config.rotors.reduce(
+        (total, rotor) => total + rotor.maxThrust,
+        0,
+      );
+      this.controller = new SimpleController({
+        maxThrust,
+        throttleRate: this.config.throttleRate,
+        ...this.config.simpleController,
+      });
+    } else {
+      this.controller = new AcroController(this.rotorOffsets, {
+        maxThrustPerRotor: this.config.rotors[0]?.maxThrust ?? 12,
+        throttleRate: this.config.throttleRate,
+        stickRate: this.config.stickRate,
+        rotorMode: this.config.rotorMode,
+      });
+    }
 
     this.reset();
   }
@@ -107,6 +121,7 @@ export class RapierPhysics implements IPhysics {
 
   public step(controls: Controls, deltaTime: number): DroneTelemetry {
     if (!this.armed) {
+      const controllerTelemetry = this.controller.getTelemetry();
       const translation = this.body.translation();
       const rotation = this.body.rotation();
       const velocity = this.body.linvel();
@@ -131,14 +146,13 @@ export class RapierPhysics implements IPhysics {
         localVelocity: { x: velocity.x, y: velocity.y, z: velocity.z },
         gforce: 0,
         throttle: 0,
-        rotorThrusts: this.controller.getRotorThrusts(),
+        rotorThrusts: controllerTelemetry.rotorThrusts,
         crashed: this.crashed,
       };
     }
     if (!this.crashed) {
       if (this.armed) {
-        this.controller.update(controls, deltaTime);
-        this.controller.applyForces(this.body);
+        this.controller.update(controls, this.body, deltaTime);
       }
       // this.world.timestep = deltaTime;
       this.world.step();
@@ -182,6 +196,7 @@ export class RapierPhysics implements IPhysics {
         ? { x: translation.x, y: translation.y, z: 0 }
         : translation;
 
+    const controllerTelemetry = this.controller.getTelemetry();
     return {
       localPosition: {
         x: clampedTranslation.x,
@@ -196,8 +211,8 @@ export class RapierPhysics implements IPhysics {
       },
       localVelocity: { x: velocity.x, y: velocity.y, z: velocity.z },
       gforce,
-      throttle: this.armed ? this.controller.getThrottlePercent() : 0,
-      rotorThrusts: this.controller.getRotorThrusts(),
+      throttle: this.armed ? controllerTelemetry.throttlePercent : 0,
+      rotorThrusts: controllerTelemetry.rotorThrusts,
       crashed: this.crashed,
     };
   }

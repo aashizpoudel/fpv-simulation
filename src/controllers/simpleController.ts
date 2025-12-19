@@ -6,76 +6,62 @@
 */
 
 import type { RigidBody } from "@dimforge/rapier3d-compat";
-import type { Controls, Vec3, Quaternion } from "./types";
+import type { Controls, Vec3, Quaternion } from "../types";
+import type { ControllerTelemetry, IController } from "./controller-interface";
 
 /* ---------- types ---------- */
 
 type SimpleConfig = {
-  maxLinearSpeed: number; // m/s
-  maxAngularSpeed: number; // rad/s
-  throttleRate: number; // 1/s (stick -> vertical speed)
-  damping: number; // 0-1, how much to preserve existing velocity
+  maxAngularSpeed?: number; // rad/s
+  throttleRate?: number; // 1/s (stick -> throttle)
+  damping?: number; // 0-1, how much to preserve existing angular velocity
+  maxThrust?: number; // N (total thrust)
 };
 
 /* ---------- controller ---------- */
 
-export class SimpleController {
+export class SimpleController implements IController {
   private readonly config: SimpleConfig;
-  private verticalSpeed = 0; // m/s
+  private throttle = 0; // 0-1
 
   constructor(config: SimpleConfig) {
     this.config = {
-      maxLinearSpeed: config.maxLinearSpeed ?? 5,
       maxAngularSpeed: config.maxAngularSpeed ?? Math.PI,
-      throttleRate: config.throttleRate ?? 3,
+      throttleRate: config.throttleRate ?? 1,
       damping: config.damping ?? 0.8,
+      maxThrust: config.maxThrust ?? 1,
     };
   }
 
   reset() {
-    this.verticalSpeed = 0;
+    this.throttle = 0;
   }
 
-  /* Update and apply velocities directly to rigid body */
+  /* Update angular velocity and apply thrust force */
   update(controls: Controls, body: RigidBody, dt: number) {
-    // 1. Update vertical speed from throttle stick
-    const verticalDelta =
+    // 1. Update throttle from stick input
+    const throttleDelta =
       controls.thrust *
       this.config.throttleRate *
       dt *
       controls.speedMultiplier;
-    this.verticalSpeed = clamp(
-      this.verticalSpeed + verticalDelta,
-      -this.config.maxLinearSpeed,
-      this.config.maxLinearSpeed,
-    );
+    this.throttle = clamp(this.throttle + throttleDelta, 0, 1);
 
-    // 2. Calculate target velocities in body frame
-    const targetLinVel: Vec3 = {
-      x: controls.roll * this.config.maxLinearSpeed, // right
-      y: controls.pitch * this.config.maxLinearSpeed, // forward
-      z: this.verticalSpeed, // up
-    };
-
+    // 2. Calculate target angular velocity (body frame)
     const targetAngVel: Vec3 = {
-      x: controls.pitch * this.config.maxAngularSpeed, // pitch
-      y: controls.roll * this.config.maxAngularSpeed, // roll
+      x: controls.roll * this.config.maxAngularSpeed, // roll (X forward)
+      y: controls.pitch * this.config.maxAngularSpeed, // pitch (Y right)
       z: controls.yaw * this.config.maxAngularSpeed, // yaw
     };
 
-    // 3. Transform linear velocity to world space
+    // 3. Thrust force along body up (tilt -> forward/back movement)
     const rot = body.rotation();
-    const worldLinVel = rotateVector(rot, targetLinVel);
+    const up = rotateVector(rot, { x: 0, y: 0, z: 1 });
+    const thrust = throttleToThrust(this.throttle, this.config.maxThrust);
+    const force = scale(up, thrust);
 
-    // 4. Blend with existing velocity (damping)
-    const currentLinVel = body.linvel();
+    // 4. Blend with existing angular velocity (damping)
     const currentAngVel = body.angvel();
-
-    const newLinVel = {
-      x: lerp(currentLinVel.x, worldLinVel.x, 1 - this.config.damping),
-      y: lerp(currentLinVel.y, worldLinVel.y, 1 - this.config.damping),
-      z: lerp(currentLinVel.z, worldLinVel.z, 1 - this.config.damping),
-    };
 
     const newAngVel = {
       x: lerp(currentAngVel.x, targetAngVel.x, 1 - this.config.damping),
@@ -83,17 +69,17 @@ export class SimpleController {
       z: lerp(currentAngVel.z, targetAngVel.z, 1 - this.config.damping),
     };
 
-    // 5. Set velocities directly
-    body.setLinvel(newLinVel, true);
+    // 5. Apply force + angular velocity directly
+    body.resetForces(true);
+    body.addForce(force, true);
     body.setAngvel(newAngVel, true);
   }
 
-  getVerticalSpeed() {
-    return this.verticalSpeed;
-  }
-
-  getVerticalSpeedPercent() {
-    return (this.verticalSpeed / this.config.maxLinearSpeed) * 100;
+  getTelemetry(): ControllerTelemetry {
+    return {
+      throttlePercent: this.throttle * 100,
+      rotorThrusts: [],
+    };
   }
 }
 
@@ -114,6 +100,14 @@ function rotateVector(q: Quaternion, v: Vec3): Vec3 {
     y: iy * qw + iw * -qy + iz * -qx - ix * -qz,
     z: iz * qw + iw * -qz + ix * -qy - iy * -qx,
   };
+}
+
+function scale(v: Vec3, s: number): Vec3 {
+  return { x: v.x * s, y: v.y * s, z: v.z * s };
+}
+
+function throttleToThrust(t: number, maxThrust: number): number {
+  return t * t * maxThrust;
 }
 
 /* linear interpolation */

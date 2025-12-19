@@ -80,23 +80,13 @@
                     <div class="thrust-bar__fill" id="thrustBar"></div>
                 </div>
             </div>
+            <div class="hud-arm-status" id="armStatus"></div>
         </div>
 
-        <div class="info-panel">
-            <div class="mode-indicator">ACRO MODE</div>
-            <div style="font-size: 11px; margin-bottom: 8px">
-                San Francisco Bay Area
-            </div>
-            <div
-                style="
-                    border-top: 1px solid #00ff00;
-                    padding-top: 8px;
-                    font-size: 11px;
-                "
-            >
-                FPS: <span id="fps">60</span>
-            </div>
-            <div class="warning">MANUAL CONTROL</div>
+        <div class="camera-feed">
+            <div class="camera-feed__label">CAM FEED</div>
+            <canvas id="cameraFeed"></canvas>
+            <div class="camera-feed__meta">FPS: <span id="fps">60</span></div>
         </div>
 
         <div class="attitude-indicator">

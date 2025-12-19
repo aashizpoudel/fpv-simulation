@@ -14,6 +14,8 @@ export class CesiumRenderer implements IRenderer {
   private enuTransform: Cesium.Matrix4;
   private enuRotation: Cesium.Matrix3;
   private enuQuaternion: Cesium.Quaternion;
+  private feedViewer?: Cesium.Viewer;
+  private feedMode: "auto" | "fpv" | "third" = "auto";
 
   constructor() {
     Cesium.Ion.defaultAccessToken =
@@ -72,7 +74,7 @@ export class CesiumRenderer implements IRenderer {
       ),
     };
 
-    const offset = new Cesium.Cartesian3(0.0, -10, 5);
+    const offset = new Cesium.Cartesian3(-10, 0.0, 5);
 
     this.droneEntity = this.viewer.entities.add({
       position: new Cesium.CallbackProperty(
@@ -102,11 +104,53 @@ export class CesiumRenderer implements IRenderer {
     );
   }
 
-  public update(
-    pose: DronePose,
-    cameraMode: CameraMode,
-    snapFree: boolean,
-  ): void {
+  public setFeedCanvas(canvasId: string | null): void {
+    if (!canvasId) {
+      this.feedViewer?.destroy();
+      this.feedViewer = undefined;
+      return;
+    }
+
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+      this.feedViewer?.destroy();
+      this.feedViewer = undefined;
+      return;
+    }
+
+    this.feedViewer?.destroy();
+    this.feedViewer = new Cesium.Viewer(canvasId, {
+      terrain: Cesium.Terrain.fromWorldTerrain(),
+      animation: false,
+      timeline: false,
+      homeButton: false,
+      geocoder: false,
+      sceneModePicker: false,
+      baseLayerPicker: false,
+      navigationHelpButton: false,
+      infoBox: false,
+      selectionIndicator: false,
+      fullscreenButton: false,
+      useBrowserRecommendedResolution: false,
+      contextOptions: {
+        webgl: { powerPreference: "low-power" },
+      },
+      useDefaultRenderLoop: false,
+    });
+
+    const controller = this.feedViewer.scene.screenSpaceCameraController;
+    controller.enableRotate = false;
+    controller.enableZoom = false;
+    controller.enableTilt = false;
+    controller.enableTranslate = false;
+    controller.enableLook = false;
+  }
+
+  public setFeedMode(mode: "auto" | "fpv" | "third"): void {
+    this.feedMode = mode;
+  }
+
+  public update(pose: DronePose, cameraMode: CameraMode): void {
     const worldPosition = this.toCesiumPosition(pose.localPosition);
     const worldOrientation = this.toCesiumOrientation(pose.localOrientation);
 
@@ -121,6 +165,38 @@ export class CesiumRenderer implements IRenderer {
     );
 
     this.viewer.render();
+
+    if (this.feedViewer) {
+      this.updateFeedCamera(worldPosition, hpr, cameraMode);
+      this.feedViewer.render();
+    }
+  }
+
+  private updateFeedCamera(
+    position: Cesium.Cartesian3,
+    hpr: Cesium.HeadingPitchRoll,
+    cameraMode: CameraMode,
+  ): void {
+    if (!this.feedViewer) return;
+    const mode =
+      this.feedMode === "auto"
+        ? cameraMode === "fpv"
+          ? "third"
+          : "fpv"
+        : this.feedMode;
+
+    if (mode === "fpv") {
+      this.feedViewer.camera.lookAt(
+        position,
+        new Cesium.HeadingPitchRange(hpr.heading, hpr.pitch, 0.1),
+      );
+      return;
+    }
+
+    this.feedViewer.camera.lookAt(
+      position,
+      new Cesium.HeadingPitchRange(hpr.heading, Cesium.Math.toRadians(-20), 5),
+    );
   }
 
   private toCesiumPosition(position: Vec3): Cesium.Cartesian3 {
