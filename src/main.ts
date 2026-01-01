@@ -13,7 +13,7 @@ import { IRenderer } from "./rendering/renderer-interface";
 import { Tinyhawk3Config } from "./config/tinyhawk-config";
 
 // --- Configuration ---
-const RENDERER_TYPE: RendererType = "threejs";
+const RENDERER_TYPE: RendererType = "cesium";
 const PHYSICS_TYPE: PhysicsType = "rapier";
 // ---------------------
 
@@ -52,7 +52,11 @@ function requireSelector<T extends Element>(selector: string): T {
 }
 
 // Core simulation objects.
-const startPosition = { x: 0, y: 0, z: 1 };
+const startPosition =
+  RENDERER_TYPE === "cesium"
+    ? {y: 40.757964,x: -73.985557,z:10} // { x: -96.666695, y: 40.8382, z: 400 }
+    : { x: 0, y: 0, z: 1 };
+// const startPositionCesium = {  }
 let renderer: IRenderer;
 let physics: IPhysics;
 let cameraMode: CameraMode = "third";
@@ -97,13 +101,17 @@ function updateHUD(pose: DronePose) {
     pose.localOrientation,
   );
 
+  const worldDeg= quaternionToEulerDeg( pose.worldOrientation);
+
   ui.altitude.textContent = `${pose.worldPosition.z.toFixed(1)} m`;
   ui.speed.textContent = `${Math.sqrt(pose.worldVelocity.x ** 2 + pose.worldVelocity.y ** 2 + pose.worldVelocity.z ** 2).toFixed(1)} m/s`;
   ui.pitch.textContent = `${pitchDeg.toFixed(1)} deg`;
   ui.roll.textContent = `${rollDeg.toFixed(1)} deg`;
   ui.yaw.textContent = `${yawDeg.toFixed(1)} deg`;
-  ui.position.textContent = `${pose.localPosition.x.toFixed(2)},${pose.localPosition.y.toFixed(2)},${pose.localPosition.z.toFixed(2)}`;
-  ui.orientation.textContent = `${rollDeg.toFixed(1)},${pitchDeg.toFixed(1)},${yawDeg.toFixed(1)}`;
+  ui.position.innerHTML = `${pose.localPosition.x.toFixed(2)},${pose.localPosition.y.toFixed(2)},${pose.localPosition.z.toFixed(2)}`;
+  ui.position.innerHTML += `<br>${pose.worldPosition.x.toFixed(2)},${pose.worldPosition.y.toFixed(2)},${pose.worldPosition.z.toFixed(2)} `
+  ui.orientation.innerHTML = `${rollDeg.toFixed(1)},${pitchDeg.toFixed(1)},${yawDeg.toFixed(1)}`;
+  ui.orientation.innerHTML += `<br>${worldDeg.rollDeg.toFixed(1)},${worldDeg.pitchDeg.toFixed(1)},${worldDeg.yawDeg.toFixed(1)}`;
   ui.cameraMode.textContent = cameraMode.toUpperCase();
   ui.latitude.textContent = `N/A`;
   ui.longitude.textContent = `N/A`;
@@ -187,7 +195,7 @@ function animate() {
   lastTime = now;
 
   updateControls(deltaTime);
-  const telemetry = physics.step(controls, deltaTime);
+  const telemetry = physics.step(controls, deltaTime, renderer.clampZ);
 
   if (telemetry.crashed) {
     ui.statusBanner.classList.add("show");

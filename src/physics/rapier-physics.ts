@@ -119,15 +119,14 @@ export class RapierPhysics implements IPhysics {
     }
   }
 
-  public step(controls: Controls, deltaTime: number): DroneTelemetry {
+  public step(controls: Controls, deltaTime: number, clampZ: number): DroneTelemetry {
     if (!this.armed) {
       const controllerTelemetry = this.controller.getTelemetry();
       const translation = this.body.translation();
       const rotation = this.body.rotation();
       const velocity = this.body.linvel();
-
       const clampedTranslation =
-        translation.z < 0
+        translation.z <= clampZ
           ? { x: translation.x, y: translation.y, z: 0 }
           : translation;
 
@@ -192,7 +191,7 @@ export class RapierPhysics implements IPhysics {
     }
 
     const clampedTranslation =
-      translation.z < 0
+      translation.z < clampZ
         ? { x: translation.x, y: translation.y, z: 0 }
         : translation;
 

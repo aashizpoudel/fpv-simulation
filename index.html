@@ -41,11 +41,11 @@
                 <span class="hud-value" id="yaw">0 deg</span>
             </div>
             <div class="hud-row">
-                <span class="hud-label">LOCAL POSITION:</span>
+                <span class="hud-label">POSITION (LOCAL/WORLD):</span>
                 <span class="hud-value" id="position">0 deg</span>
             </div>
             <div class="hud-row">
-                <span class="hud-label">LOCAL ORIENTATION:</span>
+                <span class="hud-label">ORIENTATION (LOCAL/WORLD):</span>
                 <span class="hud-value" id="orientation">0,0,0</span>
             </div>
             <div class="hud-row">
@@ -85,7 +85,7 @@
 
         <div class="camera-feed">
             <div class="camera-feed__label">CAM FEED</div>
-            <canvas id="cameraFeed"></canvas>
+            <div id="cameraFeed" class="camera-feed__canvas"></div>
             <div class="camera-feed__meta">FPS: <span id="fps">60</span></div>
         </div>
 

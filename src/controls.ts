@@ -86,13 +86,13 @@ export function setupControls(callbacks: ControlCallbacks) {
     const targetThrust = (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
     const targetPitch = (keys.arrowup ? 1 : 0) - (keys.arrowdown ? 1 : 0);
     const targetRoll = (keys.arrowright ? 1 : 0) - (keys.arrowleft ? 1 : 0);
-    const targetYaw = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+    const targetYaw = (keys.a ? 1 : 0) - (keys.d ? 1 : 0);
 
     // Tuning: units per second to reach the target
     // Higher = snappier, lower = smoother.
     const THRUST_AXIS_RATE = 8;
     const STICK_AXIS_RATE = 0.5;
-    const YAW_AXIS_RATE = 2;
+    const YAW_AXIS_RATE = 0.5;
 
     axis.thrust = approach(axis.thrust, targetThrust, THRUST_AXIS_RATE, dt);
     axis.pitch = approach(axis.pitch, targetPitch, STICK_AXIS_RATE, dt);
@@ -107,8 +107,6 @@ export function setupControls(callbacks: ControlCallbacks) {
     controls.pitch = dz(axis.pitch);
     controls.roll = dz(axis.roll);
     controls.yaw = dz(axis.yaw);
-
-    console.log(axis);
   };
 
   return { controls, updateControls };

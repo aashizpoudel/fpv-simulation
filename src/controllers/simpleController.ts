@@ -62,11 +62,12 @@ export class SimpleController implements IController {
 
     // 4. Blend with existing angular velocity (damping)
     const currentAngVel = body.angvel();
+    const targetWorld = rotateVector(rot, targetAngVel);
 
     const newAngVel = {
-      x: lerp(currentAngVel.x, targetAngVel.x, 1 - this.config.damping),
-      y: lerp(currentAngVel.y, targetAngVel.y, 1 - this.config.damping),
-      z: lerp(currentAngVel.z, targetAngVel.z, 1 - this.config.damping),
+      x: lerp(currentAngVel.x, targetWorld.x, 1 - this.config.damping),
+      y: lerp(currentAngVel.y, targetWorld.y, 1 - this.config.damping),
+      z: lerp(currentAngVel.z, targetWorld.z, 1 - this.config.damping),
     };
 
     // 5. Apply force + angular velocity directly

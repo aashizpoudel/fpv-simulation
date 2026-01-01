@@ -13,6 +13,7 @@ export class ThreejsRenderer implements IRenderer {
   private renderer: THREE.WebGLRenderer;
   private feedRenderer?: THREE.WebGLRenderer;
   private feedCanvas?: HTMLCanvasElement;
+  private feedContainer?: HTMLElement;
   private drone: THREE.Object3D;
   private container: HTMLElement;
   private orbitControls: OrbitControls;
@@ -182,20 +183,32 @@ export class ThreejsRenderer implements IRenderer {
       this.feedRenderer?.dispose();
       this.feedRenderer = undefined;
       this.feedCanvas = undefined;
+      this.feedContainer = undefined;
       return;
     }
 
-    const canvas = document.getElementById(
-      canvasId,
-    ) as HTMLCanvasElement | null;
-    if (!canvas) {
+    const element = document.getElementById(canvasId);
+    if (!element) {
       this.feedRenderer?.dispose();
       this.feedRenderer = undefined;
       this.feedCanvas = undefined;
+      this.feedContainer = undefined;
       return;
     }
 
-    this.feedCanvas = canvas;
+    if (element instanceof HTMLCanvasElement) {
+      this.feedCanvas = element;
+      this.feedContainer = element.parentElement ?? undefined;
+    } else {
+      this.feedContainer = element;
+      let canvas = element.querySelector("canvas");
+      if (!canvas) {
+        canvas = document.createElement("canvas");
+        element.innerHTML = "";
+        element.appendChild(canvas);
+      }
+      this.feedCanvas = canvas as HTMLCanvasElement;
+    }
     this.feedRenderer?.dispose();
     this.feedRenderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -284,14 +297,18 @@ export class ThreejsRenderer implements IRenderer {
 
   private updateFeedRendererSize(): void {
     if (!this.feedRenderer || !this.feedCanvas) return;
-    const rect = this.feedCanvas.getBoundingClientRect();
+    const rect = (
+      this.feedContainer ?? this.feedCanvas
+    ).getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     this.feedRenderer.setSize(rect.width, rect.height, false);
   }
 
   private renderFeed(cameraMode: CameraMode): void {
     if (!this.feedRenderer || !this.feedCanvas) return;
-    const rect = this.feedCanvas.getBoundingClientRect();
+    const rect = (
+      this.feedContainer ?? this.feedCanvas
+    ).getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
 
     let feedCamera: THREE.PerspectiveCamera;

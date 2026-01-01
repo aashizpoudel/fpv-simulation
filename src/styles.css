@@ -13,19 +13,21 @@
     box-sizing: border-box;
 }
 
+html,
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: var(--color-charcoal-800);
     color: var(--color-gray-200);
     overflow: hidden;
+    width: 100%;
+    height: 100%;
 }
 
 #cesiumContainer {
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    position: absolute;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
 }
 
 .hud {
@@ -180,13 +182,33 @@ body {
     text-shadow: 0 0 6px #ffff00;
 }
 
-.camera-feed canvas {
+.camera-feed__canvas {
     width: 100%;
     height: 120px;
     border: 1px solid #00ff00;
     border-radius: 4px;
     display: block;
     background: #000;
+}
+
+.camera-feed__canvas canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.cesium-viewer,
+.cesium-viewer-cesiumWidgetContainer,
+.cesium-viewer canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+#cameraFeed .cesium-viewer,
+#cameraFeed .cesium-viewer-cesiumWidgetContainer,
+#cameraFeed canvas {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .camera-feed__meta {

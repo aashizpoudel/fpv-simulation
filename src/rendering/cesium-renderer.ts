@@ -2,6 +2,7 @@ import * as Cesium from "cesium";
 import { IRenderer } from "./renderer-interface";
 import type { CameraMode, DronePose, Vec3, Quaternion } from "../types";
 import type { DroneConfig } from "../config/tinyhawk-config";
+import { RAD2DEG, radToDeg } from "three/src/math/MathUtils.js";
 
 type PoseState = {
   position: Cesium.Cartesian3;
@@ -12,16 +13,25 @@ export class CesiumRenderer implements IRenderer {
   private viewer: Cesium.Viewer;
   private droneEntity: Cesium.Entity;
   private poseState: PoseState;
-  private enuTransform: Cesium.Matrix4;
   private enuRotation: Cesium.Matrix3;
+  private enuToEcefTransform: Cesium.Matrix4;
   private enuQuaternion: Cesium.Quaternion;
+  private ecefToEnuTransform: Cesium.Matrix4;
+  private anchor: Cesium.Cartesian3;
+  private modelFixupQuaternion?: Cesium.Quaternion;
   private feedViewer?: Cesium.Viewer;
   private feedMode: "auto" | "fpv" | "third" = "auto";
   private droneConfig?: DroneConfig;
+  private scratchCarto = new Cesium.Cartographic();
+  private clampZ: number = 0;
+  private lastClampUpdate = 0;
+  private clampPending = false;
+
+
 
   constructor() {
     Cesium.Ion.defaultAccessToken =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODBlMzBjMy0yNmU1LTQ0ZWItOWIxMi0wZjJmY2E5NjU2OTUiLCJpZCI6MzcwNjIzLCJpYXQiOjE3NjU5ODg1NjF9.wu4MuQiQJKiAtI8XXdZ4-k01V-nqCjwlEcU5abDkoeE";
+      "CESIUM_ENV";
   }
 
   public init(containerId: string, startPosition: Vec3): void {
@@ -30,16 +40,22 @@ export class CesiumRenderer implements IRenderer {
       startPosition.y,
       startPosition.z,
     );
+    this.anchor = cesiumStartPosition;
 
-    this.enuTransform =
+    this.enuToEcefTransform =
       Cesium.Transforms.eastNorthUpToFixedFrame(cesiumStartPosition);
-    this.enuRotation = Cesium.Matrix4.getMatrix3(
-      this.enuTransform,
+    this.enuRotation = Cesium.Matrix4.getRotation(
+      this.enuToEcefTransform,
       new Cesium.Matrix3(),
     );
     this.enuQuaternion = Cesium.Quaternion.fromRotationMatrix(
       this.enuRotation,
       new Cesium.Quaternion(),
+    );
+
+    this.ecefToEnuTransform = Cesium.Matrix4.inverse(
+      this.enuToEcefTransform,
+      new Cesium.Matrix4(),
     );
 
     this.viewer = new Cesium.Viewer(containerId, {
@@ -67,6 +83,13 @@ export class CesiumRenderer implements IRenderer {
     cameraController.enableTilt = true;
     cameraController.enableTranslate = true;
     cameraController.enableLook = true;
+    this.viewer.scene.globe.depthTestAgainstTerrain = true;
+
+    if (!this.viewer.scene.sampleHeightSupported) {
+      console.warn("sampleHeight not supported on this device");
+    }
+
+
 
     this.poseState = {
       position: Cesium.Cartesian3.clone(cesiumStartPosition),
@@ -77,6 +100,9 @@ export class CesiumRenderer implements IRenderer {
     };
 
     const offset = new Cesium.Cartesian3(-10, 0.0, 5);
+
+    const modelUri =
+      this.droneConfig?.modelUrl ?? "/drone_models/tinyhawk.gltf";
 
     this.droneEntity = this.viewer.entities.add({
       position: new Cesium.CallbackProperty(
@@ -89,22 +115,94 @@ export class CesiumRenderer implements IRenderer {
           Cesium.Quaternion.clone(this.poseState.orientation, result),
         false,
       ),
-      box: {
-        dimensions: new Cesium.Cartesian3(0.105, 0.105, 0.045),
-        material: Cesium.Color.RED,
+      // box: {
+      //   dimensions: new Cesium.Cartesian3(0.1, 0.1, 0.04),
+      //   material: Cesium.Color.RED
+      // },
+      model: {
+        uri: modelUri,
+        minimumPixelSize: 64,
+        maximumScale: 20,
       },
       viewFrom: offset,
     });
 
+    // Initial camera setup: position behind the drone looking at it
     this.viewer.camera.lookAt(
       cesiumStartPosition,
       new Cesium.HeadingPitchRange(
-        Cesium.Math.toRadians(0.0),
-        Cesium.Math.toRadians(-10.0),
-        5.0,
+        Cesium.Math.toRadians(90), // Camera positioned West, looking East at the drone
+        Cesium.Math.toRadians(-20),
+        10.0,
       ),
     );
+
+    window.addEventListener("resize", () => {
+      this.viewer?.resize();
+      this.feedViewer?.resize();
+    });
   }
+
+  private updateClampZ(worldPosition: Cesium.Cartesian3, nowMs: number): void {
+    const scene = this.viewer.scene;
+
+    Cesium.Cartographic.fromCartesian(
+      worldPosition,
+      undefined,
+      this.scratchCarto,
+    );
+
+    // ---- FAST sync sample (rendered tiles only)
+    const h = scene.sampleHeight(this.scratchCarto);
+    if (h !== undefined) {
+      const groundEcef = Cesium.Cartesian3.fromRadians(
+        this.scratchCarto.longitude,
+        this.scratchCarto.latitude,
+        h,
+      );
+
+      const groundEnu = Cesium.Matrix4.multiplyByPoint(
+        this.ecefToEnuTransform,
+        groundEcef,
+        new Cesium.Cartesian3(),
+      );
+      console.log(groundEnu);
+
+      this.clampZ = groundEnu.z;
+    }
+
+    // ---- ASYNC refine (higher LOD)
+    if (!this.clampPending && nowMs - this.lastClampUpdate > 150) {
+      this.clampPending = true;
+      this.lastClampUpdate = nowMs;
+
+      const pos = [Cesium.Cartographic.clone(this.scratchCarto)];
+
+      scene.sampleHeightMostDetailed(pos).then((updated) => {
+        this.clampPending = false;
+        const hh = updated[0]?.height;
+        if (hh === undefined) return;
+
+        const groundEcef = Cesium.Cartesian3.fromRadians(
+          updated[0].longitude,
+          updated[0].latitude,
+          hh,
+        );
+
+        const groundEnu = Cesium.Matrix4.multiplyByPoint(
+          this.ecefToEnuTransform,
+          groundEcef,
+          new Cesium.Cartesian3(),
+        );
+
+        this.clampZ = groundEnu.z;
+      }).catch(() => {
+        this.clampPending = false;
+      });
+    }
+  }
+
+
 
   public setFeedCanvas(canvasId: string | null): void {
     if (!canvasId) {
@@ -113,14 +211,15 @@ export class CesiumRenderer implements IRenderer {
       return;
     }
 
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) {
+    const container = document.getElementById(canvasId);
+    if (!container) {
       this.feedViewer?.destroy();
       this.feedViewer = undefined;
       return;
     }
 
     this.feedViewer?.destroy();
+    container.innerHTML = "";
     this.feedViewer = new Cesium.Viewer(canvasId, {
       terrain: Cesium.Terrain.fromWorldTerrain(),
       animation: false,
@@ -146,6 +245,8 @@ export class CesiumRenderer implements IRenderer {
     controller.enableTilt = false;
     controller.enableTranslate = false;
     controller.enableLook = false;
+
+    this.feedViewer.resize();
   }
 
   public setFeedMode(mode: "auto" | "fpv" | "third"): void {
@@ -159,22 +260,28 @@ export class CesiumRenderer implements IRenderer {
   public update(pose: DronePose, cameraMode: CameraMode): void {
     const worldPosition = this.toCesiumPosition(pose.localPosition);
     const worldOrientation = this.toCesiumOrientation(pose.localOrientation);
-
+    pose.worldPosition = worldPosition;
     Cesium.Cartesian3.clone(worldPosition, this.poseState.position);
     Cesium.Quaternion.clone(worldOrientation, this.poseState.orientation);
 
-    const hpr = Cesium.HeadingPitchRoll.fromQuaternion(worldOrientation);
-
-    const thirdRange = this.getThirdPersonRange();
-    this.viewer.camera.lookAt(
-      worldPosition,
-      new Cesium.HeadingPitchRange(
-        hpr.heading,
-        Cesium.Math.toRadians(-20),
-        thirdRange,
-      ),
+    // Get the drone's current heading from its orientation
+    const localOrientation = new Cesium.Quaternion(
+      pose.localOrientation.x,
+      pose.localOrientation.y,
+      pose.localOrientation.z,
+      pose.localOrientation.w,
     );
+    const hpr = Cesium.HeadingPitchRoll.fromQuaternion(localOrientation);
 
+
+    // this.updateClampZ(worldPosition, performance.now());
+    // console.log(this.clampZ);
+
+    // console.log(this.clampZ);
+    pose.worldOrientation = worldOrientation;
+
+
+    this.updateCamera(worldPosition, localOrientation, cameraMode);
     this.viewer.render();
 
     if (this.feedViewer) {
@@ -182,6 +289,65 @@ export class CesiumRenderer implements IRenderer {
       this.feedViewer.render();
     }
   }
+
+
+  private updateCamera(
+    worldPosition: Cesium.Cartesian3,
+    worldOrientation: Cesium.Quaternion,
+    cameraMode: CameraMode,
+  ): void {
+    const camera = this.viewer.camera;
+
+    // Convert orientation to HPR
+    const hpr = Cesium.HeadingPitchRoll.fromQuaternion(worldOrientation);
+
+    switch (cameraMode) {
+      case "fpv": {
+        // First-person view: camera at drone position, same orientation
+        camera.setView({
+          destination: worldPosition,
+          orientation: {
+            heading: Math.PI / 2 + hpr.heading,
+            pitch: hpr.pitch,
+            roll: hpr.roll,
+          },
+        });
+        break;
+      }
+
+      case "third": {
+        // Third-person chase camera (behind and above drone)
+        const range = this.getThirdPersonRange();
+        const heading = Math.PI / 2 + hpr.heading;
+        const pitch = Cesium.Math.toRadians(-20);
+
+        camera.lookAt(
+          worldPosition,
+          new Cesium.HeadingPitchRange(heading, pitch, range),
+        );
+        break;
+      }
+
+      case "orbit": {
+        // Orbit camera: rotates around drone, keeps constant range
+        const range = this.getThirdPersonRange();
+
+        // Example: orbit using heading only (no roll)
+        const orbitHeading = hpr.heading + Math.PI / 2;
+        const orbitPitch = Cesium.Math.toRadians(-30);
+
+        camera.lookAt(
+          worldPosition,
+          new Cesium.HeadingPitchRange(orbitHeading, orbitPitch, range),
+        );
+        break;
+      }
+    }
+  }
+
+
+
+
 
   private updateFeedCamera(
     position: Cesium.Cartesian3,
@@ -197,14 +363,14 @@ export class CesiumRenderer implements IRenderer {
         : this.feedMode;
 
     if (mode === "fpv") {
-      this.feedViewer.camera.lookAt(
-        position,
-        new Cesium.HeadingPitchRange(
-          hpr.heading,
-          hpr.pitch,
-          this.getFpvRange(),
-        ),
-      );
+      this.feedViewer.camera.setView({
+        destination: position,
+        orientation: {
+          heading: Math.PI / 2 + hpr.heading,
+          pitch: hpr.pitch,
+          roll: hpr.roll,
+        },
+      });
       return;
     }
 
@@ -212,7 +378,7 @@ export class CesiumRenderer implements IRenderer {
     this.feedViewer.camera.lookAt(
       position,
       new Cesium.HeadingPitchRange(
-        hpr.heading,
+        Math.PI / 2 + hpr.heading,
         Cesium.Math.toRadians(-20),
         thirdRange,
       ),
@@ -222,10 +388,10 @@ export class CesiumRenderer implements IRenderer {
   private getThirdPersonRange(): number {
     const base = this.droneConfig
       ? Math.max(
-          this.droneConfig.length,
-          this.droneConfig.width,
-          this.droneConfig.height,
-        )
+        this.droneConfig.length,
+        this.droneConfig.width,
+        this.droneConfig.height,
+      )
       : 0.12;
     return Math.max(base * 6, 0.9);
   }
@@ -233,22 +399,25 @@ export class CesiumRenderer implements IRenderer {
   private getFpvRange(): number {
     const base = this.droneConfig
       ? Math.max(
-          this.droneConfig.length,
-          this.droneConfig.width,
-          this.droneConfig.height,
-        )
+        this.droneConfig.length,
+        this.droneConfig.width,
+        this.droneConfig.height,
+      )
       : 0.12;
     return Math.max(base * 0.5, 0.1);
   }
 
   private toCesiumPosition(position: Vec3): Cesium.Cartesian3 {
+    // Your local frame: X=forward, Y=left, Z=up
+    // ENU frame: X=East, Y=North, Z=Up
+    // Direct 1:1 mapping since they align perfectly
     const localPosition = new Cesium.Cartesian3(
-      position.x,
-      position.y,
-      position.z,
+      position.x, // forward → East
+      position.y, // left → North
+      position.z, // up → Up
     );
     return Cesium.Matrix4.multiplyByPoint(
-      this.enuTransform,
+      this.enuToEcefTransform,
       localPosition,
       new Cesium.Cartesian3(),
     );
@@ -261,10 +430,14 @@ export class CesiumRenderer implements IRenderer {
       orientation.z,
       orientation.w,
     );
+    // return localOrientation;
+    // const inv = Cesium.Quaternion.inverse(localOrientation, new Cesium.Quaternion());
+    // // Transform from local ENU frame to Cesium's world frame
     return Cesium.Quaternion.multiply(
       this.enuQuaternion,
       localOrientation,
       new Cesium.Quaternion(),
     );
   }
+
 }

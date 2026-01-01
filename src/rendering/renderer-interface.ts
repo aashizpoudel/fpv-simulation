@@ -7,4 +7,5 @@ export interface IRenderer {
   setFeedMode(mode: "auto" | "fpv" | "third"): void;
   setDroneConfig(config: DroneConfig): void;
   update(pose: DronePose, cameraMode: CameraMode): void;
+  clampZ:number ;
 }
