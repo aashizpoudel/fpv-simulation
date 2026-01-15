@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { IRenderer } from "./renderer-interface";
-import type { CameraMode, DronePose, Vec3 } from "../types";
+import type { CameraMode, Controls, DronePose, DroneTelemetry, Vec3 } from "../types";
 import type { DroneConfig } from "../config/tinyhawk-config";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { RapierPhysics } from "../physics/rapier-physics";
 
-export class ThreejsRenderer implements IRenderer {
+export class ThreejsRenderer {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private fpvCamera?: THREE.PerspectiveCamera;
@@ -14,26 +14,27 @@ export class ThreejsRenderer implements IRenderer {
   private feedRenderer?: THREE.WebGLRenderer;
   private feedCanvas?: HTMLCanvasElement;
   private feedContainer?: HTMLElement;
-  private drone: THREE.Object3D;
+  private drone?: THREE.Object3D;
   private container: HTMLElement;
   private orbitControls: OrbitControls;
-  private skyDome?: THREE.Mesh;
+  private skyDome: THREE.Mesh;
   private orbitOffset = new THREE.Vector3();
   private hasOrbitOffset = false;
   private noseMarker?: THREE.Mesh;
   private feedMode: "auto" | "fpv" | "third" = "auto";
   private droneConfig?: DroneConfig;
+  private map?: THREE.Object3D;
+  private physics: RapierPhysics;
 
-  public init(containerId: string, startPosition: Vec3): void {
-    this.container = document.getElementById(containerId);
-    if (!this.container) {
-      throw new Error(`Container with id ${containerId} not found`);
-    }
-
+  constructor(container: HTMLElement) {
+    this.physics = new RapierPhysics();
+    this.container = container;
     // Set up
-    THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
-    THREE.Scene.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
-    THREE.Camera.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+    // THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+    // THREE.Scene.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+    // THREE.Camera.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+
+
 
     // Scene
     this.scene = new THREE.Scene();
@@ -41,7 +42,6 @@ export class ThreejsRenderer implements IRenderer {
 
     // Background (sky dome with mountains + horizon)
     this.skyDome = this.createSkyDome();
-    this.scene.add(this.skyDome);
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -49,72 +49,8 @@ export class ThreejsRenderer implements IRenderer {
       this.container.clientWidth,
       this.container.clientHeight,
     );
-    this.container.appendChild(this.renderer.domElement);
 
-    this.setFeedCanvas("cameraFeed");
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    this.scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(100, 100, 100);
-    this.scene.add(directionalLight);
-
-    // Ground
-    const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
-    const groundMaterial = this.createGroundMaterial();
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    // ground.rotation.x = -Math.PI / 2;
-    this.scene.add(ground);
-
-    // Drone
-    const loader = new GLTFLoader();
-    loader.load(
-      this.droneConfig?.modelUrl ?? "/drone_models/tinyhawk.gltf",
-      (gltf) => {
-        this.drone = gltf.scene;
-        const mesh = gltf.scene.children[0]; // or scene.getObjectByName("xxx")
-        if (!mesh) return;
-
-        // 2. rotate ONLY the mesh (pure visual)
-        mesh.rotateX(Math.PI / 2);
-        mesh.rotateY(Math.PI / 2);
-
-        // 1. make a camera
-        const fpvCam = new THREE.PerspectiveCamera(
-          75,
-          this.container.clientWidth / this.container.clientHeight,
-          0.01,
-          1000,
-        );
-
-        // 2. place it where the real cam sits on the frame
-        fpvCam.position.set(this.getFpvOffsetX(), 0, 0);
-        fpvCam.rotation.set(0, -Math.PI / 2, -Math.PI / 2); // look along +X in X-forward space
-        // 3. glue it to the drone so it moves/rotates with it
-        this.drone.add(fpvCam);
-        this.fpvCamera = fpvCam;
-
-        this.updateDroneSizeFromConfig();
-
-        this.scene.add(this.drone);
-      },
-      undefined,
-      (error) => {
-        console.error(error);
-        // Fallback to a cube if model loading fails
-        const droneGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.05);
-        const droneMaterial = new THREE.MeshStandardMaterial({
-          color: 0xff0000,
-        });
-        this.drone = new THREE.Mesh(droneGeometry, droneMaterial);
-        this.updateDroneSizeFromConfig();
-        this.noseMarker = this.createNoseMarker();
-        this.drone.add(this.noseMarker);
-        this.scene.add(this.drone);
-      },
-    );
-
+    //camera
     this.camera = new THREE.PerspectiveCamera(
       60,
       this.container.clientWidth / this.container.clientHeight,
@@ -122,7 +58,7 @@ export class ThreejsRenderer implements IRenderer {
       2000,
     );
     this.camera.position.set(1, 1, 1);
-    this.camera.lookAt(0, 0, 0);
+    // this.camera.lookAt(0, 0, 0);
     this.activeCamera = this.camera;
 
     // after this.camera exists
@@ -133,49 +69,154 @@ export class ThreejsRenderer implements IRenderer {
     this.orbitControls.enableDamping = true;
     this.orbitControls.dampingFactor = 0.05;
     this.orbitControls.target.set(0, 0, 0); // look slightly above ground
+  }
+
+  public async init(startPosition: Vec3) {
+
+    await this.physics.init(startPosition);
+
+    this.scene.add(this.skyDome);
+
+    this.container.appendChild(this.renderer.domElement);
+
+    this.setFeedCanvas("cameraFeed");
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    this.scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(100, 100, 100);
+    this.scene.add(directionalLight);
+
+    // Drone
+    const loader = new GLTFLoader();
+    loader.load(
+      'maps/de_dust_2_with_real_light.glb',
+      (gltf) => {
+        this.map = gltf.scene;
+        this.scene.add(this.map);
+        this.physics.createCollider(this.map)
+      },
+      undefined,
+      (error) => console.error(error)
+    );
+
+    if (this.droneConfig) {
+      loader.load(
+        this.droneConfig?.modelUrl ?? "drone_models/tinyhawk.gltf",
+        (gltf) => {
+          this.drone = gltf.scene;
+          const mesh = gltf.scene.children[0]; // or scene.getObjectByName("xxx")
+          if (!mesh) return;
+
+          // 1. make a camera
+          const fpvCam = new THREE.PerspectiveCamera(
+            75,
+            this.container.clientWidth / this.container.clientHeight,
+            0.01,
+            1000,
+          );
+
+          // 2. place it where the real cam sits on the frame
+          fpvCam.position.set(this.getFpvOffsetX(), 0, 0);
+          // fpvCam.rotation.set(0, -Math.PI / 2, -Math.PI / 2); // look along +X in X-forward space
+          // 3. glue it to the drone so it moves/rotates with it
+          this.drone.add(fpvCam);
+          this.fpvCamera = fpvCam;
+
+          this.updateDroneSizeFromConfig();
+
+          this.scene.add(this.drone);
+          this.physics.setupDrone(startPosition, this.droneConfig);
+        },
+        undefined,
+        (error) => {
+          console.error(error);
+          // Fallback to a cube if model loading fails
+          const droneGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.05);
+          const droneMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff0000,
+          });
+          this.drone = new THREE.Mesh(droneGeometry, droneMaterial);
+          this.updateDroneSizeFromConfig();
+          this.noseMarker = this.createNoseMarker();
+          this.drone.add(this.noseMarker);
+          this.scene.add(this.drone);
+        },
+      );
+    }
 
     window.addEventListener("resize", this.onWindowResize.bind(this));
   }
 
+
   private onWindowResize(): void {
-    this.camera.aspect =
-      this.container.clientWidth / this.container.clientHeight;
-    this.camera.updateProjectionMatrix();
-    if (this.fpvCamera) {
-      this.fpvCamera.aspect =
+    if (this.camera) {
+      this.camera.aspect =
         this.container.clientWidth / this.container.clientHeight;
-      this.fpvCamera.updateProjectionMatrix();
+      this.camera.updateProjectionMatrix();
+      if (this.fpvCamera) {
+        this.fpvCamera.aspect =
+          this.container.clientWidth / this.container.clientHeight;
+        this.fpvCamera.updateProjectionMatrix();
+      }
+      this.renderer.setSize(
+        this.container.clientWidth,
+        this.container.clientHeight,
+      );
+      this.updateFeedRendererSize();
     }
-    this.renderer.setSize(
-      this.container.clientWidth,
-      this.container.clientHeight,
-    );
-    this.updateFeedRendererSize();
+
   }
 
-  public update(pose: DronePose, cameraMode: CameraMode): void {
-    if (!this.drone) {
-      return;
+  public update(controls: Controls, deltaTime: number, cameraMode: CameraMode): DroneTelemetry {
+    if (!this.physics || !this.drone || !this.activeCamera) {
+      return {
+        localPosition: {
+          x: 0,
+          y: 0,
+          z: 0,
+        },
+        localOrientation: {
+          x: 0,
+          y: 0,
+          z: 0,
+          w: 1,
+        },
+        localVelocity: { x: 0, y: 0, z: 0 },
+        gforce: 0,
+        throttle: 0,
+        rotorThrusts: [0, 0, 0],
+        crashed: false,
+        armed: false
+      };
     }
 
+    this.physics.setArmed(controls.arm)
+
+    this.physics.step(controls, deltaTime, -100);
+    const telemetry = this.physics.getTelemetry();
+
     this.drone.position.set(
-      pose.localPosition.x,
-      pose.localPosition.y,
-      pose.localPosition.z,
+      telemetry.localPosition.x,
+      telemetry.localPosition.y,
+      telemetry.localPosition.z,
     );
 
     this.drone.quaternion.set(
-      pose.localOrientation.x,
-      pose.localOrientation.y,
-      pose.localOrientation.z,
-      pose.localOrientation.w,
+      telemetry.localOrientation.x,
+      telemetry.localOrientation.y,
+      telemetry.localOrientation.z,
+      telemetry.localOrientation.w,
     );
 
     // Update camera
-    this.updateCamera(pose, cameraMode);
+    this.updateCamera(telemetry, cameraMode);
 
     this.renderer.render(this.scene, this.activeCamera);
     this.renderFeed(cameraMode);
+    return telemetry;
   }
 
   public setFeedCanvas(canvasId: string | null): void {
@@ -229,14 +270,17 @@ export class ThreejsRenderer implements IRenderer {
     this.hasOrbitOffset = false;
   }
 
-  private updateCamera(pose: DronePose, cameraMode: CameraMode): void {
+  private updateCamera(pose: DroneTelemetry, cameraMode: CameraMode): void {
+    if (!this.drone || !this.camera) {
+      return
+    }
     const dronePosition = new THREE.Vector3(
       pose.localPosition.x,
       pose.localPosition.y,
       pose.localPosition.z,
     );
 
-    if (cameraMode === "orbit") {
+    if (cameraMode === "orbit" && this.orbitControls) {
       this.activeCamera = this.camera;
       this.orbitControls.enabled = true;
       if (!this.hasOrbitOffset) {
@@ -280,6 +324,10 @@ export class ThreejsRenderer implements IRenderer {
   }
 
   private updateThirdPersonCamera(dronePosition: THREE.Vector3): void {
+    if (!this.drone || !this.camera) {
+      return
+    }
+
     const { behind, height } = this.getCameraOffsets();
     const chaseOffset = new THREE.Vector3(-behind, 0, height).applyQuaternion(
       this.drone.quaternion,
@@ -332,10 +380,10 @@ export class ThreejsRenderer implements IRenderer {
   private getCameraOffsets(): { behind: number; height: number } {
     const base = this.droneConfig
       ? Math.max(
-          this.droneConfig.length,
-          this.droneConfig.width,
-          this.droneConfig.height,
-        )
+        this.droneConfig.length,
+        this.droneConfig.width,
+        this.droneConfig.height,
+      )
       : 0.12;
     return {
       behind: Math.max(base * 6, 0.9),
@@ -346,10 +394,10 @@ export class ThreejsRenderer implements IRenderer {
   private getFpvOffsetX(): number {
     const base = this.droneConfig
       ? Math.max(
-          this.droneConfig.length,
-          this.droneConfig.width,
-          this.droneConfig.height,
-        )
+        this.droneConfig.length,
+        this.droneConfig.width,
+        this.droneConfig.height,
+      )
       : 0.12;
     return base * 0.5;
   }
@@ -419,60 +467,6 @@ export class ThreejsRenderer implements IRenderer {
     });
     const geometry = new THREE.SphereGeometry(500, 48, 24);
     return new THREE.Mesh(geometry, material);
-  }
-
-  private createGroundMaterial(): THREE.MeshStandardMaterial {
-    const canvas = document.createElement("canvas");
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return new THREE.MeshStandardMaterial({
-        color: 0x3a7d3a,
-        side: THREE.DoubleSide,
-      });
-    }
-
-    // Base grass color
-    ctx.fillStyle = "#3f8a3a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Speckle noise for grass texture
-    for (let i = 0; i < 20000; i += 1) {
-      const x = Math.floor(Math.random() * canvas.width);
-      const y = Math.floor(Math.random() * canvas.height);
-      const shade = 120 + Math.floor(Math.random() * 60);
-      ctx.fillStyle = `rgb(40, ${shade}, 40)`;
-      ctx.fillRect(x, y, 1, 1);
-    }
-
-    // Subtle ground grid for depth cues
-    ctx.strokeStyle = "rgba(20, 60, 20, 0.25)";
-    ctx.lineWidth = 1;
-    const grid = 32;
-    for (let i = 0; i <= canvas.width; i += grid) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, canvas.height);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(canvas.width, i);
-      ctx.stroke();
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(20, 20);
-
-    return new THREE.MeshStandardMaterial({
-      map: texture,
-      roughness: 0.9,
-      metalness: 0,
-      side: THREE.DoubleSide,
-    });
   }
 
   private createNoseMarker(): THREE.Mesh {

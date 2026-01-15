@@ -26,6 +26,8 @@ export function setupControls(callbacks: ControlCallbacks) {
     roll: 0,
     yaw: 0,
     speedMultiplier: 1,
+    arm: false,
+    reset: false,
   };
 
   const keys: Record<string, boolean> = {};

@@ -5,16 +5,17 @@ each frame; reset/toggle camera via input callbacks.
 */
 import "./styles.css";
 import { setupControls } from "./controls";
-import { createPhysics, PhysicsType } from "./physics/physics-factory";
 import { createRenderer, RendererType } from "./rendering/renderer-factory";
 import type { CameraMode, DronePose, DroneTelemetry } from "./types";
 import { IPhysics } from "./physics/physics-interface";
 import { IRenderer } from "./rendering/renderer-interface";
 import { Tinyhawk3Config } from "./config/tinyhawk-config";
+import { ThreejsRenderer } from "./rendering/three-renderer";
+import { RapierPhysics } from "./physics/rapier-physics";
 
 // --- Configuration ---
-const RENDERER_TYPE: RendererType = "cesium";
-const PHYSICS_TYPE: PhysicsType = "rapier";
+const RENDERER_TYPE: RendererType = "threejs";
+
 // ---------------------
 
 // Cache required HUD elements once.
@@ -52,24 +53,18 @@ function requireSelector<T extends Element>(selector: string): T {
 }
 
 // Core simulation objects.
-const startPosition =
-  RENDERER_TYPE === "cesium"
-    ? {y: 40.757964,x: -73.985557,z:10} // { x: -96.666695, y: 40.8382, z: 400 }
-    : { x: 0, y: 0, z: 1 };
+const startPosition = { x: 10, y: 1, z: 4 };
 // const startPositionCesium = {  }
-let renderer: IRenderer;
-let physics: IPhysics;
-let cameraMode: CameraMode = "third";
+let renderer: ThreejsRenderer;
+let physics: RapierPhysics;
+let cameraMode: CameraMode = "orbit";
 let isArmed = false;
 
 // Keyboard controls and callbacks for reset/camera toggle.
 const { controls, updateControls } = setupControls({
   onReset: () => {
-    if (physics) {
-      physics.reset();
       ui.statusBanner.classList.remove("show");
       isArmed = false;
-    }
   },
   onToggleCamera: () => {
     if (cameraMode === "fpv") {
@@ -81,15 +76,9 @@ const { controls, updateControls } = setupControls({
     }
   },
   onToggleArm: () => {
-    if (physics) {
-      physics.setArmed(true);
-      isArmed = true;
-    }
+      isArmed = !isArmed;
   },
   onPushBody: (direction) => {
-    if (physics) {
-      physics.togglePush(direction);
-    }
   },
 });
 
@@ -185,7 +174,7 @@ function telemetryToPose(telemetry: DroneTelemetry): DronePose {
 }
 
 function animate() {
-  if (!physics || !renderer) {
+  if (!renderer) {
     requestAnimationFrame(animate);
     return;
   }
@@ -195,7 +184,9 @@ function animate() {
   lastTime = now;
 
   updateControls(deltaTime);
-  const telemetry = physics.step(controls, deltaTime, renderer.clampZ);
+  controls.arm = isArmed;
+  
+  const telemetry = renderer.update(controls,deltaTime, cameraMode);
 
   if (telemetry.crashed) {
     ui.statusBanner.classList.add("show");
@@ -203,7 +194,6 @@ function animate() {
 
   const pose = telemetryToPose(telemetry);
 
-  renderer.update(pose, cameraMode);
   updateHUD(pose);
 
   frameCount += 1;
@@ -217,17 +207,17 @@ function animate() {
 }
 
 async function start() {
-  renderer = createRenderer(RENDERER_TYPE);
+  const container = document.getElementById("renderingContainer");
+  if(!container){
+    console.log("No container");
+    return
+  }
+  renderer = new ThreejsRenderer(container);
   renderer.setFeedCanvas("cameraFeed");
   renderer.setFeedMode("auto");
   renderer.setDroneConfig(Tinyhawk3Config);
-  renderer.init("cesiumContainer", startPosition);
 
-  physics = createPhysics(PHYSICS_TYPE);
-  await physics.init();
-
-  physics.reset();
-
+  await renderer.init(startPosition);
   requestAnimationFrame(animate);
 }
 

@@ -1,5 +1,5 @@
-import RAPIER from "@dimforge/rapier3d-compat";
-import { IPhysics } from "./physics-interface";
+import RAPIER, { ColliderDesc } from "@dimforge/rapier3d-compat";
+import * as THREE from "three";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
 import { AcroController } from "../controllers/acroController";
 import { SimpleController } from "../controllers/simpleController";
@@ -8,41 +8,109 @@ import type { IController } from "../controllers/controller-interface";
 
 const GRAVITY = 9.81;
 
-export class RapierPhysics implements IPhysics {
-  private world: RAPIER.World;
-  private body: RAPIER.RigidBody;
-  private controller: IController;
+export class RapierPhysics {
+  private world?: RAPIER.World;
+  private body?: RAPIER.RigidBody;
+  private controller?: IController;
   private crashed: boolean;
   private lastVelocity: Vec3;
   private spawnHeight: number;
   private armed: boolean;
-  private rotorOffsets: Vec3[];
-  private colliderHalfExtents: Vec3;
+  private rotorOffsets?: Vec3[];
+  private droneTelemetry: DroneTelemetry;
+  private startPosition: Vec3;
 
-  constructor(private config: DroneConfig = Tinyhawk3Config) {}
+  constructor(private config: DroneConfig = Tinyhawk3Config) {
+    this.crashed = false;
+    this.armed = false;
+    this.spawnHeight = 0.5
+    this.lastVelocity = { x: 0, y: 0, z: 0 }
+    this.droneTelemetry = this.emptyTelemetry()
+    this.startPosition = {x:0,y:config.height+ this.spawnHeight, z:0}
+  }
 
-  public async init(): Promise<void> {
-    await RAPIER.init();
+  private emptyTelemetry(): DroneTelemetry {
+    return {
+      localPosition: { x: 0, y: 0, z: 0 },
+      localOrientation: { x: 0, y: 0, z: 0, w: 1 },
+      localVelocity: { x: 0, y: 0, z: 0 },
+      gforce: 0,
+      throttle: 0,
+      rotorThrusts: [0, 0, 0, 0],
+      crashed: false,
+      armed: false,
+    }
+  }
 
-    this.world = new RAPIER.World({ x: 0, y: 0, z: -GRAVITY });
-    this.spawnHeight = this.config.height + 0.01;
+  public createCollider(mesh: THREE.Object3D): void {
+    if (!this.world) {
+      console.log("No world defined yet");
+      return;
+    }
 
-    const groundBody = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0),
+    // Collect vertices and indices from all child meshes
+    const vertices: number[] = [];
+    const indices: number[] = [];
+    let vertexOffset = 0;
+
+    mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.geometry) {
+        const geometry = child.geometry;
+        const positionAttr = geometry.attributes.position;
+
+        if (positionAttr) {
+          // Add vertices
+          vertices.push(...Array.from(positionAttr.array));
+
+          // Add indices with offset
+          if (geometry.index) {
+            const indexArray = Array.from(geometry.index.array);
+            indices.push(...indexArray.map(i => i + vertexOffset));
+            vertexOffset += positionAttr.count;
+          } else {
+            // Generate indices if geometry doesn't have them
+            for (let i = 0; i < positionAttr.count; i++) {
+              indices.push(vertexOffset + i);
+            }
+            vertexOffset += positionAttr.count;
+          }
+        }
+      }
+    });
+
+    if (vertices.length === 0 || indices.length === 0) {
+      console.warn("No valid geometry found for collider creation");
+      return;
+    }
+
+    // CREATE A STATIC RIGID BODY FIRST
+    const rigidBodyDesc = RAPIER.RigidBodyDesc.fixed();
+    const rigidBody = this.world.createRigidBody(rigidBodyDesc);
+  
+
+    const colliderDesc = RAPIER.ColliderDesc.trimesh(
+      new Float32Array(vertices),
+      new Uint32Array(indices)
     );
 
-    const groundCollider = RAPIER.ColliderDesc.cuboid(500, 500, 0.5)
-      .setMass(10)
-      .setFriction(1.0)
-      .setTranslation(0, 0, -0.5);
-    this.world.createCollider(groundCollider, groundBody);
+    this.world.createCollider(colliderDesc, rigidBody);
+  }
 
+  public setupDrone(startPosition: Vec3, config?: DroneConfig|undefined) {
+    this.spawnHeight = this.config.height + 0.01;
+    this.startPosition = startPosition;
+    if(config){
+      this.config = config
+    }
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(0, 0, this.spawnHeight)
+      .setTranslation(startPosition.x, startPosition.y, this.spawnHeight)
       .setLinearDamping(this.config.linearDamping)
       .setAngularDamping(this.config.angularDamping)
       .setCcdEnabled(true);
 
+    if (!this.world) {
+      throw "World not initialized"
+    }
     this.body = this.world.createRigidBody(bodyDesc);
 
     const halfExtents = {
@@ -50,7 +118,6 @@ export class RapierPhysics implements IPhysics {
       y: this.config.width / 2,
       z: this.config.height / 2,
     };
-    this.colliderHalfExtents = halfExtents;
 
     const colliderDesc = RAPIER.ColliderDesc.cuboid(
       halfExtents.x,
@@ -61,8 +128,6 @@ export class RapierPhysics implements IPhysics {
       .setMass(this.config.mass)
       .setFriction(0.8)
       .setRestitution(0.1);
-
-    this.world.createCollider(colliderDesc, this.body);
 
     this.rotorOffsets = this.config.rotors.map((r) => r.position);
 
@@ -82,28 +147,46 @@ export class RapierPhysics implements IPhysics {
         throttleRate: this.config.throttleRate,
         stickRate: this.config.stickRate,
         rotorMode: this.config.rotorMode,
+        yawTorquePerNewton: this.config.yawTorquePerNewton
       });
     }
 
+    this.droneTelemetry.localPosition.z = this.spawnHeight
+    this.world.createCollider(colliderDesc, this.body);
+  }
+
+  private resetWorld() {
+    if (this.world) {
+      this.world.free()
+    }
+    this.world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
+    // Ground physics (Rapier)
+    // const groundBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, -10);
+    // const groundBody = this.world.createRigidBody(groundBodyDesc);
+
+    // const groundColliderDesc = RAPIER.ColliderDesc.cuboid(50, 50, 0.5);
+    // this.world.createCollider(groundColliderDesc, groundBody);
+    this.setupDrone(this.startPosition, this.config)
+  }
+  public async init(startPosition: Vec3): Promise<void> {
+    await RAPIER.init();
+    this.startPosition = startPosition;
     this.reset();
   }
 
   public reset(): void {
-    this.body.setTranslation({ x: 0, y: 0, z: this.spawnHeight }, true);
-    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    this.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-    this.controller.reset();
-    this.crashed = false;
-    this.lastVelocity = { x: 0, y: 0, z: 0 };
-    this.armed = false;
+    this.resetWorld()
   }
 
   public setArmed(armed: boolean): void {
     this.armed = armed;
-    if (!armed) {
+    if (!armed && this.controller) {
       this.controller.reset();
     }
+  }
+
+  public getTelemetry(): DroneTelemetry {
+    return this.droneTelemetry;
   }
 
   public togglePush(direction: number): void {
@@ -119,7 +202,11 @@ export class RapierPhysics implements IPhysics {
     }
   }
 
-  public step(controls: Controls, deltaTime: number, clampZ: number): DroneTelemetry {
+  public step(controls: Controls, deltaTime: number, clampZ: number) {
+    if (!this.world || !this.body || !this.controller) {
+      throw "Body is not setup!! Call init first."
+    }
+
     if (!this.armed) {
       const controllerTelemetry = this.controller.getTelemetry();
       const translation = this.body.translation();
@@ -130,7 +217,7 @@ export class RapierPhysics implements IPhysics {
           ? { x: translation.x, y: translation.y, z: 0 }
           : translation;
 
-      return {
+      this.droneTelemetry = {
         localPosition: {
           x: clampedTranslation.x,
           y: clampedTranslation.y,
@@ -147,8 +234,11 @@ export class RapierPhysics implements IPhysics {
         throttle: 0,
         rotorThrusts: controllerTelemetry.rotorThrusts,
         crashed: this.crashed,
+        armed: this.armed,
       };
+      return
     }
+
     if (!this.crashed) {
       if (this.armed) {
         this.controller.update(controls, this.body, deltaTime);
@@ -160,7 +250,6 @@ export class RapierPhysics implements IPhysics {
     const translation = this.body.translation();
     const rotation = this.body.rotation();
     const velocity = this.body.linvel();
-
     const acceleration = {
       x: (velocity.x - this.lastVelocity.x) / Math.max(deltaTime, 0.0001),
       y: (velocity.y - this.lastVelocity.y) / Math.max(deltaTime, 0.0001),
@@ -176,8 +265,8 @@ export class RapierPhysics implements IPhysics {
     const gforce =
       Math.sqrt(
         properAcceleration.x ** 2 +
-          properAcceleration.y ** 2 +
-          properAcceleration.z ** 2,
+        properAcceleration.y ** 2 +
+        properAcceleration.z ** 2,
       ) / GRAVITY;
 
     if (translation.z < -200) {
@@ -196,7 +285,7 @@ export class RapierPhysics implements IPhysics {
         : translation;
 
     const controllerTelemetry = this.controller.getTelemetry();
-    return {
+    this.droneTelemetry = {
       localPosition: {
         x: clampedTranslation.x,
         y: clampedTranslation.y,
@@ -213,6 +302,7 @@ export class RapierPhysics implements IPhysics {
       throttle: this.armed ? controllerTelemetry.throttlePercent : 0,
       rotorThrusts: controllerTelemetry.rotorThrusts,
       crashed: this.crashed,
+      armed: this.armed
     };
   }
 }

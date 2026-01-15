@@ -23,7 +23,7 @@ body {
     height: 100%;
 }
 
-#cesiumContainer {
+#renderingContainer {
     position: fixed;
     inset: 0;
     width: 100%;

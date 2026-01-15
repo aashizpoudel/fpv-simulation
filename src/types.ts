@@ -29,6 +29,7 @@ export type DroneTelemetry = {
   throttle: number;
   rotorThrusts: number[];
   crashed: boolean;
+  armed: boolean;
 };
 
 export type DronePose = {
@@ -49,6 +50,8 @@ export type Controls = {
   roll: number;
   yaw: number;
   speedMultiplier: number;
+  arm: boolean;
+  reset: boolean;
 };
 
 export type CameraMode = "fpv" | "third" | "orbit";

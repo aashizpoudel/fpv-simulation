@@ -273,11 +273,6 @@ export class CesiumRenderer implements IRenderer {
     );
     const hpr = Cesium.HeadingPitchRoll.fromQuaternion(localOrientation);
 
-
-    // this.updateClampZ(worldPosition, performance.now());
-    // console.log(this.clampZ);
-
-    // console.log(this.clampZ);
     pose.worldOrientation = worldOrientation;
 
 
