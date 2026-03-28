@@ -25,6 +25,7 @@ export type DroneTelemetry = {
   localPosition: Vec3;
   localOrientation: Quaternion;
   localVelocity: Vec3;
+  localAngularVelocity: Vec3;
   gforce: number;
   throttle: number;
   rotorThrusts: number[];

@@ -2,12 +2,11 @@
   Acro-mode mixer for a quadrotor.
   - Thrust ∝ throttle²  (real prop curve)
   - Forces, not impulses → frame-rate independent
-  - applyForces() must be called once per physics step
+  - Works in Z-up coordinate space
 */
 
-import type { RigidBody } from "@dimforge/rapier3d-compat";
-import type { Controls, Vec3, Quaternion } from "../types";
-import type { ControllerTelemetry, IController } from "./controller-interface";
+import type { Controls, Vec3, Quaternion, DroneTelemetry } from "../types";
+import type { ControllerTelemetry, IController, PhysicsCommand } from "./controller-interface";
 
 /* ---------- types ---------- */
 
@@ -47,9 +46,13 @@ export class AcroController implements IController {
     this.rotorThrusts.fill(0);
   }
 
-  /* Update thrusts and apply forces for this step */
-  update(controls: Controls, body: RigidBody, dt: number) {
-    // smooth throttle with expo-like feel
+  /* Compute physics command based on controls and current state */
+  computePhysicsCommand(
+    controls: Controls,
+    telemetry: DroneTelemetry,
+    dt: number
+  ): PhysicsCommand {
+    // 1. Update throttle with expo-like feel
     const throttleDelta =
       controls.thrust *
       this.config.throttleRate *
@@ -57,6 +60,7 @@ export class AcroController implements IController {
       controls.speedMultiplier;
     this.throttle = clamp(this.throttle + throttleDelta, 0, 1);
 
+    // 2. Calculate rotor thrusts based on stick inputs
     const pitch = controls.pitch * this.config.stickRate;
     const roll = controls.roll * this.config.stickRate;
     const yaw = controls.yaw * this.config.stickRate;
@@ -77,31 +81,15 @@ export class AcroController implements IController {
         this.config.maxThrustPerRotor,
       );
     });
-    this.applyForces(body);
-  }
 
-  /* 2. apply forces (Newtons) once per physics step */
-  applyForces(body: RigidBody) {
-    body.resetForces(true); // Reset the forces to zero.
-    body.resetTorques(true); // Reset the torques to zero.
-    const rot = body.rotation();
-    const up = rotateVector(rot, { x: 0, y: 0, z: 1 }); // body Z -> world
-
-    if (this.config.rotorMode) this.applyRotorForces(body, rot, up);
-    else this.applyBodyForces(body, rot, up);
-  }
-
-  getThrottlePercent() {
-    return this.throttle * 100;
-  }
-  getRotorThrusts() {
-    return [...this.rotorThrusts];
+    // 3. Compute forces and torques (in Z-up coordinate space)
+    return this.computeForces(telemetry.localOrientation, telemetry.localPosition);
   }
 
   getTelemetry(): ControllerTelemetry {
     return {
-      throttlePercent: this.getThrottlePercent(),
-      rotorThrusts: this.getRotorThrusts(),
+      throttlePercent: this.throttle * 100,
+      rotorThrusts: [...this.rotorThrusts],
     };
   }
 
@@ -116,28 +104,23 @@ export class AcroController implements IController {
     return yawSign * thrustN * this.config.yawTorquePerNewton;
   }
 
-  /* 4 separate forces → pure torque, no ghost momentum */
-  private applyRotorForces(body: RigidBody, rot: Quaternion, up: Vec3) {
-    const com = body.translation();
-    this.rotors.forEach((r, i) => {
-      const thrust = this.rotorThrusts[i];
-      if (thrust <= 0) return;
+  /* Compute forces in Z-up coordinate space */
+  private computeForces(rotation: Quaternion, position: Vec3): PhysicsCommand {
+    const up = rotateVector(rotation, { x: 0, y: 0, z: 1 }); // body Z -> world
 
-      const worldOffset = rotateVector(rot, r.position); // body -> world
-      const point = add(com, worldOffset);
-      const force = scale(up, thrust); // N
-      const tz = this.rotorYawTorque(thrust, r.yawSign);
-      if (tz !== 0) {
-        const yawTorqueWorld = scale(up, tz); // Nm about body Z -> world
-        body.addTorque(yawTorqueWorld, true);
-      }
-
-      body.addForceAtPoint(force, point, true); // Rapier integrates with its own dt
-    });
+    if (this.config.rotorMode) {
+      return this.computeRotorForces(rotation, position, up);
+    } else {
+      return this.computeBodyForces(rotation, up);
+    }
   }
 
-  /* single force + torque (cheaper, less accurate) */
-  private applyBodyForces(body: RigidBody, rot: Quaternion, up: Vec3) {
+  /* 4 separate forces → pure torque, no ghost momentum */
+  private computeRotorForces(
+    rotation: Quaternion,
+    position: Vec3,
+    up: Vec3
+  ): PhysicsCommand {
     let totalForce: Vec3 = { x: 0, y: 0, z: 0 };
     let totalTorque: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -145,8 +128,40 @@ export class AcroController implements IController {
       const thrust = this.rotorThrusts[i];
       if (thrust <= 0) return;
 
-      const worldOffset = rotateVector(rot, r.position);
+      const worldOffset = rotateVector(rotation, r.position); // body -> world
+      const force = scale(up, thrust); // N
+      
+      // Torque from rotor offset
+      const torqueFromOffset = cross(worldOffset, force);
+      
+      // Yaw reaction torque
+      const tz = this.rotorYawTorque(thrust, r.yawSign);
+      const yawTorqueWorld = tz === 0 ? { x: 0, y: 0, z: 0 } : scale(up, tz);
+
+      totalForce = add(totalForce, force);
+      totalTorque = add(totalTorque, add(torqueFromOffset, yawTorqueWorld));
+    });
+
+    return {
+      force: totalForce,
+      angularVelocity: { x: 0, y: 0, z: 0 }, // Not used in rotor mode
+      torque: totalTorque, // ✅ Add torque to PhysicsCommand
+      resetForces: true,
+    };
+  }
+
+  /* single force + torque (cheaper, less accurate) */
+  private computeBodyForces(rotation: Quaternion, up: Vec3): PhysicsCommand {
+    let totalForce: Vec3 = { x: 0, y: 0, z: 0 };
+    let totalTorque: Vec3 = { x: 0, y: 0, z: 0 };
+
+    this.rotors.forEach((r, i) => {
+      const thrust = this.rotorThrusts[i];
+      if (thrust <= 0) return;
+
+      const worldOffset = rotateVector(rotation, r.position);
       const force = scale(up, thrust);
+      
       // torque from force offset (roll/pitch mainly, plus whatever geometry yields)
       const torqueFromOffset = cross(worldOffset, force);
 
@@ -158,8 +173,12 @@ export class AcroController implements IController {
       totalTorque = add(totalTorque, add(torqueFromOffset, yawTorqueWorld));
     });
 
-    body.addForce(totalForce, true);
-    body.addTorque(totalTorque, true);
+    return {
+      force: totalForce,
+      angularVelocity: { x: 0, y: 0, z: 0 }, // Not used in body force mode
+      torque: totalTorque,
+      resetForces: true,
+    };
   }
 }
 

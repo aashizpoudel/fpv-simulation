@@ -69,6 +69,9 @@ export class ThreejsRenderer {
     this.orbitControls.enableDamping = true;
     this.orbitControls.dampingFactor = 0.05;
     this.orbitControls.target.set(0, 0, 0); // look slightly above ground
+    this.orbitControls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent going horizontal
+    this.orbitControls.minDistance = 0.5;
+    this.orbitControls.maxDistance = 50;
   }
 
   public async init(startPosition: Vec3) {
@@ -119,8 +122,8 @@ export class ThreejsRenderer {
           );
 
           // 2. place it where the real cam sits on the frame
-          fpvCam.position.set(this.getFpvOffsetX(), 0, 0);
-          // fpvCam.rotation.set(0, -Math.PI / 2, -Math.PI / 2); // look along +X in X-forward space
+          fpvCam.position.set(0, 0, -this.getFpvOffsetX());
+          fpvCam.rotation.set(0, -Math.PI / 2, 0); // look along +X in X-forward space
           // 3. glue it to the drone so it moves/rotates with it
           this.drone.add(fpvCam);
           this.fpvCamera = fpvCam;
@@ -170,54 +173,37 @@ export class ThreejsRenderer {
 
   }
 
-  public update(controls: Controls, deltaTime: number, cameraMode: CameraMode): DroneTelemetry {
-    if (!this.physics || !this.drone || !this.activeCamera) {
-      return {
-        localPosition: {
-          x: 0,
-          y: 0,
-          z: 0,
-        },
-        localOrientation: {
-          x: 0,
-          y: 0,
-          z: 0,
-          w: 1,
-        },
-        localVelocity: { x: 0, y: 0, z: 0 },
-        gforce: 0,
-        throttle: 0,
-        rotorThrusts: [0, 0, 0],
-        crashed: false,
-        armed: false
-      };
-    }
-
-    this.physics.setArmed(controls.arm)
-
-    this.physics.step(controls, deltaTime, -100);
-    const telemetry = this.physics.getTelemetry();
-
-    this.drone.position.set(
-      telemetry.localPosition.x,
-      telemetry.localPosition.y,
-      telemetry.localPosition.z,
-    );
-
-    this.drone.quaternion.set(
-      telemetry.localOrientation.x,
-      telemetry.localOrientation.y,
-      telemetry.localOrientation.z,
-      telemetry.localOrientation.w,
-    );
-
-    // Update camera
-    this.updateCamera(telemetry, cameraMode);
-
-    this.renderer.render(this.scene, this.activeCamera);
-    this.renderFeed(cameraMode);
-    return telemetry;
+public update(controls: Controls, deltaTime: number, cameraMode: CameraMode): DroneTelemetry {
+  if (!this.physics || !this.drone || !this.activeCamera) {
+    return {
+      localPosition: { x: 0, y: 0, z: 0 },
+      localOrientation: { x: 0, y: 0, z: 0, w: 1 },
+      localVelocity: { x: 0, y: 0, z: 0 },
+      localAngularVelocity: { x: 0, y: 0, z: 0 },
+      gforce: 0,
+      throttle: 0,
+      rotorThrusts: [0, 0, 0],
+      crashed: false,
+      armed: false
+    };
   }
+
+  // Update physics
+  this.physics.setArmed(controls.arm);
+  this.physics.step(controls, deltaTime, -100);
+  const telemetry = this.physics.getTelemetry();
+
+  // Update drone transform
+  this.drone.position.set(telemetry.localPosition.x, telemetry.localPosition.y, telemetry.localPosition.z);
+  this.drone.quaternion.set(telemetry.localOrientation.x, telemetry.localOrientation.y, telemetry.localOrientation.z, telemetry.localOrientation.w);
+
+  // Render
+  this.updateCamera(telemetry, cameraMode);
+  this.renderer.render(this.scene, this.activeCamera);
+  this.renderFeed(cameraMode);
+
+  return this.physics.getSensor()
+}
 
   public setFeedCanvas(canvasId: string | null): void {
     if (!canvasId) {
@@ -265,7 +251,7 @@ export class ThreejsRenderer {
   public setDroneConfig(config: DroneConfig): void {
     this.droneConfig = config;
     if (this.fpvCamera) {
-      this.fpvCamera.position.set(this.getFpvOffsetX(), 0, 0);
+      this.fpvCamera.position.set(0, 0, this.getFpvOffsetX());
     }
     this.hasOrbitOffset = false;
   }
@@ -305,6 +291,11 @@ export class ThreejsRenderer {
       }
       this.orbitControls.target.copy(dronePosition);
       this.orbitControls.update(); // apply damping etc.
+      const minHeight = 0.15;
+      if (this.camera.position.z < minHeight) {
+        this.camera.position.z = minHeight;
+      }
+
       return; // early exit
     }
 
@@ -405,7 +396,7 @@ export class ThreejsRenderer {
   private updateDroneSizeFromConfig(): void {
     if (!this.droneConfig) return;
     if (this.fpvCamera) {
-      this.fpvCamera.position.set(this.getFpvOffsetX(), 0, 0);
+      this.fpvCamera.position.set(0, 0, -this.getFpvOffsetX());
     }
   }
 

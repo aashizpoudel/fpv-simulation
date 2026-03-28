@@ -1,24 +1,18 @@
 /*
   Simple velocity-based controller for a quadrotor.
-  - Directly sets linear and angular velocities
-  - No forces, no PID loops
-  - Immediate response to stick inputs
+  - Works in Z-up coordinate space
+  - Returns physics commands instead of directly manipulating body
 */
 
-import type { RigidBody } from "@dimforge/rapier3d-compat";
-import type { Controls, Vec3, Quaternion } from "../types";
-import type { ControllerTelemetry, IController } from "./controller-interface";
-
-/* ---------- types ---------- */
+import type { Controls, Vec3, Quaternion, DroneTelemetry } from "../types";
+import type { ControllerTelemetry, IController, PhysicsCommand } from "./controller-interface";
 
 type SimpleConfig = {
   maxAngularSpeed?: number; // rad/s
-  throttleRate?: number; // 1/s (stick -> throttle)
-  damping?: number; // 0-1, how much to preserve existing angular velocity
-  maxThrust?: number; // N (total thrust)
+  throttleRate?: number;    // 1/s (stick -> throttle)
+  damping?: number;         // 0-1, how much to preserve existing angular velocity
+  maxThrust?: number;       // N (total thrust)
 };
-
-/* ---------- controller ---------- */
 
 export class SimpleController implements IController {
   private readonly config: SimpleConfig;
@@ -37,8 +31,12 @@ export class SimpleController implements IController {
     this.throttle = 0;
   }
 
-  /* Update angular velocity and apply thrust force */
-  update(controls: Controls, body: RigidBody, dt: number) {
+  /* Compute physics command based on controls and current state */
+  computePhysicsCommand(
+    controls: Controls,
+    telemetry: DroneTelemetry,
+    dt: number
+  ): PhysicsCommand {
     // 1. Update throttle from stick input
     const throttleDelta =
       controls.thrust *
@@ -47,21 +45,21 @@ export class SimpleController implements IController {
       controls.speedMultiplier;
     this.throttle = clamp(this.throttle + throttleDelta, 0, 1);
 
-    // 2. Calculate target angular velocity (body frame)
+    // 2. Calculate target angular velocity (body frame, Z-up)
     const targetAngVel: Vec3 = {
-      x: controls.roll * this.config.maxAngularSpeed, // roll (X forward)
+      x: controls.roll * this.config.maxAngularSpeed,  // roll (X forward)
       y: controls.pitch * this.config.maxAngularSpeed, // pitch (Y right)
-      z: controls.yaw * this.config.maxAngularSpeed, // yaw
+      z: controls.yaw * this.config.maxAngularSpeed,   // yaw (Z up)
     };
 
-    // 3. Thrust force along body up (tilt -> forward/back movement)
-    const rot = body.rotation();
+    // 3. Thrust force along body up (Z-up: {0, 0, 1})
+    const rot = telemetry.localOrientation;
     const up = rotateVector(rot, { x: 0, y: 0, z: 1 });
     const thrust = throttleToThrust(this.throttle, this.config.maxThrust);
     const force = scale(up, thrust);
 
     // 4. Blend with existing angular velocity (damping)
-    const currentAngVel = body.angvel();
+    const currentAngVel = telemetry.localAngularVelocity; // This should be angular velocity
     const targetWorld = rotateVector(rot, targetAngVel);
 
     const newAngVel = {
@@ -70,10 +68,12 @@ export class SimpleController implements IController {
       z: lerp(currentAngVel.z, targetWorld.z, 1 - this.config.damping),
     };
 
-    // 5. Apply force + angular velocity directly
-    body.resetForces(true);
-    body.addForce(force, true);
-    body.setAngvel(newAngVel, true);
+    // 5. Return physics commands (in Z-up space)
+    return {
+      force,
+      angularVelocity: newAngVel,
+      resetForces: true,
+    };
   }
 
   getTelemetry(): ControllerTelemetry {
@@ -86,7 +86,6 @@ export class SimpleController implements IController {
 
 /* ---------- helpers ---------- */
 
-/* quaternion rotation */
 function rotateVector(q: Quaternion, v: Vec3): Vec3 {
   const { x: qx, y: qy, z: qz, w: qw } = q;
   const { x: vx, y: vy, z: vz } = v;
@@ -111,12 +110,10 @@ function throttleToThrust(t: number, maxThrust: number): number {
   return t * t * maxThrust;
 }
 
-/* linear interpolation */
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-/* clamp */
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
