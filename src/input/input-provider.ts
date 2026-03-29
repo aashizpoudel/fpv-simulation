@@ -6,6 +6,7 @@ export type InputActionCallbacks = {
   onToggleArm?: () => void;
   onPushBody?: (direction: number) => void;
   onSwitchFlightMode?: () => void;
+  onInputSourceChanged?: (source: "keyboard" | "gamepad") => void;
 };
 
 export type InputMapping = {

@@ -1,7 +1,7 @@
 import { Tinyhawk3Config } from "../config/tinyhawk-config";
 import type { WorldConfig } from "../config/dedust-world-config";
 import { SimulationEngine, type SimulationEngineOptions } from "../core/simulation-engine";
-import { KeyboardInputProvider } from "../input/keyboard-input-provider";
+import { InputManager } from "../input/input-manager";
 import type { InputProvider } from "../input/input-provider";
 import { createRenderer, type RendererType } from "../renderers/renderer-factory";
 import type { IRenderer } from "../renderers/renderer-interface";
@@ -53,7 +53,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   let lastHudUpdate = 0;
   let resetRequested = false;
 
-  const inputProvider: InputProvider = new KeyboardInputProvider({
+  const inputProvider: InputProvider = new InputManager({
     callbacks: {
       onReset: () => {
         resetRequested = true;
@@ -65,6 +65,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
         flightMode = flightMode === "acro" ? "angle" : "acro";
         simulationEngine.switchFlightMode(flightMode);
       },
+      onInputSourceChanged: () => {},
     },
   });
 
