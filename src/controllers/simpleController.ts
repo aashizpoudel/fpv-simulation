@@ -14,8 +14,10 @@ type SimpleConfig = {
   maxThrust?: number;       // N (total thrust)
 };
 
+type ResolvedSimpleConfig = Required<SimpleConfig>;
+
 export class SimpleController implements IController {
-  private readonly config: SimpleConfig;
+  private readonly config: ResolvedSimpleConfig;
   private throttle = 0; // 0-1
 
   constructor(config: SimpleConfig) {

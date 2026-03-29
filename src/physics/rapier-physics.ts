@@ -34,6 +34,7 @@ export class RapierPhysics {
       localPosition: { x: 0, y: 0, z: 0 },
       localOrientation: { x: 0, y: 0, z: 0, w: 1 },
       localVelocity: { x: 0, y: 0, z: 0 },
+      localAngularVelocity: { x: 0, y: 0, z: 0 },
       gforce: 0,
       throttle: 0,
       rotorThrusts: [0, 0, 0, 0],
@@ -76,8 +77,8 @@ export class RapierPhysics {
 
           // Add indices with offset
           if (geometry.index) {
-            const indexArray = Array.from(geometry.index.array);
-            indices.push(...indexArray.map(i => i + vertexOffset));
+            const indexArray = Array.from(geometry.index.array as ArrayLike<number>);
+            indices.push(...indexArray.map((index) => index + vertexOffset));
           } else {
             for (let i = 0; i < positionAttr.count; i++) {
               indices.push(vertexOffset + i);
@@ -210,7 +211,7 @@ export class RapierPhysics {
     }
   }
 
-  public step(controls: Controls, deltaTime: number, clampY: number) {
+  public step(controls: Controls, deltaTime: number, clampY: number): DroneTelemetry {
     if (!this.world || !this.body || !this.controller) {
       throw "Body is not setup!! Call init first."
     }
@@ -272,6 +273,8 @@ export class RapierPhysics {
       crashed: this.crashed,
       armed: this.armed,
     };
+
+    return this.droneTelemetry;
   }
 
 

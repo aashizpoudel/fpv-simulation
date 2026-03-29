@@ -1,40 +1,40 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { CameraMode, Controls, DronePose, DroneTelemetry, Vec3 } from "../types";
-import type { DroneConfig } from "../config/tinyhawk-config";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { RapierPhysics } from "../physics/rapier-physics";
+import type { CameraMode, DroneTelemetry, Vec3 } from "../../types";
+import type { DroneConfig } from "../../config/tinyhawk-config";
+import type { IRenderer } from "../renderer-interface";
 
-export class ThreejsRenderer {
-  private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
+export class ThreejsRenderer implements IRenderer {
+  private scene!: THREE.Scene;
+  private camera!: THREE.PerspectiveCamera;
   private fpvCamera?: THREE.PerspectiveCamera;
-  private activeCamera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
+  private activeCamera!: THREE.PerspectiveCamera;
+  private renderer!: THREE.WebGLRenderer;
   private feedRenderer?: THREE.WebGLRenderer;
   private feedCanvas?: HTMLCanvasElement;
   private feedContainer?: HTMLElement;
   private drone?: THREE.Object3D;
-  private container: HTMLElement;
-  private orbitControls: OrbitControls;
-  private skyDome: THREE.Mesh;
+  private container!: HTMLElement;
+  private orbitControls!: OrbitControls;
+  private skyDome!: THREE.Mesh;
   private orbitOffset = new THREE.Vector3();
   private hasOrbitOffset = false;
   private noseMarker?: THREE.Mesh;
   private feedMode: "auto" | "fpv" | "third" = "auto";
   private droneConfig?: DroneConfig;
   private map?: THREE.Object3D;
-  private physics: RapierPhysics;
+  private resizeHandler = () => this.resize();
 
-  constructor(container: HTMLElement) {
-    this.physics = new RapierPhysics();
+  constructor() {}
+
+  public async init(container: HTMLElement, startPosition?: Vec3): Promise<void> {
     this.container = container;
+
     // Set up
     // THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
     // THREE.Scene.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
     // THREE.Camera.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
-
-
 
     // Scene
     this.scene = new THREE.Scene();
@@ -72,11 +72,6 @@ export class ThreejsRenderer {
     this.orbitControls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent going horizontal
     this.orbitControls.minDistance = 0.5;
     this.orbitControls.maxDistance = 50;
-  }
-
-  public async init(startPosition: Vec3) {
-
-    await this.physics.init(startPosition);
 
     this.scene.add(this.skyDome);
 
@@ -94,15 +89,15 @@ export class ThreejsRenderer {
 
     // Drone
     const loader = new GLTFLoader();
+    const initialPosition = startPosition ?? { x: 0, y: 0, z: 0 };
     loader.load(
-      'maps/de_dust_2_with_real_light.glb',
+      "maps/de_dust_2_with_real_light.glb",
       (gltf) => {
         this.map = gltf.scene;
         this.scene.add(this.map);
-        this.physics.createCollider(this.map)
       },
       undefined,
-      (error) => console.error(error)
+      (error) => console.error(error),
     );
 
     if (this.droneConfig) {
@@ -131,7 +126,11 @@ export class ThreejsRenderer {
           this.updateDroneSizeFromConfig();
 
           this.scene.add(this.drone);
-          this.physics.setupDrone(startPosition, this.droneConfig);
+          this.drone.position.set(
+            initialPosition.x,
+            initialPosition.y,
+            initialPosition.z,
+          );
         },
         undefined,
         (error) => {
@@ -145,17 +144,21 @@ export class ThreejsRenderer {
           this.updateDroneSizeFromConfig();
           this.noseMarker = this.createNoseMarker();
           this.drone.add(this.noseMarker);
+          this.drone.position.set(
+            initialPosition.x,
+            initialPosition.y,
+            initialPosition.z,
+          );
           this.scene.add(this.drone);
         },
       );
     }
 
-    window.addEventListener("resize", this.onWindowResize.bind(this));
+    window.addEventListener("resize", this.resizeHandler);
   }
 
-
-  private onWindowResize(): void {
-    if (this.camera) {
+  public resize(): void {
+    if (this.camera && this.renderer) {
       this.camera.aspect =
         this.container.clientWidth / this.container.clientHeight;
       this.camera.updateProjectionMatrix();
@@ -170,40 +173,45 @@ export class ThreejsRenderer {
       );
       this.updateFeedRendererSize();
     }
-
   }
 
-public update(controls: Controls, deltaTime: number, cameraMode: CameraMode): DroneTelemetry {
-  if (!this.physics || !this.drone || !this.activeCamera) {
-    return {
-      localPosition: { x: 0, y: 0, z: 0 },
-      localOrientation: { x: 0, y: 0, z: 0, w: 1 },
-      localVelocity: { x: 0, y: 0, z: 0 },
-      localAngularVelocity: { x: 0, y: 0, z: 0 },
-      gforce: 0,
-      throttle: 0,
-      rotorThrusts: [0, 0, 0],
-      crashed: false,
-      armed: false
-    };
+  public render(frame: DroneTelemetry, cameraMode: CameraMode): void {
+    if (!this.drone || !this.activeCamera || !this.renderer) {
+      return;
+    }
+
+    // Update drone transform
+    this.drone.position.set(
+      frame.localPosition.x,
+      frame.localPosition.y,
+      frame.localPosition.z,
+    );
+    this.drone.quaternion.set(
+      frame.localOrientation.x,
+      frame.localOrientation.y,
+      frame.localOrientation.z,
+      frame.localOrientation.w,
+    );
+
+    // Render
+    this.updateCamera(frame, cameraMode);
+    this.renderer.render(this.scene, this.activeCamera);
+    this.renderFeed(cameraMode);
   }
 
-  // Update physics
-  this.physics.setArmed(controls.arm);
-  this.physics.step(controls, deltaTime, -100);
-  const telemetry = this.physics.getTelemetry();
+  public dispose(): void {
+    window.removeEventListener("resize", this.resizeHandler);
+    this.orbitControls?.dispose();
+    this.feedRenderer?.dispose();
+    this.feedRenderer = undefined;
+    this.feedCanvas = undefined;
+    this.feedContainer = undefined;
 
-  // Update drone transform
-  this.drone.position.set(telemetry.localPosition.x, telemetry.localPosition.y, telemetry.localPosition.z);
-  this.drone.quaternion.set(telemetry.localOrientation.x, telemetry.localOrientation.y, telemetry.localOrientation.z, telemetry.localOrientation.w);
-
-  // Render
-  this.updateCamera(telemetry, cameraMode);
-  this.renderer.render(this.scene, this.activeCamera);
-  this.renderFeed(cameraMode);
-
-  return this.physics.getSensor()
-}
+    if (this.renderer) {
+      this.renderer.dispose();
+      this.renderer.domElement.remove();
+    }
+  }
 
   public setFeedCanvas(canvasId: string | null): void {
     if (!canvasId) {

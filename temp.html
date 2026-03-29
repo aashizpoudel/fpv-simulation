@@ -9,7 +9,7 @@
             rel="stylesheet"
         />
         <script type="module">
-            import("@dimforge/rapier3d").then((RAPIER) => {
+            import("@dimforge/rapier3d-compat").then((RAPIER) => {
                 // Initialize Cesium
                 const viewer = new Cesium.Viewer("cesiumContainer", {
                     terrainProvider: Cesium.createWorldTerrain(),

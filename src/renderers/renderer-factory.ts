@@ -1,6 +1,6 @@
-import { IRenderer } from "./renderer-interface";
-import { CesiumRenderer } from "./cesium-renderer";
-import { ThreejsRenderer } from "./three-renderer";
+import { CesiumRenderer } from "./cesium/cesium-renderer";
+import { ThreejsRenderer } from "./three/three-renderer";
+import type { IRenderer } from "./renderer-interface";
 
 export type RendererType = "cesium" | "threejs";
 

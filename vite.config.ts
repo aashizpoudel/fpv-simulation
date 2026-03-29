@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
 const cesiumSource = "node_modules/cesium/Build/Cesium";
@@ -10,6 +10,9 @@ export default defineConfig({
   },
   build: {
     outDir: "build",
+  },
+  test: {
+    environment: "jsdom",
   },
   plugins: [
     viteStaticCopy({
