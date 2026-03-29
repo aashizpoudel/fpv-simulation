@@ -1,6 +1,7 @@
 import type { DroneConfig } from "../config/tinyhawk-config";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
 import { RapierPhysics } from "../physics/rapier-physics";
+import type * as THREE from "three";
 
 const DEFAULT_FIXED_TIME_STEP = 1 / 240;
 const DEFAULT_MAX_SUB_STEPS = 5;
@@ -9,6 +10,7 @@ export type SimulationEngineOptions = {
   fixedTimeStep?: number;
   maxSubSteps?: number;
   clampZ?: number;
+  roofHeight?: number;
   config?: DroneConfig;
   physics?: RapierPhysics;
 };
@@ -19,17 +21,22 @@ export class SimulationEngine {
   private fixedTimeStep: number;
   private maxSubSteps: number;
   private clampZ: number;
+  private roofHeight: number;
   private lastTelemetry: DroneTelemetry;
 
   constructor(options: SimulationEngineOptions = {}) {
     this.fixedTimeStep = options.fixedTimeStep ?? DEFAULT_FIXED_TIME_STEP;
     this.maxSubSteps = options.maxSubSteps ?? DEFAULT_MAX_SUB_STEPS;
     this.clampZ = options.clampZ ?? 0;
+    this.roofHeight = options.roofHeight ?? Infinity;
     this.physics = options.physics ?? new RapierPhysics(options.config);
     this.lastTelemetry = this.physics.getTelemetry();
   }
 
   async init(startPosition: Vec3): Promise<void> {
+    if (Number.isFinite(this.roofHeight)) {
+      this.physics.setRoofHeight(this.roofHeight);
+    }
     await this.physics.init(startPosition);
     this.lastTelemetry = this.physics.getTelemetry();
   }
@@ -66,5 +73,9 @@ export class SimulationEngine {
 
   getTelemetry(): DroneTelemetry {
     return this.lastTelemetry;
+  }
+
+  createMapCollider(mapObject: THREE.Object3D): void {
+    this.physics.createCollider(mapObject);
   }
 }

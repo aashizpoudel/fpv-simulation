@@ -8,140 +8,60 @@
     <body>
         <div id="renderingContainer"></div>
 
-        <div class="hud">
-            <div
-                style="
-                    text-align: center;
-                    font-size: 14px;
-                    margin-bottom: 8px;
-                    color: #ffff00;
-                "
-            >
-                DRONE TELEMETRY
+        <!-- OSD Overlay -->
+        <div class="osd">
+            <!-- Top row -->
+            <span class="osd-el osd-top-left" id="flightMode">ACRO</span>
+            <span class="osd-el osd-top-center" id="altitude">4.1m</span>
+            <span class="osd-el osd-top-right" id="fps">60fps</span>
+
+            <!-- Left-center: speed -->
+            <div class="osd-el osd-left-center">
+                <div class="osd-label">SPD</div>
+                <div id="speed">0.0</div>
             </div>
-            <div class="hud-divider"></div>
-            <div class="hud-row">
-                <span class="hud-label">ALTITUDE:</span>
-                <span class="hud-value" id="altitude">0 m</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">SPEED:</span>
-                <span class="hud-value" id="speed">0 m/s</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">PITCH:</span>
-                <span class="hud-value" id="pitch">0 deg</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">ROLL:</span>
-                <span class="hud-value" id="roll">0 deg</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">YAW:</span>
-                <span class="hud-value" id="yaw">0 deg</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">POSITION (LOCAL/WORLD):</span>
-                <span class="hud-value" id="position">0 deg</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">ORIENTATION (LOCAL/WORLD):</span>
-                <span class="hud-value" id="orientation">0,0,0</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">CAMERA:</span>
-                <span class="hud-value" id="cameraMode">FPV</span>
-            </div>
-            <div class="hud-divider"></div>
-            <div class="hud-row">
-                <span class="hud-label">LATITUDE:</span>
-                <span class="hud-value" id="latitude">0 deg</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">LONGITUDE:</span>
-                <span class="hud-value" id="longitude">0 deg</span>
-            </div>
-            <div class="hud-divider"></div>
-            <div class="hud-row">
-                <span class="hud-label">G-FORCE:</span>
-                <span class="hud-value" id="gforce">0.0 g</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">THROTTLE:</span>
-                <span class="hud-value" id="throttle">0%</span>
-            </div>
-            <div class="hud-row">
-                <span class="hud-label">ROTOR THRUSTS:</span>
-                <span class="hud-value" id="rotorThrusts">0, 0, 0, 0</span>
-            </div>
-            <div class="hud-row hud-row--bar">
-                <span class="hud-label">THRUST:</span>
-                <div class="thrust-bar" aria-hidden="true">
-                    <div class="thrust-bar__fill" id="thrustBar"></div>
+
+            <!-- Right-center: throttle -->
+            <div class="osd-el osd-right-center">
+                <div class="osd-label">THR</div>
+                <div id="throttle">0%</div>
+                <div class="osd-throttle-bar">
+                    <div class="osd-throttle-fill" id="throttleBar"></div>
                 </div>
             </div>
-            <div class="hud-arm-status" id="armStatus"></div>
-        </div>
 
-        <div class="camera-feed">
-            <div class="camera-feed__label">CAM FEED</div>
-            <div id="cameraFeed" class="camera-feed__canvas"></div>
-            <div class="camera-feed__meta">FPS: <span id="fps">60</span></div>
-        </div>
-
-        <div class="attitude-indicator">
-            <div class="attitude-horizon">
-                <div class="attitude-inner">
-                    <div class="roll-indicator"></div>
-                    <div class="pitch-ladder">
-                        <div
-                            class="pitch-line"
-                            style="top: 20%; opacity: 0.4"
-                        ></div>
-                        <div
-                            class="pitch-line"
-                            style="top: 40%; opacity: 0.6"
-                        ></div>
-                        <div
-                            class="pitch-line"
-                            style="top: 60%; opacity: 0.6"
-                        ></div>
-                        <div
-                            class="pitch-line"
-                            style="top: 80%; opacity: 0.4"
-                        ></div>
+            <!-- Center: crosshair + attitude -->
+            <div class="osd-center">
+                <div class="osd-attitude" id="attitudeWidget">
+                    <div class="osd-attitude-inner">
+                        <div class="osd-horizon-line"></div>
+                        <div class="osd-crosshair"></div>
                     </div>
-                    <div class="aircraft-symbol"></div>
                 </div>
             </div>
-        </div>
 
-        <div class="controls-panel">
-            <div style="font-weight: bold; margin-bottom: 8px; color: #ffff00">
-                FLIGHT CONTROLS
+            <!-- Bottom-left: pitch/roll -->
+            <div class="osd-el osd-bottom-left">
+                <div>R:<span id="roll">0.0</span></div>
+                <div>P:<span id="pitch">0.0</span></div>
             </div>
-            <div class="control-key">
-                <span>THRUST</span> <span class="key">W/S</span>
-            </div>
-            <div class="control-key">
-                <span>PITCH</span> <span class="key">UP/DOWN</span>
-            </div>
-            <div class="control-key">
-                <span>ROLL</span> <span class="key">LEFT/RIGHT</span>
-            </div>
-            <div class="control-key">
-                <span>YAW</span> <span class="key">A/D</span>
-            </div>
-            <div class="control-key">
-                <span>RESET</span> <span class="key">R</span>
-            </div>
-            <div class="control-key">
-                <span>SPEED UP</span> <span class="key">SPACE</span>
+
+            <!-- Bottom-right: g-force -->
+            <span class="osd-el osd-bottom-right" id="gforce">G:1.0g</span>
+
+            <!-- Bottom-center: position + arm status -->
+            <div class="osd-el osd-bottom-center">
+                <div id="armStatus">DISARMED</div>
+                <div id="position">0.0, 0.0, 0.0</div>
             </div>
         </div>
 
+        <!-- Camera feed (hidden, used by renderer) -->
+        <div id="cameraFeed" style="display:none;"></div>
+
+        <!-- Crash banner -->
         <div class="status-banner" id="statusBanner">
-            DRONE CRASHED - Press R to Reset
+            CRASHED - Press R to Reset
         </div>
 
         <script type="module" src="/src/main.ts"></script>

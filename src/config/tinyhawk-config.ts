@@ -45,6 +45,15 @@ export interface DroneConfig {
   rotorMode: boolean; // true = per-rotor at offsets, false = aggregate at body center
   yawTorquePerNewton: number;
 
+  // Camera distance / offset overrides (optional; renderer falls back to
+  // automatic size-based values when omitted)
+  cameraConfig?: {
+    thirdPersonBehind: number;   // meters behind drone
+    thirdPersonHeight: number;   // meters above drone
+    orbitInitialDistance: number; // initial orbit camera distance
+    fpvForwardOffset: number;    // FPV camera forward offset from center
+  };
+
   // PID rate controller config (acro mode)
   pidRateConfig?: {
     roll: { kP: number; kI: number; kD: number };
@@ -123,6 +132,13 @@ export const Tinyhawk3Config: DroneConfig = {
   controllerType: "acro",
   rotorMode: true,
   yawTorquePerNewton: 0.003,
+
+  cameraConfig: {
+    thirdPersonBehind: 0.63,   // base (0.105) * 6
+    thirdPersonHeight: 0.32,   // base (0.105) * 3
+    orbitInitialDistance: 0.5,
+    fpvForwardOffset: 0.05,    // base (0.105) * 0.5
+  },
 
   pidRateConfig: {
     roll: { kP: 0.45, kI: 0.35, kD: 0.003 },

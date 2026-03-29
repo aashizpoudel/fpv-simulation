@@ -9,4 +9,11 @@ export interface IRenderer {
   setFeedCanvas?(canvasId: string | null): void;
   setFeedMode?(mode: "auto" | "fpv" | "third"): void;
   setDroneConfig?(config: DroneConfig): void;
+  /** Optional callback invoked when the map mesh finishes loading. */
+  onMapLoaded?: (mapObject: object) => void;
+  /**
+   * Optional uniform scale applied to the map GLB at load time.
+   * Must be set before calling init(). Defaults to 1 (no scaling).
+   */
+  mapScale?: number;
 }

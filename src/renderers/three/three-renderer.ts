@@ -25,6 +25,8 @@ export class ThreejsRenderer implements IRenderer {
   private droneConfig?: DroneConfig;
   private map?: THREE.Object3D;
   private resizeHandler = () => this.resize();
+  public onMapLoaded?: (mapObject: object) => void;
+  public mapScale?: number;
 
   constructor() {}
 
@@ -70,7 +72,7 @@ export class ThreejsRenderer implements IRenderer {
     this.orbitControls.target.set(0, 0, 0);
     this.orbitControls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent going below ground
     this.orbitControls.minDistance = 0.5;
-    this.orbitControls.maxDistance = 50;
+    this.orbitControls.maxDistance = 200;
 
     this.scene.add(this.skyDome);
 
@@ -95,7 +97,18 @@ export class ThreejsRenderer implements IRenderer {
         this.map = gltf.scene;
         // GLB/GLTF models are authored in Y-up; rotate to Z-up convention
         this.map.rotation.x = Math.PI / 2;
+        // Apply optional map scale so the geometry represents real-world metres.
+        // This must happen BEFORE adding to the scene and firing onMapLoaded,
+        // so that updateMatrixWorld picks up both rotation and scale for the
+        // physics trimesh collider.
+        const scale = this.mapScale ?? 1;
+        this.map.scale.setScalar(scale);
         this.scene.add(this.map);
+        // Notify listener (e.g. physics collider creation) after map is in the scene
+        // so that updateMatrixWorld picks up the rotation and scale.
+        if (this.onMapLoaded) {
+          this.onMapLoaded(this.map);
+        }
       },
       undefined,
       (error) => console.error(error),
@@ -290,16 +303,20 @@ export class ThreejsRenderer implements IRenderer {
       this.activeCamera = this.camera;
       this.orbitControls.enabled = true;
       if (!this.hasOrbitOffset) {
+        const orbitDist = this.droneConfig?.cameraConfig?.orbitInitialDistance;
         const { behind, height } = this.getCameraOffsets();
-        const orbitOffset = new THREE.Vector3(-behind * 1.25, 0, height * 1.1)
+        const orbitBehind = orbitDist != null ? orbitDist : behind * 1.25;
+        const orbitHeight = orbitDist != null ? orbitDist * 0.88 : height * 1.1;
+        const orbitOffset = new THREE.Vector3(-orbitBehind, 0, orbitHeight)
           .applyQuaternion(this.drone.quaternion)
           .add(dronePosition);
         this.camera.position.copy(orbitOffset);
+        this.orbitControls.target.copy(dronePosition);
         this.orbitOffset.copy(
           new THREE.Vector3().subVectors(this.camera.position, dronePosition),
         );
         this.hasOrbitOffset = true;
-      } else {
+      } else if (pose.armed) {
         const currentOffset = new THREE.Vector3().subVectors(
           this.camera.position,
           this.orbitControls.target,
@@ -308,9 +325,9 @@ export class ThreejsRenderer implements IRenderer {
         this.camera.position.copy(
           new THREE.Vector3().addVectors(dronePosition, this.orbitOffset),
         );
+        this.orbitControls.target.copy(dronePosition);
       }
-      this.orbitControls.target.copy(dronePosition);
-      this.orbitControls.update(); // apply damping etc.
+      this.orbitControls.update();
       const minHeight = 0.15;
       if (this.camera.position.z < minHeight) {
         this.camera.position.z = minHeight;
@@ -389,6 +406,12 @@ export class ThreejsRenderer implements IRenderer {
   }
 
   private getCameraOffsets(): { behind: number; height: number } {
+    if (this.droneConfig?.cameraConfig) {
+      return {
+        behind: this.droneConfig.cameraConfig.thirdPersonBehind,
+        height: this.droneConfig.cameraConfig.thirdPersonHeight,
+      };
+    }
     const base = this.droneConfig
       ? Math.max(
         this.droneConfig.length,
@@ -403,6 +426,9 @@ export class ThreejsRenderer implements IRenderer {
   }
 
   private getFpvOffsetX(): number {
+    if (this.droneConfig?.cameraConfig) {
+      return this.droneConfig.cameraConfig.fpvForwardOffset;
+    }
     const base = this.droneConfig
       ? Math.max(
         this.droneConfig.length,

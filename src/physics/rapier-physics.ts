@@ -23,6 +23,8 @@ export class RapierPhysics {
   private rotorOffsets?: Vec3[];
   private droneTelemetry: DroneTelemetry;
   private startPosition: Vec3;
+  private mapMesh?: THREE.Object3D;
+  private roofHeight: number = Infinity;
 
   constructor(private config: DroneConfig = Tinyhawk3Config) {
     this.crashed = false;
@@ -31,6 +33,10 @@ export class RapierPhysics {
     this.lastVelocity = { x: 0, y: 0, z: 0 }
     this.droneTelemetry = this.emptyTelemetry()
     this.startPosition = { x: 0, y: 0, z: config.height + this.spawnHeight }
+  }
+
+  public setRoofHeight(height: number): void {
+    this.roofHeight = height;
   }
 
   private emptyTelemetry(): DroneTelemetry {
@@ -52,6 +58,9 @@ export class RapierPhysics {
       console.log("No world defined yet");
       return;
     }
+
+    // Store the mesh so the collider can be re-created after world reset
+    this.mapMesh = mesh;
 
     const vertices: number[] = [];
     const indices: number[] = [];
@@ -221,6 +230,25 @@ export class RapierPhysics {
     }
     this.world = new RAPIER.World({ x: 0, y: 0, z: -GRAVITY });
     this.setupDrone(this.startPosition, this.config)
+    // Create ceiling collider if roofHeight is finite
+    this.createCeilingCollider();
+    // Re-create the map collider if one was previously registered
+    if (this.mapMesh) {
+      this.createCollider(this.mapMesh);
+    }
+  }
+
+  private createCeilingCollider(): void {
+    if (!this.world || !Number.isFinite(this.roofHeight)) return;
+
+    const ceilingBody = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, this.roofHeight)
+    );
+    // Large thin cuboid: 500m x 500m half-extents, 0.1m half-thickness
+    const ceilingCollider = RAPIER.ColliderDesc.cuboid(500, 500, 0.1)
+      .setFriction(0)
+      .setRestitution(0);
+    this.world.createCollider(ceilingCollider, ceilingBody);
   }
   public async init(startPosition: Vec3): Promise<void> {
     await RAPIER.init();
@@ -317,6 +345,7 @@ export class RapierPhysics {
         this.body.setLinvel({ x: v.x, y: v.y, z: 0 }, true);
       }
     }
+
     const clampedTranslation = this.body.translation();
 
     // Update telemetry

@@ -1,12 +1,3 @@
-:root {
-    --color-white: rgba(255, 255, 255, 1);
-    --color-black: rgba(0, 0, 0, 1);
-    --color-teal-500: rgba(33, 128, 141, 1);
-    --color-gray-200: rgba(245, 245, 245, 1);
-    --color-charcoal-700: rgba(31, 33, 33, 1);
-    --color-charcoal-800: rgba(38, 40, 40, 1);
-}
-
 * {
     margin: 0;
     padding: 0;
@@ -15,9 +6,9 @@
 
 html,
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: var(--color-charcoal-800);
-    color: var(--color-gray-200);
+    font-family: "Courier New", "Consolas", monospace;
+    background: #000;
+    color: #fff;
     overflow: hidden;
     width: 100%;
     height: 100%;
@@ -30,172 +21,214 @@ body {
     height: 100%;
 }
 
-.hud {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    border: 2px solid var(--color-teal-500);
-    border-radius: 8px;
-    padding: 16px;
-    font-family: "Courier New", monospace;
-    font-size: 13px;
-    min-width: 250px;
-    color: #00ff00;
-    text-shadow: 0 0 10px #00ff00;
+/* ── OSD Overlay ──────────────────────────────────── */
+
+.osd {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
     z-index: 100;
+    font-family: "Courier New", "Consolas", monospace;
+    font-size: 13px;
+    line-height: 1.3;
+    color: rgba(255, 255, 255, 0.85);
+    text-shadow:
+        0 0 4px rgba(0, 0, 0, 0.9),
+        0 0 8px rgba(0, 0, 0, 0.6);
 }
 
-.hud--disarmed {
-    border-color: #ff6666;
-    color: #ff6666;
-    text-shadow: 0 0 8px rgba(255, 102, 102, 0.8);
+.osd-el {
+    position: absolute;
+    white-space: nowrap;
 }
 
-.hud--disarmed .hud-label,
-.hud--disarmed .hud-value {
-    color: #ff9999;
+.osd-label {
+    font-size: 11px;
+    opacity: 0.6;
+    letter-spacing: 0.5px;
 }
 
-.hud--disarmed .hud-divider,
-.hud--disarmed .thrust-bar {
-    border-color: #ff6666;
+/* ── Top row ──────────────────────────────────────── */
+
+.osd-top-left {
+    top: 16px;
+    left: 20px;
 }
 
-.hud--disarmed .thrust-bar__fill {
-    background: linear-gradient(90deg, #ff4444 0%, #ffcc66 100%);
+.osd-top-center {
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
 }
 
-.hud-arm-status {
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(0, 255, 0, 0.4);
-    color: #00ff00;
-    text-align: center;
-    font-size: 12px;
-    letter-spacing: 0.3px;
+.osd-top-right {
+    top: 16px;
+    right: 20px;
 }
 
-.hud--disarmed .hud-arm-status {
-    border-top-color: rgba(255, 102, 102, 0.6);
-    color: #ff6666;
+/* ── Left / Right center ──────────────────────────── */
+
+.osd-left-center {
+    top: 50%;
+    left: 20px;
+    transform: translateY(-50%);
+    text-align: left;
 }
 
-.hud-row {
-    display: flex;
-    justify-content: space-between;
-    margin: 4px 0;
-    padding: 2px 0;
-}
-
-.hud-row--bar {
-    align-items: center;
-}
-
-.hud-label {
-    color: #00ff00;
-}
-
-.hud-value {
-    color: #ffff00;
-    font-weight: bold;
+.osd-right-center {
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
     text-align: right;
-    min-width: 80px;
 }
 
-.hud-divider {
-    border-top: 1px solid #00ff00;
-    margin: 8px 0;
-    opacity: 0.5;
-}
-
-.thrust-bar {
-    flex: 1;
-    height: 10px;
-    margin-left: 10px;
-    border: 1px solid #00ff00;
-    background: rgba(0, 255, 0, 0.1);
-    border-radius: 2px;
+/* Throttle vertical bar */
+.osd-throttle-bar {
+    width: 6px;
+    height: 60px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    margin-top: 4px;
+    margin-left: auto;
+    position: relative;
     overflow: hidden;
 }
 
-.thrust-bar__fill {
-    width: 0%;
-    height: 100%;
-    background: linear-gradient(90deg, #00ff00 0%, #ffff00 100%);
-    transition: width 0.08s ease-out;
+.osd-throttle-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 0%;
+    background: rgba(255, 255, 255, 0.7);
+    transition: height 0.08s ease-out;
 }
 
-.controls-panel {
+/* ── Center: attitude / crosshair ─────────────────── */
+
+.osd-center {
     position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.osd-attitude {
+    width: 100px;
+    height: 100px;
+    position: relative;
+}
+
+.osd-attitude-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.osd-horizon-line {
+    position: absolute;
+    top: 50%;
+    left: 10%;
+    width: 80%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.5);
+    transform-origin: center center;
+}
+
+.osd-crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.osd-crosshair::before,
+.osd-crosshair::after {
+    content: "";
+    position: absolute;
+    background: rgba(255, 255, 255, 0.8);
+}
+
+/* Horizontal arms */
+.osd-crosshair::before {
+    width: 30px;
+    height: 1px;
+    top: 0;
+    left: -15px;
+}
+
+/* Vertical tick */
+.osd-crosshair::after {
+    width: 1px;
+    height: 10px;
+    top: -5px;
+    left: 0;
+}
+
+/* ── Bottom row ───────────────────────────────────── */
+
+.osd-bottom-left {
     bottom: 20px;
     left: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    border: 2px solid var(--color-teal-500);
-    border-radius: 8px;
-    padding: 16px;
-    font-family: "Courier New", monospace;
     font-size: 12px;
-    color: #00ff00;
-    z-index: 100;
-    max-width: 320px;
 }
 
-.control-key {
-    display: flex;
-    justify-content: space-between;
-    margin: 4px 0;
-    padding: 4px 8px;
-    background: rgba(0, 255, 0, 0.05);
-    border-left: 2px solid var(--color-teal-500);
-    border-radius: 4px;
-}
-
-.key {
-    background: rgba(0, 255, 0, 0.2);
-    padding: 2px 6px;
-    border-radius: 3px;
-    color: #00ff00;
-    font-weight: bold;
-}
-
-.camera-feed {
-    position: absolute;
-    top: 20px;
+.osd-bottom-right {
+    bottom: 20px;
     right: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    border: 2px solid var(--color-teal-500);
-    border-radius: 8px;
-    padding: 10px;
-    font-family: "Courier New", monospace;
-    font-size: 11px;
-    color: #00ff00;
-    z-index: 100;
-    width: 220px;
+    font-size: 12px;
 }
 
-.camera-feed__label {
-    font-weight: bold;
-    color: #ffff00;
+.osd-bottom-center {
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
     text-align: center;
-    margin-bottom: 6px;
-    text-shadow: 0 0 6px #ffff00;
+    font-size: 12px;
 }
 
-.camera-feed__canvas {
-    width: 100%;
-    height: 120px;
-    border: 1px solid #00ff00;
-    border-radius: 4px;
-    display: block;
-    background: #000;
+/* ── Arm status styling ───────────────────────────── */
+
+.osd--disarmed .osd-top-left,
+.osd--disarmed #armStatus {
+    color: rgba(255, 100, 100, 0.9);
 }
 
-.camera-feed__canvas canvas {
-    width: 100%;
-    height: 100%;
-    display: block;
+/* ── Crash banner ─────────────────────────────────── */
+
+.status-banner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: "Courier New", "Consolas", monospace;
+    font-size: 18px;
+    font-weight: bold;
+    color: rgba(255, 80, 80, 0.95);
+    text-shadow:
+        0 0 8px rgba(255, 0, 0, 0.6),
+        0 0 16px rgba(0, 0, 0, 0.8);
+    z-index: 200;
+    pointer-events: none;
+    display: none;
+    letter-spacing: 2px;
 }
+
+.status-banner.show {
+    display: block;
+    animation: osd-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes osd-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ── Cesium overrides ─────────────────────────────── */
 
 .cesium-viewer,
 .cesium-viewer-cesiumWidgetContainer,
@@ -209,117 +242,4 @@ body {
 #cameraFeed canvas {
     width: 100% !important;
     height: 100% !important;
-}
-
-.camera-feed__meta {
-    margin-top: 6px;
-    text-align: center;
-}
-
-.attitude-indicator {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    width: 120px;
-    height: 120px;
-    background: rgba(0, 0, 0, 0.8);
-    border: 2px solid var(--color-teal-500);
-    border-radius: 50%;
-    z-index: 100;
-    overflow: hidden;
-}
-
-.attitude-horizon {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.attitude-inner {
-    width: 90%;
-    height: 90%;
-    background: linear-gradient(
-        to bottom,
-        #87ceeb 0%,
-        #4169e1 50%,
-        #654321 50%,
-        #8b7355 100%
-    );
-    border-radius: 50%;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.pitch-ladder {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.pitch-line {
-    position: absolute;
-    width: 60%;
-    height: 2px;
-    background: white;
-    opacity: 0.6;
-}
-
-.aircraft-symbol {
-    position: absolute;
-    width: 60%;
-    height: 40%;
-    border: 2px solid #ff4444;
-    border-top: none;
-    border-bottom: none;
-    z-index: 10;
-}
-
-.roll-indicator {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 80%;
-    height: 80%;
-    border: 2px solid white;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-}
-
-.status-banner {
-    position: absolute;
-    bottom: 160px;
-    right: 20px;
-    background: rgba(255, 0, 0, 0.2);
-    border: 2px solid #ff4444;
-    border-radius: 8px;
-    padding: 12px 16px;
-    color: #ff6666;
-    font-family: "Courier New", monospace;
-    font-size: 12px;
-    z-index: 100;
-    display: none;
-}
-
-.status-banner.show {
-    display: block;
-    animation: pulse 0.5s infinite;
-}
-
-@keyframes pulse {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.7;
-    }
 }

@@ -1,4 +1,5 @@
 import { Tinyhawk3Config } from "../config/tinyhawk-config";
+import type { WorldConfig } from "../config/dedust-world-config";
 import { SimulationEngine, type SimulationEngineOptions } from "../core/simulation-engine";
 import { KeyboardInputProvider } from "../input/keyboard-input-provider";
 import type { InputProvider } from "../input/input-provider";
@@ -15,27 +16,24 @@ export type AppOrchestratorOptions = {
   rendererStart?: Vec3;
   initialCameraMode?: CameraMode;
   simulationOptions?: Omit<SimulationEngineOptions, "config">;
+  worldConfig?: WorldConfig;
 };
 
 type HudElements = {
+  flightMode: HTMLElement;
   altitude: HTMLElement;
-  speed: HTMLElement;
-  pitch: HTMLElement;
-  roll: HTMLElement;
-  yaw: HTMLElement;
-  position: HTMLElement;
-  orientation: HTMLElement;
-  cameraMode: HTMLElement;
-  latitude: HTMLElement;
-  longitude: HTMLElement;
-  gforce: HTMLElement;
-  throttle: HTMLElement;
-  thrustBar: HTMLElement;
-  rotorThrusts: HTMLElement;
-  armStatus: HTMLElement;
   fps: HTMLElement;
+  speed: HTMLElement;
+  throttle: HTMLElement;
+  throttleBar: HTMLElement;
+  roll: HTMLElement;
+  pitch: HTMLElement;
+  gforce: HTMLElement;
+  armStatus: HTMLElement;
+  position: HTMLElement;
   statusBanner: HTMLElement;
-  attitudeInner: HTMLElement;
+  osd: HTMLElement;
+  horizonLine: HTMLElement;
 };
 
 export async function startApp(options: AppOrchestratorOptions): Promise<void> {
@@ -43,6 +41,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const renderer: IRenderer = createRenderer(options.rendererType);
   const simulationEngine = new SimulationEngine({
     config: Tinyhawk3Config,
+    roofHeight: options.worldConfig?.roofHeight,
     ...options.simulationOptions,
   });
 
@@ -77,6 +76,14 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   renderer.setDroneConfig?.(Tinyhawk3Config);
   renderer.setFeedCanvas?.(options.feedCanvasId ?? "cameraFeed");
   renderer.setFeedMode?.("auto");
+  if (options.worldConfig?.mapScale != null) {
+    renderer.mapScale = options.worldConfig.mapScale;
+  }
+
+  // When the map mesh finishes loading, create a physics trimesh collider for it.
+  renderer.onMapLoaded = (mapObject) => {
+    simulationEngine.createMapCollider(mapObject as import("three").Object3D);
+  };
 
   await Promise.resolve(renderer.init(container, rendererStart));
   await simulationEngine.init(simulationStart);
@@ -110,7 +117,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
 
     frameCount += 1;
     if (now - fpsTime >= 1000) {
-      ui.fps.textContent = String(frameCount);
+      ui.fps.textContent = `${frameCount}fps`;
       frameCount = 0;
       fpsTime = now;
     }
@@ -138,24 +145,20 @@ function nextCameraMode(current: CameraMode): CameraMode {
 
 function getHudElements(): HudElements {
   return {
+    flightMode: requireElement("flightMode"),
     altitude: requireElement("altitude"),
-    speed: requireElement("speed"),
-    pitch: requireElement("pitch"),
-    roll: requireElement("roll"),
-    yaw: requireElement("yaw"),
-    position: requireElement("position"),
-    orientation: requireElement("orientation"),
-    cameraMode: requireElement("cameraMode"),
-    latitude: requireElement("latitude"),
-    longitude: requireElement("longitude"),
-    gforce: requireElement("gforce"),
-    throttle: requireElement("throttle"),
-    thrustBar: requireElement("thrustBar"),
-    rotorThrusts: requireElement("rotorThrusts"),
-    armStatus: requireElement("armStatus"),
     fps: requireElement("fps"),
+    speed: requireElement("speed"),
+    throttle: requireElement("throttle"),
+    throttleBar: requireElement("throttleBar"),
+    roll: requireElement("roll"),
+    pitch: requireElement("pitch"),
+    gforce: requireElement("gforce"),
+    armStatus: requireElement("armStatus"),
+    position: requireElement("position"),
     statusBanner: requireElement("statusBanner"),
-    attitudeInner: requireSelector<HTMLElement>(".attitude-inner"),
+    osd: requireSelector<HTMLElement>(".osd"),
+    horizonLine: requireSelector<HTMLElement>(".osd-horizon-line"),
   };
 }
 
@@ -171,40 +174,40 @@ function requireSelector<T extends Element>(selector: string): T {
   return element;
 }
 
-function updateHUD(ui: HudElements, telemetry: DroneTelemetry, cameraMode: CameraMode, flightMode: "acro" | "angle" = "acro") {
+function updateHUD(ui: HudElements, telemetry: DroneTelemetry, _cameraMode: CameraMode, flightMode: "acro" | "angle" = "acro") {
   const pos = telemetry.localPosition;
   const vel = telemetry.localVelocity;
-  const { rollDeg, pitchDeg, yawDeg } = quaternionToEulerDeg(
+  const { rollDeg, pitchDeg } = quaternionToEulerDeg(
     telemetry.localOrientation,
   );
 
   const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2);
-
-  ui.altitude.textContent = `${pos.z.toFixed(1)} m`;
-  ui.speed.textContent = `${speed.toFixed(1)} m/s`;
-  ui.pitch.textContent = `${pitchDeg.toFixed(1)} deg`;
-  ui.roll.textContent = `${rollDeg.toFixed(1)} deg`;
-  ui.yaw.textContent = `${yawDeg.toFixed(1)} deg`;
-  ui.position.innerHTML = `${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)}<br>${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)}`;
-  ui.orientation.innerHTML = `${rollDeg.toFixed(1)},${pitchDeg.toFixed(1)},${yawDeg.toFixed(1)}<br>${rollDeg.toFixed(1)},${pitchDeg.toFixed(1)},${yawDeg.toFixed(1)}`;
-  ui.cameraMode.textContent = cameraMode.toUpperCase();
-  ui.latitude.textContent = "N/A";
-  ui.longitude.textContent = "N/A";
-  ui.gforce.textContent = `${telemetry.gforce.toFixed(2)} g`;
-  ui.throttle.textContent = `${telemetry.throttle.toFixed(0)}%`;
-  ui.thrustBar.style.width = `${Math.max(0, Math.min(100, telemetry.throttle))}%`;
-  ui.rotorThrusts.textContent = telemetry.rotorThrusts
-    .map((t) => t.toFixed(2))
-    .join(", ");
-
   const modeLabel = flightMode.toUpperCase();
+  const throttlePct = Math.max(0, Math.min(100, telemetry.throttle));
+
+  // Top row
+  ui.flightMode.textContent = `${modeLabel} | ${_cameraMode.toUpperCase()}`;
+  ui.altitude.textContent = `${pos.z.toFixed(1)}m`;
+
+  // Left / Right center
+  ui.speed.textContent = speed.toFixed(1);
+  ui.throttle.textContent = `${throttlePct.toFixed(0)}%`;
+  ui.throttleBar.style.height = `${throttlePct}%`;
+
+  // Bottom
+  ui.roll.textContent = rollDeg.toFixed(1);
+  ui.pitch.textContent = pitchDeg.toFixed(1);
+  ui.gforce.textContent = `G:${telemetry.gforce.toFixed(1)}g`;
+  ui.position.textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+
+  // Arm status
   ui.armStatus.textContent = telemetry.crashed
     ? "CRASHED"
     : telemetry.armed
-      ? `ARMED | ${modeLabel} (F to switch)`
-      : `DISARMED - Press Shift + M to arm | ${modeLabel}`;
-  ui.altitude.closest(".hud")?.classList.toggle("hud--disarmed", !telemetry.armed);
+      ? "ARMED"
+      : "DISARMED";
+  ui.osd.classList.toggle("osd--disarmed", !telemetry.armed);
 
-  ui.attitudeInner.style.transform = `rotate(${rollDeg}deg)`;
-  ui.attitudeInner.style.backgroundPosition = `0 -${pitchDeg * 2}px`;
+  // Attitude indicator: rotate horizon line with roll, shift with pitch
+  ui.horizonLine.style.transform = `rotate(${rollDeg}deg) translateY(${pitchDeg * 0.5}px)`;
 }
