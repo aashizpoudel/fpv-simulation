@@ -5,6 +5,7 @@ export type InputActionCallbacks = {
   onToggleCamera: () => void;
   onToggleArm?: () => void;
   onPushBody?: (direction: number) => void;
+  onSwitchFlightMode?: () => void;
 };
 
 export type InputMapping = {

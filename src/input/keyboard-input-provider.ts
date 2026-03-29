@@ -117,6 +117,9 @@ export class KeyboardInputProvider implements InputProvider {
       if (key === "k") {
         this.callbacks.onPushBody?.(2);
       }
+      if (!event.repeat && key === "f") {
+        this.callbacks.onSwitchFlightMode?.();
+      }
     };
 
     this.handleKeyUp = (event: KeyboardEvent) => {

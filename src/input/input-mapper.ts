@@ -1,4 +1,5 @@
 import type { Controls } from "../types";
+import { clamp } from "../utils/math";
 
 export type InputAxis = "thrust" | "pitch" | "roll" | "yaw";
 
@@ -73,8 +74,4 @@ export class InputMapper {
     const expo = this.options.expo;
     return (1 - expo) * value + expo * value * value * value;
   }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

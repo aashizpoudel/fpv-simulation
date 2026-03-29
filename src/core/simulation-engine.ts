@@ -8,7 +8,7 @@ const DEFAULT_MAX_SUB_STEPS = 5;
 export type SimulationEngineOptions = {
   fixedTimeStep?: number;
   maxSubSteps?: number;
-  clampY?: number;
+  clampZ?: number;
   config?: DroneConfig;
   physics?: RapierPhysics;
 };
@@ -18,13 +18,13 @@ export class SimulationEngine {
   private accumulator = 0;
   private fixedTimeStep: number;
   private maxSubSteps: number;
-  private clampY: number;
+  private clampZ: number;
   private lastTelemetry: DroneTelemetry;
 
   constructor(options: SimulationEngineOptions = {}) {
     this.fixedTimeStep = options.fixedTimeStep ?? DEFAULT_FIXED_TIME_STEP;
     this.maxSubSteps = options.maxSubSteps ?? DEFAULT_MAX_SUB_STEPS;
-    this.clampY = options.clampY ?? 0;
+    this.clampZ = options.clampZ ?? 0;
     this.physics = options.physics ?? new RapierPhysics(options.config);
     this.lastTelemetry = this.physics.getTelemetry();
   }
@@ -43,7 +43,7 @@ export class SimulationEngine {
     this.accumulator = Math.min(this.accumulator + dt, maxAccumulator);
 
     while (this.accumulator >= this.fixedTimeStep) {
-      this.lastTelemetry = this.physics.step(input, this.fixedTimeStep, this.clampY);
+      this.lastTelemetry = this.physics.step(input, this.fixedTimeStep, this.clampZ);
       this.accumulator -= this.fixedTimeStep;
     }
 
@@ -58,6 +58,10 @@ export class SimulationEngine {
     this.accumulator = 0;
     this.physics.reset();
     this.lastTelemetry = this.physics.getTelemetry();
+  }
+
+  switchFlightMode(mode: "acro" | "angle"): void {
+    this.physics.switchFlightMode(mode);
   }
 
   getTelemetry(): DroneTelemetry {

@@ -3,6 +3,10 @@ import * as THREE from "three";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
 import { AcroController } from "../controllers/acroController";
 import { SimpleController } from "../controllers/simpleController";
+import { FlightController } from "../controllers/flight-controller";
+import { AcroMode } from "../controllers/modes/acro-mode";
+import { AngleMode } from "../controllers/modes/angle-mode";
+import type { IFlightMode } from "../controllers/modes/flight-mode-interface";
 import { DroneConfig, Tinyhawk3Config } from "../config/tinyhawk-config";
 import type { IController, PhysicsCommand } from "../controllers/controller-interface";
 
@@ -26,7 +30,7 @@ export class RapierPhysics {
     this.spawnHeight = 0.5
     this.lastVelocity = { x: 0, y: 0, z: 0 }
     this.droneTelemetry = this.emptyTelemetry()
-    this.startPosition = { x: 0, y: config.height + this.spawnHeight, z: 0 }
+    this.startPosition = { x: 0, y: 0, z: config.height + this.spawnHeight }
   }
 
   private emptyTelemetry(): DroneTelemetry {
@@ -114,7 +118,7 @@ export class RapierPhysics {
     }
 
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(startPosition.x, this.spawnHeight, startPosition.z)
+      .setTranslation(startPosition.x, startPosition.y, startPosition.z + this.spawnHeight)
       .setLinearDamping(this.config.linearDamping)
       .setAngularDamping(this.config.angularDamping)
       .setCcdEnabled(true);
@@ -126,8 +130,8 @@ export class RapierPhysics {
 
     const halfExtents = {
       x: this.config.length / 2,
-      y: this.config.height / 2,
-      z: this.config.width / 2,
+      y: this.config.width / 2,
+      z: this.config.height / 2,
     };
 
     const colliderDesc = RAPIER.ColliderDesc.cuboid(
@@ -135,7 +139,7 @@ export class RapierPhysics {
       halfExtents.y,
       halfExtents.z,
     )
-      .setTranslation(0, -halfExtents.y, 0)
+      .setTranslation(0, 0, -halfExtents.z)
       .setMass(this.config.mass)
       .setFriction(0.8)
       .setRestitution(0.1);
@@ -153,24 +157,69 @@ export class RapierPhysics {
         ...this.config.simpleController,
       });
     } else {
-      this.controller = new AcroController(this.rotorOffsets, {
-        maxThrustPerRotor: this.config.rotors[0]?.maxThrust ?? 12,
-        throttleRate: this.config.throttleRate,
-        stickRate: this.config.stickRate,
-        rotorMode: this.config.rotorMode,
-        yawTorquePerNewton: this.config.yawTorquePerNewton
-      });
+      // Build the appropriate flight mode
+      const mode = this.buildFlightMode(this.config.controllerType);
+
+      if (mode) {
+        // New modular FlightController path
+        this.controller = new FlightController(
+          this.rotorOffsets!,
+          {
+            throttleRate: this.config.throttleRate,
+            maxThrustPerRotor: this.config.rotors[0]?.maxThrust ?? 12,
+            rotorMode: this.config.rotorMode,
+            yawTorquePerNewton: this.config.yawTorquePerNewton,
+          },
+          mode,
+        );
+      } else {
+        // Fallback to legacy AcroController
+        this.controller = new AcroController(this.rotorOffsets!, {
+          maxThrustPerRotor: this.config.rotors[0]?.maxThrust ?? 12,
+          throttleRate: this.config.throttleRate,
+          stickRate: this.config.stickRate,
+          rotorMode: this.config.rotorMode,
+          yawTorquePerNewton: this.config.yawTorquePerNewton,
+          pidRateConfig: this.config.pidRateConfig,
+        });
+      }
     }
 
-    this.droneTelemetry.localPosition.y = startPosition.y + this.spawnHeight;
+    this.droneTelemetry.localPosition.z = startPosition.z + this.spawnHeight;
     this.world.createCollider(colliderDesc, this.body);
+  }
+
+  /** Build a flight mode from the controller type string, or null if unsupported */
+  private buildFlightMode(type: string): IFlightMode | null {
+    const pidRateConfig = this.config.pidRateConfig;
+    if (!pidRateConfig) return null;
+
+    if (type === "acro") {
+      return new AcroMode(pidRateConfig);
+    }
+    if (type === "angle") {
+      const pidAngleConfig = this.config.pidAngleConfig;
+      if (!pidAngleConfig) return null;
+      return new AngleMode(pidAngleConfig, pidRateConfig);
+    }
+    return null;
+  }
+
+  /** Switch the active flight mode at runtime (only works with FlightController) */
+  public switchFlightMode(modeName: "acro" | "angle"): void {
+    if (this.controller instanceof FlightController) {
+      const mode = this.buildFlightMode(modeName);
+      if (mode) {
+        this.controller.switchMode(mode);
+      }
+    }
   }
 
   private resetWorld() {
     if (this.world) {
       this.world.free()
     }
-    this.world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
+    this.world = new RAPIER.World({ x: 0, y: 0, z: -GRAVITY });
     this.setupDrone(this.startPosition, this.config)
   }
   public async init(startPosition: Vec3): Promise<void> {
@@ -180,7 +229,11 @@ export class RapierPhysics {
   }
 
   public reset(): void {
-    this.resetWorld()
+    this.crashed = false;
+    this.armed = false;
+    this.lastVelocity = { x: 0, y: 0, z: 0 };
+    this.droneTelemetry = this.emptyTelemetry();
+    this.resetWorld();
   }
 
   public setArmed(armed: boolean): void {
@@ -211,7 +264,7 @@ export class RapierPhysics {
     }
   }
 
-  public step(controls: Controls, deltaTime: number, clampY: number): DroneTelemetry {
+  public step(controls: Controls, deltaTime: number, clampZ: number): DroneTelemetry {
     if (!this.world || !this.body || !this.controller) {
       throw "Body is not setup!! Call init first."
     }
@@ -227,6 +280,7 @@ export class RapierPhysics {
       const controllerTelemetry = this.getTelemetryForController();
       const command = this.controller.computePhysicsCommand(controls, controllerTelemetry, deltaTime);
       this.applyPhysicsCommand(command);
+      this.world.timestep = deltaTime;
       this.world.step();
     }
 
@@ -240,25 +294,30 @@ export class RapierPhysics {
 
     const properAcceleration = {
       x: acceleration.x,
-      y: acceleration.y + GRAVITY,
-      z: acceleration.z,
+      y: acceleration.y,
+      z: acceleration.z + GRAVITY,
     };
     const gforce = Math.sqrt(
       properAcceleration.x ** 2 + properAcceleration.y ** 2 + properAcceleration.z ** 2
     ) / GRAVITY;
 
     // Handle crash condition
-    if (translation.y < -200) {
+    if (translation.z < -200) {
       this.crashed = true;
-      this.body.setTranslation({ x: translation.x, y: 0, z: translation.z }, true);
+      this.body.setTranslation({ x: translation.x, y: translation.y, z: 0 }, true);
       this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
 
-    // Clamp to ground
-    const clampedTranslation = translation.y < clampY
-      ? { x: translation.x, y: 0, z: translation.z }
-      : translation;
+    // Clamp to ground — correct the rigid body so it doesn't fall through
+    if (translation.z < clampZ) {
+      this.body.setTranslation({ x: translation.x, y: translation.y, z: clampZ }, true);
+      const v = this.body.linvel();
+      if (v.z < 0) {
+        this.body.setLinvel({ x: v.x, y: v.y, z: 0 }, true);
+      }
+    }
+    const clampedTranslation = this.body.translation();
 
     // Update telemetry
     const controllerTelemetry = this.controller.getTelemetry();
@@ -279,21 +338,7 @@ export class RapierPhysics {
 
 
   /**
-     * Transform Z-up vector to Y-up vector
-     */
-  private zUpToYUp(v: Vec3): Vec3 {
-    return { x: v.x, y: v.z, z: -v.y };
-  }
-
-  /**
-   * Transform Y-up vector to Z-up vector
-   */
-  private yUpToZUp(v: Vec3): Vec3 {
-    return { x: v.x, y: -v.z, z: v.y };
-  }
-
-  /**
-   * Get telemetry in Z-up coordinate space for controller
+   * Get telemetry for controller (already in Z-up space)
    */
   private getTelemetryForController(): DroneTelemetry {
     if (!this.body) {
@@ -305,12 +350,11 @@ export class RapierPhysics {
     const linVel = this.body.linvel();
     const angVel = this.body.angvel();
 
-    // Convert to Z-up space for controller
     return {
-      localPosition: this.yUpToZUp(translation),
-      localOrientation: rotation, // Quaternion is the same
-      localVelocity: this.yUpToZUp(linVel),
-      localAngularVelocity: this.yUpToZUp(angVel),
+      localPosition: { x: translation.x, y: translation.y, z: translation.z },
+      localOrientation: rotation,
+      localVelocity: { x: linVel.x, y: linVel.y, z: linVel.z },
+      localAngularVelocity: { x: angVel.x, y: angVel.y, z: angVel.z },
       gforce: this.droneTelemetry.gforce,
       throttle: this.droneTelemetry.throttle,
       rotorThrusts: this.droneTelemetry.rotorThrusts,
@@ -319,9 +363,8 @@ export class RapierPhysics {
     };
   }
 
-
   /**
-   * Apply physics command (converts from Z-up to Y-up)
+   * Apply physics command directly (physics is Z-up natively)
    */
   private applyPhysicsCommand(command: PhysicsCommand): void {
     if (!this.body) return;
@@ -331,23 +374,19 @@ export class RapierPhysics {
       this.body.resetTorques(true);
     }
 
-    // Convert force from Z-up to Y-up
-    const forceYUp = this.zUpToYUp(command.force);
-    this.body.addForce(forceYUp, true);
+    this.body.addForce(command.force, true);
 
     // Handle angular velocity (SimpleController)
     if (command.angularVelocity &&
       (command.angularVelocity.x !== 0 ||
         command.angularVelocity.y !== 0 ||
         command.angularVelocity.z !== 0)) {
-      const angVelYUp = this.zUpToYUp(command.angularVelocity);
-      this.body.setAngvel(angVelYUp, true);
+      this.body.setAngvel(command.angularVelocity, true);
     }
 
     // Handle torque (AcroController)
     if (command.torque) {
-      const torqueYUp = this.zUpToYUp(command.torque);
-      this.body.addTorque(torqueYUp, true);
+      this.body.addTorque(command.torque, true);
     }
   }
 

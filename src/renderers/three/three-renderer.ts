@@ -31,10 +31,9 @@ export class ThreejsRenderer implements IRenderer {
   public async init(container: HTMLElement, startPosition?: Vec3): Promise<void> {
     this.container = container;
 
-    // Set up
-    // THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
-    // THREE.Scene.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
-    // THREE.Camera.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+    // Set Z-up coordinate convention (X forward, Y sideways, Z up)
+    THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
+    // Note: Scene and Camera inherit from Object3D, so DEFAULT_UP covers them.
 
     // Scene
     this.scene = new THREE.Scene();
@@ -57,8 +56,8 @@ export class ThreejsRenderer implements IRenderer {
       0.1,
       2000,
     );
-    this.camera.position.set(1, 1, 1);
-    // this.camera.lookAt(0, 0, 0);
+    this.camera.position.set(1, 1, 1); // Z-up: (X, Y, Z=height)
+    this.camera.up.set(0, 0, 1); // ensure camera up matches Z-up convention
     this.activeCamera = this.camera;
 
     // after this.camera exists
@@ -68,8 +67,8 @@ export class ThreejsRenderer implements IRenderer {
     );
     this.orbitControls.enableDamping = true;
     this.orbitControls.dampingFactor = 0.05;
-    this.orbitControls.target.set(0, 0, 0); // look slightly above ground
-    this.orbitControls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent going horizontal
+    this.orbitControls.target.set(0, 0, 0);
+    this.orbitControls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent going below ground
     this.orbitControls.minDistance = 0.5;
     this.orbitControls.maxDistance = 50;
 
@@ -94,6 +93,8 @@ export class ThreejsRenderer implements IRenderer {
       "maps/de_dust_2_with_real_light.glb",
       (gltf) => {
         this.map = gltf.scene;
+        // GLB/GLTF models are authored in Y-up; rotate to Z-up convention
+        this.map.rotation.x = Math.PI / 2;
         this.scene.add(this.map);
       },
       undefined,
@@ -104,9 +105,16 @@ export class ThreejsRenderer implements IRenderer {
       loader.load(
         this.droneConfig?.modelUrl ?? "drone_models/tinyhawk.gltf",
         (gltf) => {
-          this.drone = gltf.scene;
-          const mesh = gltf.scene.children[0]; // or scene.getObjectByName("xxx")
-          if (!mesh) return;
+          // Create a wrapper group for physics transforms.
+          // Physics sets position/quaternion on this.drone (the wrapper).
+          // The actual model is a child with the Y-up → Z-up visual correction,
+          // so the physics quaternion doesn't overwrite it.
+          const wrapper = new THREE.Group();
+          const model = gltf.scene;
+          // GLB/GLTF models are authored in Y-up; rotate to Z-up convention
+          model.rotation.x = Math.PI / 2;
+          wrapper.add(model);
+          this.drone = wrapper;
 
           // 1. make a camera
           const fpvCam = new THREE.PerspectiveCamera(
@@ -116,9 +124,10 @@ export class ThreejsRenderer implements IRenderer {
             1000,
           );
 
-          // 2. place it where the real cam sits on the frame
-          fpvCam.position.set(0, 0, -this.getFpvOffsetX());
-          fpvCam.rotation.set(0, -Math.PI / 2, 0); // look along +X in X-forward space
+          // 2. place it where the real cam sits on the frame (X-forward, Z-up)
+          fpvCam.position.set(this.getFpvOffsetX(), 0, 0);
+          fpvCam.up.set(0, 0, 1);
+          fpvCam.lookAt(new THREE.Vector3(1, 0, 0));
           // 3. glue it to the drone so it moves/rotates with it
           this.drone.add(fpvCam);
           this.fpvCamera = fpvCam;
@@ -135,12 +144,15 @@ export class ThreejsRenderer implements IRenderer {
         undefined,
         (error) => {
           console.error(error);
-          // Fallback to a cube if model loading fails
+          // Fallback: wrap a cube in a group so physics transforms work the same way
+          const wrapper = new THREE.Group();
           const droneGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.05);
           const droneMaterial = new THREE.MeshStandardMaterial({
             color: 0xff0000,
           });
-          this.drone = new THREE.Mesh(droneGeometry, droneMaterial);
+          const mesh = new THREE.Mesh(droneGeometry, droneMaterial);
+          wrapper.add(mesh);
+          this.drone = wrapper;
           this.updateDroneSizeFromConfig();
           this.noseMarker = this.createNoseMarker();
           this.drone.add(this.noseMarker);
@@ -259,7 +271,7 @@ export class ThreejsRenderer implements IRenderer {
   public setDroneConfig(config: DroneConfig): void {
     this.droneConfig = config;
     if (this.fpvCamera) {
-      this.fpvCamera.position.set(0, 0, this.getFpvOffsetX());
+      this.fpvCamera.position.set(this.getFpvOffsetX(), 0, 0);
     }
     this.hasOrbitOffset = false;
   }
@@ -404,7 +416,7 @@ export class ThreejsRenderer implements IRenderer {
   private updateDroneSizeFromConfig(): void {
     if (!this.droneConfig) return;
     if (this.fpvCamera) {
-      this.fpvCamera.position.set(0, 0, -this.getFpvOffsetX());
+      this.fpvCamera.position.set(this.getFpvOffsetX(), 0, 0);
     }
   }
 
@@ -465,7 +477,10 @@ export class ThreejsRenderer implements IRenderer {
       depthWrite: false,
     });
     const geometry = new THREE.SphereGeometry(500, 48, 24);
-    return new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material);
+    // Rotate sky dome from default Y-up orientation to Z-up
+    mesh.rotation.x = Math.PI / 2;
+    return mesh;
   }
 
   private createNoseMarker(): THREE.Mesh {

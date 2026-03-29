@@ -6,6 +6,7 @@
 
 import type { Controls, Vec3, Quaternion, DroneTelemetry } from "../types";
 import type { ControllerTelemetry, IController, PhysicsCommand } from "./controller-interface";
+import { clamp } from "../utils/math";
 
 type SimpleConfig = {
   maxAngularSpeed?: number; // rad/s
@@ -114,8 +115,4 @@ function throttleToThrust(t: number, maxThrust: number): number {
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
-}
-
-function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
 }

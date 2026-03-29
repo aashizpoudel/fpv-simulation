@@ -164,7 +164,6 @@ export class CesiumRenderer implements IRenderer {
         groundEcef,
         new Cesium.Cartesian3(),
       );
-      console.log(groundEnu);
 
       this.clampZ = groundEnu.z;
     }

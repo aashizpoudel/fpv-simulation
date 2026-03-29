@@ -1,5 +1,6 @@
 /*
   Acro-mode mixer for a quadrotor.
+  - PID rate controller on roll/pitch/yaw
   - Thrust ∝ throttle²  (real prop curve)
   - Forces, not impulses → frame-rate independent
   - Works in Z-up coordinate space
@@ -7,6 +8,8 @@
 
 import type { Controls, Vec3, Quaternion, DroneTelemetry } from "../types";
 import type { ControllerTelemetry, IController, PhysicsCommand } from "./controller-interface";
+import { clamp } from "../utils/math";
+import { PIDController } from "./pid";
 
 /* ---------- types ---------- */
 
@@ -18,9 +21,17 @@ type RotorConfig = {
 type AcroConfig = {
   maxThrustPerRotor: number; // N
   throttleRate: number; // 1/s (stick -> throttle)
-  stickRate: number; // 1/s (stick -> attitude)
+  stickRate: number; // 1/s (stick -> attitude) — kept for backward compat
   rotorMode: boolean; // true = 4 separate forces, false = 1 force + torque
   yawTorquePerNewton: number;
+  pidRateConfig?: {
+    roll: { kP: number; kI: number; kD: number };
+    pitch: { kP: number; kI: number; kD: number };
+    yaw: { kP: number; kI: number; kD: number };
+    iLimit: number;
+    dFilterHz: number;
+    maxRate: { roll: number; pitch: number; yaw: number }; // deg/s
+  };
 };
 
 /* ---------- controller ---------- */
@@ -31,6 +42,15 @@ export class AcroController implements IController {
   private throttle = 0; // 0-1
   private rotorThrusts: number[]; // N
 
+  // PID rate controllers
+  private readonly pidRoll: PIDController | null;
+  private readonly pidPitch: PIDController | null;
+  private readonly pidYaw: PIDController | null;
+  private readonly maxRateRoll: number; // rad/s
+  private readonly maxRatePitch: number; // rad/s
+  private readonly maxRateYaw: number; // rad/s
+  private readonly usePID: boolean;
+
   constructor(rotorPositions: Vec3[], config: AcroConfig) {
     this.rotors = assignYawSigns(rotorPositions);
     this.config = {
@@ -39,11 +59,35 @@ export class AcroController implements IController {
       yawTorquePerNewton: config.yawTorquePerNewton ?? 0,
     };
     this.rotorThrusts = new Array(this.rotors.length).fill(0);
+
+    // Initialize PID controllers if config is provided
+    const pid = config.pidRateConfig;
+    if (pid) {
+      this.usePID = true;
+      this.pidRoll = new PIDController(pid.roll.kP, pid.roll.kI, pid.roll.kD, pid.iLimit, pid.dFilterHz);
+      this.pidPitch = new PIDController(pid.pitch.kP, pid.pitch.kI, pid.pitch.kD, pid.iLimit, pid.dFilterHz);
+      this.pidYaw = new PIDController(pid.yaw.kP, pid.yaw.kI, pid.yaw.kD, pid.iLimit, pid.dFilterHz);
+      const DEG2RAD = Math.PI / 180;
+      this.maxRateRoll = pid.maxRate.roll * DEG2RAD;
+      this.maxRatePitch = pid.maxRate.pitch * DEG2RAD;
+      this.maxRateYaw = pid.maxRate.yaw * DEG2RAD;
+    } else {
+      this.usePID = false;
+      this.pidRoll = null;
+      this.pidPitch = null;
+      this.pidYaw = null;
+      this.maxRateRoll = 0;
+      this.maxRatePitch = 0;
+      this.maxRateYaw = 0;
+    }
   }
 
   reset() {
     this.throttle = 0;
     this.rotorThrusts.fill(0);
+    this.pidRoll?.reset();
+    this.pidPitch?.reset();
+    this.pidYaw?.reset();
   }
 
   /* Compute physics command based on controls and current state */
@@ -60,11 +104,40 @@ export class AcroController implements IController {
       controls.speedMultiplier;
     this.throttle = clamp(this.throttle + throttleDelta, 0, 1);
 
-    // 2. Calculate rotor thrusts based on stick inputs
-    const pitch = controls.pitch * this.config.stickRate;
-    const roll = controls.roll * this.config.stickRate;
-    const yaw = controls.yaw * this.config.stickRate;
+    let pitch: number;
+    let roll: number;
+    let yaw: number;
 
+    if (this.usePID && this.pidRoll && this.pidPitch && this.pidYaw) {
+      // PID rate control path
+      // Compute target rates from stick inputs (rad/s)
+      const targetRoll = controls.roll * this.maxRateRoll;
+      const targetPitch = controls.pitch * this.maxRatePitch;
+      const targetYaw = controls.yaw * this.maxRateYaw;
+
+      // Convert angular velocity from world frame to body frame
+      const conjQ = conjugateQuat(telemetry.localOrientation);
+      const bodyAngVel = rotateVector(conjQ, telemetry.localAngularVelocity);
+
+      // Run PID controllers
+      roll = this.pidRoll.update(targetRoll, bodyAngVel.x, dt);
+      pitch = this.pidPitch.update(targetPitch, bodyAngVel.y, dt);
+      yaw = this.pidYaw.update(targetYaw, bodyAngVel.z, dt);
+
+      // Anti-windup: zero integrals at low throttle
+      if (this.throttle < 0.05) {
+        this.pidRoll.zeroIntegral();
+        this.pidPitch.zeroIntegral();
+        this.pidYaw.zeroIntegral();
+      }
+    } else {
+      // Legacy open-loop path
+      pitch = controls.pitch * this.config.stickRate;
+      roll = controls.roll * this.config.stickRate;
+      yaw = controls.yaw * this.config.stickRate;
+    }
+
+    // 2. Mix into rotor thrusts
     this.rotors.forEach((r, i) => {
       const base = this.throttleToThrust(this.throttle); // squared
 
@@ -72,7 +145,7 @@ export class AcroController implements IController {
       const pitchMix =
         (r.position.x >= 0 ? -pitch : pitch) * this.config.maxThrustPerRotor;
       const rollMix =
-        (r.position.y >= 0 ? -roll : roll) * this.config.maxThrustPerRotor;
+        (r.position.y >= 0 ? roll : -roll) * this.config.maxThrustPerRotor;
       const yawMix = r.yawSign * yaw * this.config.maxThrustPerRotor;
 
       this.rotorThrusts[i] = clamp(
@@ -130,10 +203,10 @@ export class AcroController implements IController {
 
       const worldOffset = rotateVector(rotation, r.position); // body -> world
       const force = scale(up, thrust); // N
-      
+
       // Torque from rotor offset
       const torqueFromOffset = cross(worldOffset, force);
-      
+
       // Yaw reaction torque
       const tz = this.rotorYawTorque(thrust, r.yawSign);
       const yawTorqueWorld = tz === 0 ? { x: 0, y: 0, z: 0 } : scale(up, tz);
@@ -161,7 +234,7 @@ export class AcroController implements IController {
 
       const worldOffset = rotateVector(rotation, r.position);
       const force = scale(up, thrust);
-      
+
       // torque from force offset (roll/pitch mainly, plus whatever geometry yields)
       const torqueFromOffset = cross(worldOffset, force);
 
@@ -189,6 +262,11 @@ function assignYawSigns(pos: Vec3[]): RotorConfig[] {
   return [...pos]
     .sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x))
     .map((p, i) => ({ position: p, yawSign: i % 2 === 0 ? 1 : -1 }));
+}
+
+/* quaternion conjugate (inverse for unit quaternions) */
+function conjugateQuat(q: Quaternion): Quaternion {
+  return { x: -q.x, y: -q.y, z: -q.z, w: q.w };
 }
 
 /* quaternion rotation */
@@ -225,9 +303,4 @@ function add(a: Vec3, b: Vec3): Vec3 {
 /* scale vector */
 function scale(v: Vec3, s: number): Vec3 {
   return { x: v.x * s, y: v.y * s, z: v.z * s };
-}
-
-/* clamp */
-function clamp(v: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, v));
 }
