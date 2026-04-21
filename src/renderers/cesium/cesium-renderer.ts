@@ -103,7 +103,8 @@ export class CesiumRenderer implements IRenderer {
     const offset = new Cesium.Cartesian3(-10, 0.0, 5);
 
     const modelUri =
-      this.droneConfig?.modelUrl ?? "/drone_models/tinyhawk.gltf";
+      this.droneConfig?.modelUrl ??
+      `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`;
 
     this.droneEntity = this.viewer.entities.add({
       position: new Cesium.CallbackPositionProperty(

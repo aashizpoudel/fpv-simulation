@@ -116,7 +116,8 @@ export class ThreejsRenderer implements IRenderer {
 
     if (this.droneConfig) {
       loader.load(
-        this.droneConfig?.modelUrl ?? "drone_models/tinyhawk.gltf",
+        this.droneConfig?.modelUrl ??
+          `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`,
         (gltf) => {
           // Create a wrapper group for physics transforms.
           // Physics sets position/quaternion on this.drone (the wrapper).

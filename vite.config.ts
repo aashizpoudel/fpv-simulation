@@ -5,8 +5,9 @@ const cesiumSource = "node_modules/cesium/Build/Cesium";
 const cesiumBaseUrl = "cesium";
 
 export default defineConfig({
+  base: "/fpv-simulation/",
   define: {
-    CESIUM_BASE_URL: JSON.stringify(`/${cesiumBaseUrl}`),
+    CESIUM_BASE_URL: JSON.stringify(`/fpv-simulation/${cesiumBaseUrl}/`),
   },
   build: {
     outDir: "build",
