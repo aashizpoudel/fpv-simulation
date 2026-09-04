@@ -8,6 +8,8 @@ import type { WorldConfig } from "./dedust-world-config";
  */
 export const FactorySplatWorldConfig: WorldConfig = {
   name: "factory-splat",
+  streamedSogManifestPath:
+    "https://code.playcanvas.com/temp/factory/lod-meta.json",
   splatLodManifestPath: "maps/factory-splat/manifest.json",
   collisionGlbPath: "maps/factory-splat/factory-collider.glb",
   visualRotationX: 0,

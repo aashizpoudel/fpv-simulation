@@ -28,10 +28,13 @@ startApp({
 });
 
 function resolveRendererType(): RendererType {
-  const param = new URLSearchParams(window.location.search).get("renderer");
-  if (param === "cesium" || param === "threejs") {
+  const params = new URLSearchParams(window.location.search);
+  const param = params.get("renderer");
+  if (param === "cesium" || param === "playcanvas" || param === "threejs") {
     return param;
   }
+  const world = params.get("world");
+  if (world === "factory" || world === "factory-splat") return "playcanvas";
   return "threejs";
 }
 

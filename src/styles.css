@@ -21,6 +21,12 @@ body {
     height: 100%;
 }
 
+.playcanvas-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
 /* ── OSD Overlay ──────────────────────────────────── */
 
 .osd {

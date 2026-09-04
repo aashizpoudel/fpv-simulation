@@ -20,6 +20,7 @@
     "@mkkellogg/gaussian-splats-3d": "^0.4.7",
     "@types/three": "^0.182.0",
     "cesium": "^1.116.0",
+    "playcanvas": "^2.22.0",
     "three": "^0.182.0"
   },
   "devDependencies": {

@@ -27,4 +27,6 @@ npm run dev -- --open '/fpv-simulation/?world=factory-splat'
 ```
 
 The default URL continues to load de_dust_2. Use `?world=factory-splat` to load
-the Gaussian environment and its invisible Rapier collision mesh.
+the Gaussian environment with the native PlayCanvas Streamed SOG renderer and
+its invisible Rapier collision mesh. Force the repacked Three.js fallback with
+`?world=factory-splat&renderer=threejs`.

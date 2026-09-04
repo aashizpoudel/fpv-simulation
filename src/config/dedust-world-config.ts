@@ -15,6 +15,8 @@ export interface WorldConfig {
   mapGlbPath?: string;
   /** Repacked coarse-to-fine splat manifest consumed by the Three.js renderer. */
   splatLodManifestPath?: string;
+  /** Native PlayCanvas Streamed SOG octree (`lod-meta.json`). */
+  streamedSogManifestPath?: string;
   /** Optional invisible mesh used only to build the Rapier collider. */
   collisionGlbPath?: string;
   /** X rotation applied to the visible asset. Defaults to PI / 2 for GLBs. */
