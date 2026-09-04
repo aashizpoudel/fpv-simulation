@@ -11,7 +11,16 @@ import type { Vec3 } from "../types";
  */
 export interface WorldConfig {
   name: string;
-  mapGlbPath: string;
+  /** Regular mesh world. Mutually exclusive with splatLodManifestPath. */
+  mapGlbPath?: string;
+  /** Repacked coarse-to-fine splat manifest consumed by the Three.js renderer. */
+  splatLodManifestPath?: string;
+  /** Optional invisible mesh used only to build the Rapier collider. */
+  collisionGlbPath?: string;
+  /** X rotation applied to the visible asset. Defaults to PI / 2 for GLBs. */
+  visualRotationX?: number;
+  /** X rotation applied to collisionGlbPath. Defaults to PI / 2. */
+  collisionRotationX?: number;
   /** Spawn position at scale=1. Scaled automatically by mapScale. */
   spawnPosition: Vec3;
   bounds: { min: Vec3; max: Vec3 };

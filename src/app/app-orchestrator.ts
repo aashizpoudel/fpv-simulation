@@ -75,19 +75,26 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const rendererStart = options.rendererStart ?? simulationStart;
 
   renderer.setDroneConfig?.(Tinyhawk3Config);
+  if (options.worldConfig) renderer.setWorldConfig?.(options.worldConfig);
   renderer.setFeedCanvas?.(options.feedCanvasId ?? "cameraFeed");
   renderer.setFeedMode?.("auto");
   if (options.worldConfig?.mapScale != null) {
     renderer.mapScale = options.worldConfig.mapScale;
   }
 
-  // When the map mesh finishes loading, create a physics trimesh collider for it.
+  // Asset loading and Rapier WASM initialization happen concurrently. Keep a
+  // completed collision asset until the physics world is ready to avoid a race.
+  let physicsReady = false;
+  let pendingMapCollider: import("three").Object3D | undefined;
   renderer.onMapLoaded = (mapObject) => {
-    simulationEngine.createMapCollider(mapObject as import("three").Object3D);
+    pendingMapCollider = mapObject as import("three").Object3D;
+    if (physicsReady) simulationEngine.createMapCollider(pendingMapCollider);
   };
 
   await Promise.resolve(renderer.init(container, rendererStart));
   await simulationEngine.init(simulationStart);
+  physicsReady = true;
+  if (pendingMapCollider) simulationEngine.createMapCollider(pendingMapCollider);
 
   inputProvider.init();
 

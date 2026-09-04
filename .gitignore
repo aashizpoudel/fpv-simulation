@@ -2,5 +2,11 @@ node_modules
 node_modules/*
 .env
 build/
+prototypes/splat-lod/dist/
+prototypes/splat-lod/public/assets/*.ksplat
+prototypes/splat-lod/public/assets/manifest.json
+public/maps/factory-splat/*.ksplat
+public/maps/factory-splat/*.glb
+public/maps/factory-splat/manifest.json
 *.DS_Store
 architecture.md

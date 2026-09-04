@@ -66,6 +66,19 @@ body {
     right: 20px;
 }
 
+.osd-lod-status {
+    top: 38px;
+    left: 20px;
+    max-width: calc(100vw - 40px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(180, 230, 255, 0.9);
+}
+
+.osd-lod-status[data-state="error"] {
+    color: rgba(255, 100, 100, 0.95);
+}
+
 /* ── Left / Right center ──────────────────────────── */
 
 .osd-left-center {

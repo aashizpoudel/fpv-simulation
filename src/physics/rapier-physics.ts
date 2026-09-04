@@ -90,8 +90,12 @@ export class RapierPhysics {
 
           // Add indices with offset
           if (geometry.index) {
-            const indexArray = Array.from(geometry.index.array as ArrayLike<number>);
-            indices.push(...indexArray.map((index) => index + vertexOffset));
+            // Avoid spreading large collision meshes into push(); JavaScript's
+            // argument limit is far below the Factory collider's index count.
+            const indexArray = geometry.index.array as ArrayLike<number>;
+            for (let i = 0; i < indexArray.length; i++) {
+              indices.push(indexArray[i] + vertexOffset);
+            }
           } else {
             for (let i = 0; i < positionAttr.count; i++) {
               indices.push(vertexOffset + i);

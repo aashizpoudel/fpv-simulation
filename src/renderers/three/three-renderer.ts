@@ -3,7 +3,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { CameraMode, DroneTelemetry, Vec3 } from "../../types";
 import type { DroneConfig } from "../../config/tinyhawk-config";
+import type { WorldConfig } from "../../config/dedust-world-config";
 import type { IRenderer } from "../renderer-interface";
+import { SplatLodLoader, type SplatLodStatus } from "./splat-lod-loader";
 
 export class ThreejsRenderer implements IRenderer {
   private scene!: THREE.Scene;
@@ -23,7 +25,10 @@ export class ThreejsRenderer implements IRenderer {
   private noseMarker?: THREE.Mesh;
   private feedMode: "auto" | "fpv" | "third" = "auto";
   private droneConfig?: DroneConfig;
+  private worldConfig?: WorldConfig;
   private map?: THREE.Object3D;
+  private splatViewer?: import("@mkkellogg/gaussian-splats-3d").DropInViewer;
+  private splatLodLoader?: SplatLodLoader;
   private resizeHandler = () => this.resize();
   public onMapLoaded?: (mapObject: object) => void;
   public mapScale?: number;
@@ -88,31 +93,10 @@ export class ThreejsRenderer implements IRenderer {
     directionalLight.position.set(100, 100, 100);
     this.scene.add(directionalLight);
 
-    // Drone
+    // World and drone assets
     const loader = new GLTFLoader();
     const initialPosition = startPosition ?? { x: 0, y: 0, z: 0 };
-    loader.load(
-      "maps/de_dust_2_with_real_light.glb",
-      (gltf) => {
-        this.map = gltf.scene;
-        // GLB/GLTF models are authored in Y-up; rotate to Z-up convention
-        this.map.rotation.x = Math.PI / 2;
-        // Apply optional map scale so the geometry represents real-world metres.
-        // This must happen BEFORE adding to the scene and firing onMapLoaded,
-        // so that updateMatrixWorld picks up both rotation and scale for the
-        // physics trimesh collider.
-        const scale = this.mapScale ?? 1;
-        this.map.scale.setScalar(scale);
-        this.scene.add(this.map);
-        // Notify listener (e.g. physics collider creation) after map is in the scene
-        // so that updateMatrixWorld picks up the rotation and scale.
-        if (this.onMapLoaded) {
-          this.onMapLoaded(this.map);
-        }
-      },
-      undefined,
-      (error) => console.error(error),
-    );
+    void this.loadWorld(loader);
 
     if (this.droneConfig) {
       loader.load(
@@ -227,6 +211,10 @@ export class ThreejsRenderer implements IRenderer {
 
   public dispose(): void {
     window.removeEventListener("resize", this.resizeHandler);
+    this.splatLodLoader?.dispose();
+    void this.splatViewer?.dispose();
+    this.splatLodLoader = undefined;
+    this.splatViewer = undefined;
     this.orbitControls?.dispose();
     this.feedRenderer?.dispose();
     this.feedRenderer = undefined;
@@ -288,6 +276,120 @@ export class ThreejsRenderer implements IRenderer {
       this.fpvCamera.position.set(this.getFpvOffsetX(), 0, 0);
     }
     this.hasOrbitOffset = false;
+  }
+
+  public setWorldConfig(config: WorldConfig): void {
+    this.worldConfig = config;
+    this.mapScale = config.mapScale ?? 1;
+  }
+
+  private async loadWorld(loader: GLTFLoader): Promise<void> {
+    const config = this.worldConfig;
+    if (!config) {
+      console.warn("No world config supplied; rendering the drone without a map");
+      return;
+    }
+
+    try {
+      if (config.splatLodManifestPath) {
+        await this.loadSplatWorld(config);
+      } else if (config.mapGlbPath) {
+        await this.loadMeshWorld(loader, config);
+      } else {
+        throw new Error(`World ${config.name} has no visible asset`);
+      }
+
+      if (config.collisionGlbPath) {
+        await this.loadCollisionWorld(loader, config);
+      }
+    } catch (error) {
+      this.updateSplatStatus({
+        state: "error",
+        downloadedBytes: 0,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      console.error(`Failed to load world ${config.name}`, error);
+    }
+  }
+
+  private async loadMeshWorld(
+    loader: GLTFLoader,
+    config: WorldConfig,
+  ): Promise<void> {
+    const map = (await loader.loadAsync(this.assetUrl(config.mapGlbPath!))).scene;
+    map.rotation.x = config.visualRotationX ?? Math.PI / 2;
+    map.scale.setScalar(config.mapScale ?? 1);
+    this.map = map;
+    this.scene.add(map);
+
+    // A mesh-only world uses its visible geometry for physics too.
+    if (!config.collisionGlbPath) this.onMapLoaded?.(map);
+  }
+
+  private async loadSplatWorld(config: WorldConfig): Promise<void> {
+    const { DropInViewer, SceneRevealMode } = await import(
+      "@mkkellogg/gaussian-splats-3d"
+    );
+    const viewer = new DropInViewer({
+      sharedMemoryForWorkers: false,
+      gpuAcceleratedSort: false,
+      integerBasedSort: false,
+      dynamicScene: true,
+      sphericalHarmonicsDegree: 0,
+      sceneRevealMode: SceneRevealMode.Instant,
+    });
+    viewer.rotation.x = config.visualRotationX ?? 0;
+    viewer.scale.setScalar(config.mapScale ?? 1);
+    this.splatViewer = viewer;
+    this.scene.add(viewer);
+
+    const lodLoader = new SplatLodLoader(
+      viewer,
+      new URL(this.assetUrl(config.splatLodManifestPath!)),
+      { onStatus: (status) => this.updateSplatStatus(status) },
+    );
+    this.splatLodLoader = lodLoader;
+    await lodLoader.loadInitial();
+
+    // Let the first useful frame paint before requesting the optional finer LOD.
+    window.setTimeout(() => {
+      void lodLoader.loadFinerLevels().catch((error) => {
+        this.updateSplatStatus({
+          state: "error",
+          downloadedBytes: 0,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }, 1500);
+  }
+
+  private async loadCollisionWorld(
+    loader: GLTFLoader,
+    config: WorldConfig,
+  ): Promise<void> {
+    const collision = (
+      await loader.loadAsync(this.assetUrl(config.collisionGlbPath!))
+    ).scene;
+    collision.rotation.x = config.collisionRotationX ?? Math.PI / 2;
+    collision.scale.setScalar(config.mapScale ?? 1);
+    collision.visible = false;
+    this.scene.add(collision);
+    this.onMapLoaded?.(collision);
+  }
+
+  private assetUrl(path: string): string {
+    const base = new URL(import.meta.env.BASE_URL, window.location.origin);
+    return new URL(path.replace(/^\//, ""), base).href;
+  }
+
+  private updateSplatStatus(status: SplatLodStatus): void {
+    const element = document.getElementById("lodStatus");
+    if (element) {
+      element.textContent = status.message;
+      element.dataset.state = status.state;
+    }
+    if (status.state === "error") console.error(status.message);
+    else console.info(status.message);
   }
 
   private updateCamera(pose: DroneTelemetry, cameraMode: CameraMode): void {
