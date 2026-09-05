@@ -58,21 +58,43 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
     });
   }
 
-  if (closeSettingsBtn) {
-    closeSettingsBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
+  const closeSettings = (e?: Event) => {
+    if (e) {
       e.preventDefault();
-      if (flightHelp) {
-        flightHelp.open = false;
-        sessionStorage.setItem("fpv_hide_settings", "true");
+      e.stopPropagation();
+    }
+    if (flightHelp) {
+      flightHelp.open = false;
+      sessionStorage.setItem("fpv_hide_settings", "true");
+    }
+  };
+
+  const summaryEl = flightHelp?.querySelector("summary");
+  if (summaryEl) {
+    summaryEl.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement)?.closest("#closeSettingsBtn")) {
+        closeSettings(e);
+      } else {
+        // Prevent accidental modal toggle when clicking modal header
+        e.preventDefault();
       }
     });
   }
 
+  if (closeSettingsBtn) {
+    closeSettingsBtn.addEventListener("click", closeSettings);
+  }
+
+  const closeSettingsFooterBtn = document.getElementById(
+    "closeSettingsFooterBtn",
+  );
+  if (closeSettingsFooterBtn) {
+    closeSettingsFooterBtn.addEventListener("click", closeSettings);
+  }
+
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && flightHelp?.open) {
-      flightHelp.open = false;
-      sessionStorage.setItem("fpv_hide_settings", "true");
+      closeSettings();
     }
   });
 
