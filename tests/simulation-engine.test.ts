@@ -44,6 +44,12 @@ class FakePhysics {
 }
 
 describe("SimulationEngine", () => {
+  it("advances a full second at 30 FPS with the production timestep", () => {
+    const physics = new FakePhysics();
+    const engine = new SimulationEngine({ physics: physics as unknown as RapierPhysics });
+    for (let i = 0; i < 30; i++) engine.step(neutralControls, 1 / 30);
+    expect(physics.step).toHaveBeenCalledTimes(240);
+  });
   it("accumulates time and steps on fixed cadence", () => {
     const physics = new FakePhysics();
     const engine = new SimulationEngine({

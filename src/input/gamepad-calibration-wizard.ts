@@ -12,10 +12,10 @@ type CalibrationStep =
   | { type: "button"; key: ButtonKey; label: string; optional?: boolean };
 
 const STEPS: CalibrationStep[] = [
-  { type: "axis", key: "throttle", label: "Move THROTTLE through full range" },
-  { type: "axis", key: "yaw", label: "Move YAW left/right" },
-  { type: "axis", key: "pitch", label: "Move PITCH up/down" },
-  { type: "axis", key: "roll", label: "Move ROLL left/right" },
+  { type: "axis", key: "throttle", label: "Start with throttle fully DOWN, then move it UP" },
+  { type: "axis", key: "yaw", label: "From center, move YAW LEFT" },
+  { type: "axis", key: "pitch", label: "From center, move PITCH FORWARD" },
+  { type: "axis", key: "roll", label: "From center, move ROLL RIGHT" },
   { type: "button", key: "arm", label: "Press ARM button" },
   { type: "button", key: "reset", label: "Press RESET button" },
   { type: "button", key: "camera", label: "Press CAMERA button (optional)", optional: true },
@@ -91,6 +91,7 @@ export function runCalibrationWizard(gamepadIndex: number): Promise<GamepadCalib
     };
 
     const runStep = () => {
+      if (rafId != null) cancelAnimationFrame(rafId);
       const step = STEPS[stepIndex];
       const isOptionalButton = step.type === "button" && step.optional;
       ui.title.textContent = `Step ${stepIndex + 1} of ${STEPS.length}`;

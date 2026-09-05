@@ -9,6 +9,7 @@ import { runCalibrationWizard } from "./gamepad-calibration-wizard";
 import { KeyboardInputProvider, type KeyboardInputProviderOptions } from "./keyboard-input-provider";
 import type { InputActionCallbacks, InputProvider } from "./input-provider";
 import type { InputMapperOptions } from "./input-mapper";
+import { createNeutralControls } from "./input-provider";
 
 export type InputManagerOptions = {
   callbacks: InputActionCallbacks;
@@ -24,6 +25,7 @@ export class InputManager implements InputProvider {
   private activeProvider: InputProvider;
   private readonly gamepadIndex: number;
   private readonly mapperOptions?: InputMapperOptions;
+  private calibrating = false;
 
   private readonly handleConnect = (event: GamepadEvent) => {
     if (event.gamepad.index !== this.gamepadIndex) return;
@@ -61,6 +63,7 @@ export class InputManager implements InputProvider {
   }
 
   read(dt: number) {
+    if (this.calibrating) return createNeutralControls();
     return this.activeProvider.read(dt);
   }
 
@@ -75,13 +78,14 @@ export class InputManager implements InputProvider {
   }
 
   async recalibrate(): Promise<void> {
+    if (this.calibrating) return;
     const pad = navigator.getGamepads?.()[this.gamepadIndex];
     if (!pad) {
       this.switchToKeyboard();
-      return;
+      throw new Error("Connect a radio/gamepad and press one of its buttons first.");
     }
 
-    const calibration = await runCalibrationWizard(this.gamepadIndex);
+    const calibration = await this.calibrate(this.gamepadIndex);
     const withId: GamepadCalibration = {
       ...calibration,
       gamepadId: calibration.gamepadId || pad.id || `gamepad-${this.gamepadIndex}`,
@@ -112,13 +116,14 @@ export class InputManager implements InputProvider {
   }
 
   private async activateGamepad(index: number, pad?: Gamepad) {
+    if (this.calibrating) return;
     const gamepad = pad ?? navigator.getGamepads?.()[index];
     if (!gamepad) return;
 
     let calibration = loadCalibration(gamepad.id);
     if (!calibration) {
       try {
-        calibration = await runCalibrationWizard(index);
+        calibration = await this.calibrate(index);
       } catch {
         this.switchToKeyboard();
         return;
@@ -146,5 +151,12 @@ export class InputManager implements InputProvider {
     this.gamepadProvider = provider;
     this.switchProvider(provider);
     this.callbacks.onInputSourceChanged?.("gamepad");
+  }
+
+  private async calibrate(index: number): Promise<GamepadCalibration> {
+    this.calibrating = true;
+    this.activeProvider.dispose();
+    try { return await runCalibrationWizard(index); }
+    finally { this.calibrating = false; this.activeProvider.init(); }
   }
 }

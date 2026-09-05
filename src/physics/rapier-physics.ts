@@ -25,6 +25,9 @@ export class RapierPhysics {
   private startPosition: Vec3;
   private mapMesh?: THREE.Object3D;
   private roofHeight: number = Infinity;
+  private droneCollider?: RAPIER.Collider;
+  private mapBody?: RAPIER.RigidBody;
+  private events?: RAPIER.EventQueue;
 
   constructor(private config: DroneConfig = Tinyhawk3Config) {
     this.crashed = false;
@@ -107,12 +110,13 @@ export class RapierPhysics {
     });
 
     if (vertices.length === 0 || indices.length === 0) {
-      console.warn("No valid geometry found for collider creation");
-      return;
+      throw new Error("The environment collision mesh contains no triangles.");
     }
 
     const rigidBodyDesc = RAPIER.RigidBodyDesc.fixed();
+    if (this.mapBody) this.world.removeRigidBody(this.mapBody);
     const rigidBody = this.world.createRigidBody(rigidBodyDesc);
+    this.mapBody = rigidBody;
 
     const colliderDesc = RAPIER.ColliderDesc.trimesh(
       new Float32Array(vertices),
@@ -152,8 +156,8 @@ export class RapierPhysics {
       halfExtents.y,
       halfExtents.z,
     )
-      .setTranslation(0, 0, -halfExtents.z)
       .setMass(this.config.mass)
+      .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
       .setFriction(0.8)
       .setRestitution(0.1);
 
@@ -198,8 +202,8 @@ export class RapierPhysics {
       }
     }
 
-    this.droneTelemetry.localPosition.z = startPosition.z + this.spawnHeight;
-    this.world.createCollider(colliderDesc, this.body);
+    this.droneTelemetry.localPosition = { x: startPosition.x, y: startPosition.y, z: startPosition.z + this.spawnHeight };
+    this.droneCollider = this.world.createCollider(colliderDesc, this.body);
   }
 
   /** Build a flight mode from the controller type string, or null if unsupported */
@@ -233,6 +237,9 @@ export class RapierPhysics {
       this.world.free()
     }
     this.world = new RAPIER.World({ x: 0, y: 0, z: -GRAVITY });
+    this.events?.free();
+    this.events = new RAPIER.EventQueue(true);
+    this.mapBody = undefined;
     this.setupDrone(this.startPosition, this.config)
     // Create ceiling collider if roofHeight is finite
     this.createCeilingCollider();
@@ -265,11 +272,32 @@ export class RapierPhysics {
     this.armed = false;
     this.lastVelocity = { x: 0, y: 0, z: 0 };
     this.droneTelemetry = this.emptyTelemetry();
-    this.resetWorld();
+    if (!this.body || !this.world) this.resetWorld();
+    else {
+      // Keep the static mesh/BVH; resetting the drone must not rebuild the world.
+      this.body.setTranslation({ ...this.startPosition, z: this.startPosition.z + this.spawnHeight }, true);
+      this.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+      this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      this.body.resetForces(true);
+      this.body.resetTorques(true);
+      this.controller?.reset();
+      this.droneTelemetry.localPosition = { ...this.startPosition, z: this.startPosition.z + this.spawnHeight };
+    }
+  }
+
+  public dispose(): void {
+    this.world?.free();
+    this.events?.free();
+    this.events = undefined;
+    this.world = undefined;
+    this.body = undefined;
+    this.droneCollider = undefined;
+    this.mapBody = undefined;
   }
 
   public setArmed(armed: boolean): void {
-    this.armed = armed;
+    this.armed = armed && !this.crashed;
     if (!armed && this.controller) {
       this.controller.reset();
     }
@@ -302,19 +330,41 @@ export class RapierPhysics {
     }
 
     // Get current physics state
+    // Motors stop when disarmed, but gravity and contacts continue.
+    if (this.armed && !this.crashed) {
+      const controllerTelemetry = this.getTelemetryForController();
+      const command = this.controller.computePhysicsCommand(controls, controllerTelemetry, deltaTime);
+      this.applyPhysicsCommand(command);
+    } else {
+      this.body.resetForces(true);
+      this.body.resetTorques(true);
+    }
+    this.world.timestep = deltaTime;
+    this.world.step(this.events);
     const translation = this.body.translation();
     const rotation = this.body.rotation();
     const velocity = this.body.linvel();
     const angVel = this.body.angvel();
 
-    // Update physics if armed and not crashed
-    if (this.armed && !this.crashed) {
-      const controllerTelemetry = this.getTelemetryForController();
-      const command = this.controller.computePhysicsCommand(controls, controllerTelemetry, deltaTime);
-      this.applyPhysicsCommand(command);
-      this.world.timestep = deltaTime;
-      this.world.step();
-    }
+    // Sum normal contact impulses: gentle landings settle; hard impacts cut motors.
+    let impactImpulse = 0;
+    this.events?.drainContactForceEvents((event) => {
+      if (event.collider1() === this.droneCollider?.handle || event.collider2() === this.droneCollider?.handle) {
+        impactImpulse += event.totalForceMagnitude() * deltaTime;
+      }
+    });
+    // Rapier's CCD clamping can stop motion without a matching contact-force
+    // event. Include the measured velocity jump when a contact manifold exists.
+    let touching = false;
+    if (this.droneCollider) this.world.contactPairsWith(this.droneCollider, (other) => {
+      this.world!.contactPair(this.droneCollider!, other, (manifold) => {
+        touching ||= manifold.numContacts() > 0;
+      });
+    });
+    const velocityJump = Math.hypot(
+      velocity.x - this.lastVelocity.x, velocity.y - this.lastVelocity.y, velocity.z - this.lastVelocity.z,
+    );
+    if (impactImpulse / this.config.mass > 3 || (touching && velocityJump > 3)) this.crashed = true;
 
     // Calculate G-force
     const acceleration = {
@@ -339,6 +389,12 @@ export class RapierPhysics {
       this.body.setTranslation({ x: translation.x, y: translation.y, z: 0 }, true);
       this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
+    if (this.crashed) {
+      this.armed = false;
+      this.controller.reset();
+      this.body.resetForces(true);
+      this.body.resetTorques(true);
     }
 
     // Clamp to ground — correct the rigid body so it doesn't fall through

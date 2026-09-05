@@ -20,15 +20,13 @@ describe("KeyboardInputProvider", () => {
     fireKeyboardEvent("keydown", "w");
     fireKeyboardEvent("keydown", " ");
     fireKeyboardEvent("keydown", "m", true);
-    fireKeyboardEvent("keydown", "r");
 
     const controls = provider.read(1);
 
     expect(controls.thrust).toBe(1);
     expect(controls.speedMultiplier).toBe(2);
     expect(controls.arm).toBe(true);
-    expect(controls.reset).toBe(true);
-    expect(callbacks.onReset).toHaveBeenCalledTimes(1);
+    expect(controls.reset).toBe(false);
     expect(callbacks.onToggleArm).toHaveBeenCalledTimes(1);
 
     fireKeyboardEvent("keyup", "w");
@@ -40,6 +38,12 @@ describe("KeyboardInputProvider", () => {
     expect(neutral.thrust).toBe(0);
     expect(neutral.speedMultiplier).toBe(1);
     expect(neutral.reset).toBe(false);
+
+    fireKeyboardEvent("keydown", "r");
+    const reset = provider.read(1);
+    expect(reset.reset).toBe(true);
+    expect(reset.arm).toBe(false);
+    expect(callbacks.onReset).toHaveBeenCalledTimes(1);
 
     provider.dispose();
   });

@@ -12,9 +12,9 @@
         <div class="osd">
             <!-- Top row -->
             <span class="osd-el osd-top-left" id="flightMode">ACRO</span>
-            <span class="osd-el osd-top-center" id="altitude">4.1m</span>
-            <span class="osd-el osd-top-right" id="fps">60fps</span>
-            <span class="osd-el osd-lod-status" id="lodStatus"></span>
+            <span class="osd-el osd-top-center" id="altitude">—</span>
+            <span class="osd-el osd-top-right" id="fps">—</span>
+            <span class="osd-el osd-lod-status" id="lodStatus" role="status">Loading environment and collision geometry…</span>
 
             <!-- Left-center: speed -->
             <div class="osd-el osd-left-center">
@@ -59,6 +59,59 @@
 
         <!-- Camera feed (hidden, used by renderer) -->
         <div id="cameraFeed" style="display:none;"></div>
+
+        <details class="flight-help" open>
+            <summary>Settings & Controls · <span id="inputSource">KEYBOARD</span></summary>
+
+            <div class="settings-group">
+                <div class="settings-title">Engine & Environment</div>
+                <label>Renderer
+                    <select id="rendererSelect">
+                        <option value="threejs">Three.js (Spark 3DGS)</option>
+                        <option value="cesium">Cesium (3D Tiles)</option>
+                    </select>
+                </label>
+                <label id="worldSelectLabel">Environment
+                    <select id="worldSelect">
+                        <option value="factory-splat">Factory (Gaussian Splats)</option>
+                        <option value="dedust">Dedust 2 (GLB Mesh)</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-title">View & Quality</div>
+                <label>Camera View
+                    <select id="cameraSelect">
+                        <option value="fpv">FPV (Cockpit)</option>
+                        <option value="third">Third Person (Chase)</option>
+                        <option value="orbit">Orbit (Free Look)</option>
+                    </select>
+                </label>
+                <label>Rendering Quality
+                    <select id="quality">
+                        <option value="performance">Performance</option>
+                        <option value="balanced" selected>Balanced</option>
+                        <option value="detail">Detail</option>
+                    </select>
+                </label>
+                <label class="settings-checkbox">
+                    <input type="checkbox" id="collisionCheckbox" />
+                    <span>Show collision wireframe</span>
+                </label>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-title">Flight Controls</div>
+                <p>Shift+M arm / disarm · R reset</p>
+                <p>W / S raise / lower throttle · A / D yaw</p>
+                <p>Arrow keys pitch / roll · F angle / acro mode</p>
+                <p>C toggle camera view · Drag to look in orbit</p>
+                <p>Raise throttle to ~74% to lift off. Try angle mode for self-leveling.</p>
+                <button id="calibrate" type="button">Calibrate radio / gamepad</button>
+                <p class="settings-hint">Radio: lower throttle fully before arming.</p>
+            </div>
+        </details>
 
         <!-- Crash banner -->
         <div class="status-banner" id="statusBanner">

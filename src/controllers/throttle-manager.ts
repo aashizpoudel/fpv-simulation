@@ -14,7 +14,11 @@ export class ThrottleManager {
   }
 
   /** Integrate thrust input into throttle. Returns current throttle 0-1. */
-  update(thrustInput: number, speedMultiplier: number, dt: number): number {
+  update(thrustInput: number, speedMultiplier: number, dt: number, absoluteThrottle?: number): number {
+    if (absoluteThrottle !== undefined) {
+      this._throttle = clamp(absoluteThrottle, 0, 1);
+      return this._throttle;
+    }
     const delta = thrustInput * this.throttleRate * dt * speedMultiplier;
     this._throttle = clamp(this._throttle + delta, 0, 1);
     return this._throttle;

@@ -23,6 +23,8 @@ export interface WorldConfig {
   visualRotationX?: number;
   /** X rotation applied to collisionGlbPath. Defaults to PI / 2. */
   collisionRotationX?: number;
+  /** Collision asset's placement in simulation coordinates, before mapScale. */
+  collisionPosition?: Vec3;
   /** Spawn position at scale=1. Scaled automatically by mapScale. */
   spawnPosition: Vec3;
   bounds: { min: Vec3; max: Vec3 };

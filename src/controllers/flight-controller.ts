@@ -47,6 +47,7 @@ export class FlightController implements IController {
       controls.thrust,
       controls.speedMultiplier,
       dt,
+      controls.throttle,
     );
 
     // 2. Convert world angular velocity to body frame

@@ -1,32 +1,21 @@
-# Three.js Factory splat LOD
+# Spark Factory rendering
 
-The simulator uses a deploy-time repack instead of making browsers fetch the
-original ~1.2 GB PlayCanvas SOG. The generated manifest contains only:
+The main application uses Spark 2.1 with Three.js. Open the default route:
+`/fpv-simulation/`.
 
-- LOD 6: about 12.2 MiB, loaded first.
-- LOD 5: about 24.5 MiB, loaded after the first frame.
-- Factory collision GLB: about 9.1 MiB unpacked.
+Spark reads the existing manifest and loads its finest local KSPLAT (currently
+LOD5, 1,066,636 splats, 24.5 MiB). `SplatMesh({ lod: true })` builds a spatial
+LOD tree in a worker. The active camera and quality setting determine the rendered
+detail. This is full-file loading with spatial rendering LOD, not network paging.
 
-The runtime has a 64 MiB cumulative KSPLAT download budget. Adding more entries
-to the manifest does not bypass that guard.
+The collision GLB is loaded concurrently, then passed to Rapier before the input
+loop starts. Its X rotation is PI/2 and its simulation-space translation is
+(-4.695, -11.397, 0.438), matching the original Factory scene entity placement.
+The spawn floor is approximately Z=-0.67765. There is no artificial Z=0 floor.
 
-## Generate assets
+Use `?collision=1` to inspect the triangle mesh over the capture.
 
-```sh
-npm install
-npm run splat:repack
-```
-
-Node.js 22 or newer is required by `@playcanvas/splat-transform`. Generated
-files are ignored by Git because they are deployment artifacts.
-
-## Run
-
-```sh
-npm run dev -- --open '/fpv-simulation/?world=factory-splat'
-```
-
-The default URL continues to load de_dust_2. Use `?world=factory-splat` to load
-the Gaussian environment with the native PlayCanvas Streamed SOG renderer and
-its invisible Rapier collision mesh. Force the repacked Three.js fallback with
-`?world=factory-splat&renderer=threejs`.
+See [the project README](../README.md) for controls, asset generation, validation,
+and deployment. Regenerating assets still uses `npm run splat:repack`; Node 22+
+is required. Higher-quality capture data is needed to improve fidelity beyond
+the already-repacked LOD5 asset.

@@ -4,7 +4,8 @@ import { RapierPhysics } from "../physics/rapier-physics";
 import type * as THREE from "three";
 
 const DEFAULT_FIXED_TIME_STEP = 1 / 240;
-const DEFAULT_MAX_SUB_STEPS = 5;
+// Keep real-time physics through ordinary rendering dips down to 15 FPS.
+const DEFAULT_MAX_SUB_STEPS = 16;
 
 export type SimulationEngineOptions = {
   fixedTimeStep?: number;
@@ -27,7 +28,7 @@ export class SimulationEngine {
   constructor(options: SimulationEngineOptions = {}) {
     this.fixedTimeStep = options.fixedTimeStep ?? DEFAULT_FIXED_TIME_STEP;
     this.maxSubSteps = options.maxSubSteps ?? DEFAULT_MAX_SUB_STEPS;
-    this.clampZ = options.clampZ ?? 0;
+    this.clampZ = options.clampZ ?? -Infinity;
     this.roofHeight = options.roofHeight ?? Infinity;
     this.physics = options.physics ?? new RapierPhysics(options.config);
     this.lastTelemetry = this.physics.getTelemetry();
@@ -74,6 +75,8 @@ export class SimulationEngine {
   getTelemetry(): DroneTelemetry {
     return this.lastTelemetry;
   }
+
+  dispose(): void { this.physics.dispose(); }
 
   createMapCollider(mapObject: THREE.Object3D): void {
     this.physics.createCollider(mapObject);

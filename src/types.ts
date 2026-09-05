@@ -46,6 +46,8 @@ export type DronePose = {
 };
 
 export type Controls = {
+  /** Radio/gamepad absolute motor command; keyboard uses incremental thrust. */
+  throttle?: number;
   thrust: number;
   pitch: number;
   roll: number;

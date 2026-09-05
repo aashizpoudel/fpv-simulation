@@ -1,18 +1,13 @@
-import { CesiumRenderer } from "./cesium/cesium-renderer";
-import { PlayCanvasRenderer } from "./playcanvas/playcanvas-renderer";
-import { ThreejsRenderer } from "./three/three-renderer";
 import type { IRenderer } from "./renderer-interface";
 
-export type RendererType = "cesium" | "playcanvas" | "threejs";
+export type RendererType = "cesium" | "threejs";
 
-export function createRenderer(type: RendererType): IRenderer {
+export async function createRenderer(type: RendererType): Promise<IRenderer> {
   switch (type) {
     case "cesium":
-      return new CesiumRenderer();
-    case "playcanvas":
-      return new PlayCanvasRenderer();
+      return new (await import("./cesium/cesium-renderer")).CesiumRenderer();
     case "threejs":
-      return new ThreejsRenderer();
+      return new (await import("./three/three-renderer")).ThreejsRenderer();
     default:
       throw new Error(`Unknown renderer type: ${type}`);
   }

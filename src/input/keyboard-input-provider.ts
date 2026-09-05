@@ -48,6 +48,11 @@ export class KeyboardInputProvider implements InputProvider {
   private armed = false;
   private handleKeyDown: (event: KeyboardEvent) => void;
   private handleKeyUp: (event: KeyboardEvent) => void;
+  private clearInput = () => {
+    this.keys = {};
+    this.axis = { thrust: 0, pitch: 0, roll: 0, yaw: 0 };
+    this.armed = false;
+  };
 
   constructor(options: KeyboardInputProviderOptions) {
     this.callbacks = options.callbacks;
@@ -94,10 +99,13 @@ export class KeyboardInputProvider implements InputProvider {
     this.speedBoostMultiplier = options.speedBoostMultiplier ?? 2;
 
     this.handleKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLElement && /INPUT|SELECT|TEXTAREA|BUTTON/.test(event.target.tagName)) return;
       const key = event.key.toLowerCase();
+      if (key.startsWith("arrow") || key === " ") event.preventDefault();
       this.keys[key] = true;
 
       if (!event.repeat && key === "r") {
+        this.clearInput();
         this.resetPending = true;
         this.callbacks.onReset();
       }
@@ -129,8 +137,10 @@ export class KeyboardInputProvider implements InputProvider {
   }
 
   init(): void {
+    this.clearInput();
     document.addEventListener("keydown", this.handleKeyDown);
     document.addEventListener("keyup", this.handleKeyUp);
+    window.addEventListener("blur", this.clearInput);
   }
 
   read(dt: number): Controls {
@@ -198,8 +208,10 @@ export class KeyboardInputProvider implements InputProvider {
   }
 
   dispose(): void {
+    this.clearInput();
     document.removeEventListener("keydown", this.handleKeyDown);
     document.removeEventListener("keyup", this.handleKeyUp);
+    window.removeEventListener("blur", this.clearInput);
   }
 
   private approach(current: number, target: number, rate: number, dt: number) {

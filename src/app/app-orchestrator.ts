@@ -2,7 +2,6 @@ import { Tinyhawk3Config } from "../config/tinyhawk-config";
 import type { WorldConfig } from "../config/dedust-world-config";
 import { SimulationEngine, type SimulationEngineOptions } from "../core/simulation-engine";
 import { InputManager } from "../input/input-manager";
-import type { InputProvider } from "../input/input-provider";
 import { createRenderer, type RendererType } from "../renderers/renderer-factory";
 import type { IRenderer } from "../renderers/renderer-interface";
 import type { CameraMode, DroneTelemetry, Vec3 } from "../types";
@@ -38,7 +37,7 @@ type HudElements = {
 
 export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const ui = getHudElements();
-  const renderer: IRenderer = createRenderer(options.rendererType);
+  const renderer: IRenderer = await createRenderer(options.rendererType);
   const simulationEngine = new SimulationEngine({
     config: Tinyhawk3Config,
     roofHeight: options.worldConfig?.roofHeight,
@@ -46,6 +45,14 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   });
 
   let cameraMode: CameraMode = options.initialCameraMode ?? "orbit";
+  const cameraSelect = document.getElementById("cameraSelect") as HTMLSelectElement | null;
+  if (cameraSelect) {
+    cameraSelect.value = cameraMode;
+    cameraSelect.addEventListener("change", () => {
+      cameraMode = cameraSelect.value as CameraMode;
+      localStorage.setItem("drone_sim_camera", cameraMode);
+    });
+  }
   let flightMode: "acro" | "angle" = Tinyhawk3Config.controllerType === "angle" ? "angle" : "acro";
   let lastTime = performance.now();
   let frameCount = 0;
@@ -53,19 +60,24 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   let lastHudUpdate = 0;
   let resetRequested = false;
 
-  const inputProvider: InputProvider = new InputManager({
+  const inputProvider = new InputManager({
     callbacks: {
       onReset: () => {
         resetRequested = true;
       },
       onToggleCamera: () => {
         cameraMode = nextCameraMode(cameraMode);
+        if (cameraSelect) cameraSelect.value = cameraMode;
+        localStorage.setItem("drone_sim_camera", cameraMode);
       },
       onSwitchFlightMode: () => {
         flightMode = flightMode === "acro" ? "angle" : "acro";
         simulationEngine.switchFlightMode(flightMode);
       },
-      onInputSourceChanged: () => {},
+      onInputSourceChanged: (source) => {
+        const element = document.getElementById("inputSource");
+        if (element) element.textContent = source === "gamepad" ? "RADIO / GAMEPAD" : "KEYBOARD";
+      },
     },
   });
 
@@ -76,7 +88,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
 
   renderer.setDroneConfig?.(Tinyhawk3Config);
   if (options.worldConfig) renderer.setWorldConfig?.(options.worldConfig);
-  renderer.setFeedCanvas?.(options.feedCanvasId ?? "cameraFeed");
+  renderer.setFeedCanvas?.(options.feedCanvasId ?? null);
   renderer.setFeedMode?.("auto");
   if (options.worldConfig?.mapScale != null) {
     renderer.mapScale = options.worldConfig.mapScale;
@@ -91,21 +103,46 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     if (physicsReady) simulationEngine.createMapCollider(pendingMapCollider);
   };
 
-  await Promise.resolve(renderer.init(container, rendererStart));
-  await simulationEngine.init(simulationStart);
-  physicsReady = true;
-  if (pendingMapCollider) simulationEngine.createMapCollider(pendingMapCollider);
+  try {
+    await Promise.resolve(renderer.init(container, rendererStart));
+    await simulationEngine.init(simulationStart);
+    physicsReady = true;
+    if (pendingMapCollider) simulationEngine.createMapCollider(pendingMapCollider);
+  } catch (error) {
+    renderer.dispose();
+    simulationEngine.dispose();
+    throw error;
+  }
 
   inputProvider.init();
+  lastTime = performance.now();
+  const loading = document.getElementById("lodStatus");
+  if (loading) loading.textContent = "Ready • Shift+M to arm • W to raise throttle";
+  let animationId = 0;
+  let stopped = false;
+  const calibrate = document.getElementById("calibrate");
+  const onCalibrate = () => {
+    void inputProvider.recalibrate().catch((error) => {
+      if (loading) loading.textContent = `Calibration cancelled: ${error instanceof Error ? error.message : String(error)}`;
+    });
+    calibrate?.blur();
+  };
+  calibrate?.addEventListener("click", onCalibrate);
 
+  const onVisibilityChange = () => { lastTime = performance.now(); };
+  document.addEventListener("visibilitychange", onVisibilityChange);
   const animate = () => {
+    if (stopped) return;
     const now = performance.now();
     const deltaTime = (now - lastTime) / 1000;
     lastTime = now;
+    // A hidden tab is paused; do not turn time away into a catch-up burst.
+    if (document.hidden) { animationId = requestAnimationFrame(animate); return; }
 
     const controls = inputProvider.read(deltaTime);
     if (controls.reset || resetRequested) {
       simulationEngine.reset();
+      simulationEngine.switchFlightMode(flightMode);
       ui.statusBanner.classList.remove("show");
       resetRequested = false;
     }
@@ -130,14 +167,19 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
       fpsTime = now;
     }
 
-    requestAnimationFrame(animate);
+    animationId = requestAnimationFrame(animate);
   };
 
-  requestAnimationFrame(animate);
+  animationId = requestAnimationFrame(animate);
 
   window.addEventListener("beforeunload", () => {
+    stopped = true;
+    cancelAnimationFrame(animationId);
+    calibrate?.removeEventListener("click", onCalibrate);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
     inputProvider.dispose();
     renderer.dispose();
+    simulationEngine.dispose();
   });
 }
 

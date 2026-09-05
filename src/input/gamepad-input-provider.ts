@@ -31,7 +31,7 @@ export class GamepadInputProvider implements InputProvider {
     this.mapper = new InputMapper(options.mapperOptions);
   }
 
-  init(): void {}
+  init(): void { this.armed = false; this.prevButtons = []; }
 
   read(dt: number): Controls {
     const pads =
@@ -49,7 +49,7 @@ export class GamepadInputProvider implements InputProvider {
     const pitch = this.getAxisValue(pad.axes, this.calibration.axes.pitch);
     const roll = this.getAxisValue(pad.axes, this.calibration.axes.roll);
 
-    this.handleButtons(pad.buttons);
+    this.handleButtons(pad.buttons, throttle);
 
     const mapped = this.mapper.mapAxes({
       thrust: throttle,
@@ -59,6 +59,7 @@ export class GamepadInputProvider implements InputProvider {
     });
 
     this.controls.thrust = mapped.thrust;
+    this.controls.throttle = (throttle + 1) / 2;
     this.controls.pitch = mapped.pitch;
     this.controls.roll = mapped.roll;
     this.controls.yaw = mapped.yaw;
@@ -70,22 +71,24 @@ export class GamepadInputProvider implements InputProvider {
     return this.controls;
   }
 
-  dispose(): void {}
+  dispose(): void { this.armed = false; }
 
   private getAxisValue(axes: readonly number[], mapping: GamepadAxisMapping): number {
     const value = axes[mapping.index] ?? 0;
     return mapping.inverted ? -value : value;
   }
 
-  private handleButtons(buttons: readonly GamepadButton[]): void {
+  private handleButtons(buttons: readonly GamepadButton[], throttle: number): void {
     const current = buttons.map((button) => Boolean(button?.pressed));
 
     this.handleRisingEdge(current, this.calibration.buttons.arm, () => {
-      this.armed = !this.armed;
+      // Full-down throttle is -1 after calibration.
+      if (this.armed || throttle < -0.8) this.armed = !this.armed;
       this.callbacks.onToggleArm?.();
     });
 
     this.handleRisingEdge(current, this.calibration.buttons.reset, () => {
+      this.armed = false;
       this.resetPending = true;
       this.callbacks.onReset();
     });
@@ -122,6 +125,8 @@ export class GamepadInputProvider implements InputProvider {
     });
 
     this.controls.thrust = mapped.thrust;
+    this.controls.throttle = 0;
+    this.armed = false;
     this.controls.pitch = mapped.pitch;
     this.controls.roll = mapped.roll;
     this.controls.yaw = mapped.yaw;

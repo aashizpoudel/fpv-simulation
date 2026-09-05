@@ -52,6 +52,7 @@ export interface DroneConfig {
     thirdPersonHeight: number;   // meters above drone
     orbitInitialDistance: number; // initial orbit camera distance
     fpvForwardOffset: number;    // FPV camera forward offset from center
+    fpvTiltDeg?: number;         // FPV camera uptilt angle in degrees
   };
 
   // PID rate controller config (acro mode)
@@ -137,7 +138,8 @@ export const Tinyhawk3Config: DroneConfig = {
     thirdPersonBehind: 0.63,   // base (0.105) * 6
     thirdPersonHeight: 0.32,   // base (0.105) * 3
     orbitInitialDistance: 0.5,
-    fpvForwardOffset: 0.01,    // base (0.105) * 0.5
+    fpvForwardOffset: 0.04,    // front edge of whoop frame
+    fpvTiltDeg: 20,            // 20° standard FPV camera uptilt
   },
 
   pidRateConfig: {
