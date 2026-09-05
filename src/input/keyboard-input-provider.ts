@@ -128,6 +128,12 @@ export class KeyboardInputProvider implements InputProvider {
       if (!event.repeat && key === "f") {
         this.callbacks.onSwitchFlightMode?.();
       }
+      if (!event.repeat && key === "g") {
+        this.callbacks.onToggleRecording?.();
+      }
+      if (!event.repeat && key === "h") {
+        this.callbacks.onToggleHelp?.();
+      }
     };
 
     this.handleKeyUp = (event: KeyboardEvent) => {

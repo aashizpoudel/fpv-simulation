@@ -85,6 +85,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   let fpsTime = performance.now();
   let lastHudUpdate = 0;
   let resetRequested = false;
+  let handleToggleRecording = () => {};
+  let handleToggleHelp = () => {};
 
   const inputProvider = new InputManager({
     callbacks: {
@@ -100,6 +102,13 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
         if (replay) return;
         flightMode = flightMode === "acro" ? "angle" : "acro";
         simulationEngine.switchFlightMode(flightMode);
+      },
+      onToggleRecording: () => {
+        if (replay) return;
+        handleToggleRecording();
+      },
+      onToggleHelp: () => {
+        handleToggleHelp();
       },
       onInputSourceChanged: (source) => {
         const element = document.getElementById("inputSource");
@@ -147,6 +156,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
 
   inputProvider.init();
   const recordingStatus = document.getElementById("recordingStatus")!;
+  const recordingIndicator = document.getElementById("recordingIndicator");
+  const recTime = document.getElementById("recTime");
   const recordButton = document.getElementById(
     "recordFlight",
   ) as HTMLButtonElement;
@@ -156,6 +167,42 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const stopReplayButton = document.getElementById(
     "stopReplay",
   ) as HTMLButtonElement;
+
+  const setRecordingIndicatorVisible = (visible: boolean) => {
+    if (recordingIndicator) {
+      recordingIndicator.style.display = visible ? "flex" : "none";
+    }
+  };
+
+  // Recording is completely disabled by default (no auto recording)
+  recordingActive = false;
+  setRecordingIndicatorVisible(false);
+
+  // Help modal setup
+  const helpModal = document.getElementById("helpModal");
+  const helpToggleBtn = document.getElementById("helpToggleBtn");
+  const closeHelpBtn = document.getElementById("closeHelpBtn");
+  const toggleHelp = () => {
+    if (!helpModal) return;
+    const isHidden =
+      helpModal.style.display === "none" || !helpModal.style.display;
+    helpModal.style.display = isHidden ? "flex" : "none";
+  };
+  const closeHelp = () => {
+    if (helpModal) helpModal.style.display = "none";
+  };
+  helpToggleBtn?.addEventListener("click", toggleHelp);
+  closeHelpBtn?.addEventListener("click", closeHelp);
+  helpModal?.addEventListener("click", (e) => {
+    if (e.target === helpModal) closeHelp();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && helpModal?.style.display === "flex") {
+      closeHelp();
+    }
+  });
+  handleToggleHelp = toggleHelp;
+
   const restartInput = () => {
     inputProvider.dispose();
     inputProvider.init();
@@ -175,13 +222,35 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     );
     pendingRecordedReset = false;
     recordingActive = true;
+    setRecordingIndicatorVisible(true);
     exportButton.disabled = false;
-    recordingStatus.textContent = "Recording from reset. Arm to begin flying.";
+    recordingStatus.textContent = "Recording active. Arm to fly. Press G to stop.";
     recordButton.blur();
   };
+  const stopRecording = () => {
+    if (!recordingActive) return;
+    recordingActive = false;
+    setRecordingIndicatorVisible(false);
+    if (recording?.steps.length) {
+      recordingStatus.textContent = `Recorded ${(recording.steps.length * recording.fixedTimeStep).toFixed(1)}s. Export to save, or press G to record.`;
+      exportButton.disabled = false;
+    } else {
+      recordingStatus.textContent = "Recording stopped. Press G to record.";
+    }
+  };
+  const toggleRecording = () => {
+    if (recordingActive) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+  handleToggleRecording = toggleRecording;
+
   const exportRecording = () => {
     if (!recording?.steps.length) return;
     recordingActive = false;
+    setRecordingIndicatorVisible(false);
     downloadJson("whoop-flight.json", JSON.stringify(recording));
     recordingStatus.textContent = `Exported ${(recording.steps.length * recording.fixedTimeStep).toFixed(1)} seconds.`;
     exportButton.blur();
@@ -196,7 +265,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     recordingStatus.textContent = "Replay stopped. Flight reset.";
     stopReplayButton.blur();
   };
-  recordButton.addEventListener("click", startRecording);
+  recordButton.addEventListener("click", toggleRecording);
   exportButton.addEventListener("click", exportRecording);
   stopReplayButton.addEventListener("click", stopReplay);
   if (replay) {
@@ -227,6 +296,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
       pendingRecordedReset = false;
       if (recording.steps.length >= MAX_RECORDING_STEPS) {
         recordingActive = false;
+        setRecordingIndicatorVisible(false);
         recordingStatus.textContent =
           "Two-minute recording limit reached. Export to save.";
       }
@@ -239,7 +309,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   lastTime = performance.now();
   const loading = document.getElementById("lodStatus");
   if (loading)
-    loading.textContent = "Ready • Shift+M to arm • W to raise throttle";
+    loading.textContent = "Ready • Shift+M to arm • W throttle • Press H for controls";
   let animationId = 0;
   let stopped = false;
   const calibrate = document.getElementById("calibrate");
@@ -284,6 +354,14 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     renderer.render(telemetry, cameraMode);
     if (now - lastHudUpdate > 100) {
       updateHUD(ui, telemetry, cameraMode, flightMode);
+      if (recordingActive && recording && recTime) {
+        const totalSec = Math.floor(
+          recording.steps.length * recording.fixedTimeStep,
+        );
+        const mins = Math.floor(totalSec / 60);
+        const secs = totalSec % 60;
+        recTime.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
+      }
       lastHudUpdate = now;
     }
 
@@ -303,9 +381,11 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     stopped = true;
     cancelAnimationFrame(animationId);
     calibrate?.removeEventListener("click", onCalibrate);
-    recordButton.removeEventListener("click", startRecording);
+    recordButton.removeEventListener("click", toggleRecording);
     exportButton.removeEventListener("click", exportRecording);
     stopReplayButton.removeEventListener("click", stopReplay);
+    helpToggleBtn?.removeEventListener("click", toggleHelp);
+    closeHelpBtn?.removeEventListener("click", closeHelp);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     inputProvider.dispose();
     // Navigation releases the document's WebGL context and workers. Calling

@@ -6,6 +6,8 @@ export type InputActionCallbacks = {
   onToggleArm?: () => void;
   onPushBody?: (direction: number) => void;
   onSwitchFlightMode?: () => void;
+  onToggleRecording?: () => void;
+  onToggleHelp?: () => void;
   onInputSourceChanged?: (source: "keyboard" | "gamepad") => void;
 };
 

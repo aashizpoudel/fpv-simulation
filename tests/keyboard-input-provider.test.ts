@@ -47,4 +47,23 @@ describe("KeyboardInputProvider", () => {
 
     provider.dispose();
   });
+
+  it("triggers recording and help callbacks when G and H are pressed", () => {
+    const callbacks = {
+      onReset: vi.fn(),
+      onToggleCamera: vi.fn(),
+      onToggleRecording: vi.fn(),
+      onToggleHelp: vi.fn(),
+    };
+    const provider = new KeyboardInputProvider({ callbacks });
+    provider.init();
+
+    fireKeyboardEvent("keydown", "g");
+    expect(callbacks.onToggleRecording).toHaveBeenCalledTimes(1);
+
+    fireKeyboardEvent("keydown", "h");
+    expect(callbacks.onToggleHelp).toHaveBeenCalledTimes(1);
+
+    provider.dispose();
+  });
 });
