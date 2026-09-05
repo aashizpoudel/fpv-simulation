@@ -31,6 +31,51 @@ export function loadFlightConfig(): DroneConfig {
   }
 }
 export function setupFlightSettings(config: DroneConfig, world: string): void {
+  const flightHelp = document.querySelector<HTMLDetailsElement>(".flight-help");
+  const settingsToggleBtn = document.getElementById("settingsToggleBtn");
+  const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+
+  // On by default; when apply is pressed, the setting should not be displayed anymore.
+  const hideSettings = sessionStorage.getItem("fpv_hide_settings") === "true";
+  if (flightHelp) {
+    flightHelp.open = !hideSettings;
+    flightHelp.addEventListener("toggle", () => {
+      sessionStorage.setItem(
+        "fpv_hide_settings",
+        flightHelp.open ? "false" : "true",
+      );
+    });
+  }
+
+  if (settingsToggleBtn) {
+    settingsToggleBtn.addEventListener("click", () => {
+      if (!flightHelp) return;
+      flightHelp.open = !flightHelp.open;
+      sessionStorage.setItem(
+        "fpv_hide_settings",
+        flightHelp.open ? "false" : "true",
+      );
+    });
+  }
+
+  if (closeSettingsBtn) {
+    closeSettingsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (flightHelp) {
+        flightHelp.open = false;
+        sessionStorage.setItem("fpv_hide_settings", "true");
+      }
+    });
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && flightHelp?.open) {
+      flightHelp.open = false;
+      sessionStorage.setItem("fpv_hide_settings", "true");
+    }
+  });
+
   const input = (id: string) => document.getElementById(id) as HTMLInputElement;
   const status = document.getElementById("flightSettingsStatus")!;
   const advanced = document.getElementById(
@@ -50,6 +95,8 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
   fill(config);
   const apply = (c: DroneConfig) => {
     localStorage.setItem(PRESET_STORAGE_KEY, exportPreset(c));
+    sessionStorage.setItem("fpv_hide_settings", "true");
+    if (flightHelp) flightHelp.open = false;
     location.reload();
   };
   const action = (id: string, fn: () => void) =>
