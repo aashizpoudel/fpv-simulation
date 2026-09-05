@@ -322,6 +322,29 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   };
   calibrate?.addEventListener("click", onCalibrate);
 
+  const onSwitchToKeyboard = () => {
+    inputProvider.useKeyboard();
+    const element = document.getElementById("inputSource");
+    if (element) element.textContent = "KEYBOARD";
+    if (loading) loading.textContent = "Switched to Keyboard controls";
+  };
+  const switchToKeyboardBtn = document.getElementById("switchToKeyboardBtn");
+  switchToKeyboardBtn?.addEventListener("click", onSwitchToKeyboard);
+
+  const helpSwitchKeyboardBtn = document.getElementById(
+    "helpSwitchKeyboardBtn",
+  );
+  helpSwitchKeyboardBtn?.addEventListener("click", () => {
+    onSwitchToKeyboard();
+    closeHelp();
+  });
+
+  const helpCalibrateBtn = document.getElementById("helpCalibrateBtn");
+  helpCalibrateBtn?.addEventListener("click", () => {
+    closeHelp();
+    onCalibrate();
+  });
+
   const onVisibilityChange = () => {
     lastTime = performance.now();
   };

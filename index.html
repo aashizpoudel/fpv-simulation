@@ -147,7 +147,10 @@
                         <p>Arrow keys pitch / roll · F angle / acro mode</p>
                         <p>C toggle camera view · Drag to look in orbit</p>
                         <p id="hoverHint">Try angle mode for self-leveling.</p>
-                        <button id="calibrate" type="button">Calibrate radio / gamepad</button>
+                        <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+                            <button id="calibrate" type="button">Calibrate radio / gamepad</button>
+                            <button id="switchToKeyboardBtn" type="button" class="btn-cancel">Switch to Keyboard</button>
+                        </div>
                         <p class="settings-hint">Radio: lower throttle fully before arming.</p>
                     </div>
                 </div>
@@ -244,6 +247,10 @@
                         <p>• <strong>Hover Throttle:</strong> Approx. 74% throttle needed to lift off at 3.8V; varies as battery discharges.</p>
                         <p>• <strong>Recording:</strong> Press <strong>G</strong> to start recording. Press <strong>G</strong> again to stop. Export from Settings.</p>
                         <p>• <strong>USB Radio / Gamepad:</strong> Plug in your radio or gamepad and calibrate in Settings for smooth stick response.</p>
+                        <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+                            <button id="helpCalibrateBtn" type="button" class="key-badge" style="cursor: pointer; padding: 6px 12px; font-size: 11px;">Calibrate Radio / Gamepad</button>
+                            <button id="helpSwitchKeyboardBtn" type="button" class="key-badge" style="cursor: pointer; padding: 6px 12px; font-size: 11px; background: #364654; color: #ffffff;">Switch to Keyboard</button>
+                        </div>
                     </div>
                 </div>
             </div>

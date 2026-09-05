@@ -79,19 +79,57 @@ export class InputManager implements InputProvider {
 
   async recalibrate(): Promise<void> {
     if (this.calibrating) return;
-    const pad = navigator.getGamepads?.()[this.gamepadIndex];
-    if (!pad) {
-      this.switchToKeyboard();
-      throw new Error("Connect a radio/gamepad and press one of its buttons first.");
+
+    // Scan for any connected gamepad across all indices
+    const pads = navigator.getGamepads?.();
+    let targetIndex = this.gamepadIndex;
+    let pad: Gamepad | null = pads?.[targetIndex] ?? null;
+
+    if (!pad && pads) {
+      for (let i = 0; i < pads.length; i++) {
+        if (pads[i]) {
+          pad = pads[i];
+          targetIndex = i;
+          break;
+        }
+      }
     }
 
-    const calibration = await this.calibrate(this.gamepadIndex);
-    const withId: GamepadCalibration = {
-      ...calibration,
-      gamepadId: calibration.gamepadId || pad.id || `gamepad-${this.gamepadIndex}`,
-    };
-    saveCalibration(withId);
-    await this.useCalibration(pad, withId);
+    try {
+      const calibration = await this.calibrate(targetIndex);
+      const activePads = navigator.getGamepads?.();
+      const detectedPad =
+        (activePads &&
+          (activePads[targetIndex] ||
+            Array.from(activePads).find((p) => p != null))) ??
+        pad;
+
+      const withId: GamepadCalibration = {
+        ...calibration,
+        gamepadId:
+          calibration.gamepadId || detectedPad?.id || `gamepad-${targetIndex}`,
+      };
+      saveCalibration(withId);
+
+      if (detectedPad) {
+        await this.useCalibration(detectedPad, withId);
+      } else {
+        this.switchToKeyboard();
+      }
+    } catch (error) {
+      if ((error as Error)?.message === "SWITCH_TO_KEYBOARD") {
+        this.switchToKeyboard();
+        return;
+      }
+      if (!this.gamepadProvider) {
+        this.switchToKeyboard();
+      }
+      throw error;
+    }
+  }
+
+  public useKeyboard(): void {
+    this.switchToKeyboard();
   }
 
   switchProvider(newProvider: InputProvider): void {

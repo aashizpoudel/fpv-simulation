@@ -5,7 +5,12 @@ import {
   type InputProvider,
 } from "./input-provider";
 import { InputMapper, type InputMapperOptions } from "./input-mapper";
-import type { GamepadAxisMapping, GamepadCalibration } from "./gamepad-calibration";
+import {
+  isBindingPressed,
+  type GamepadAxisMapping,
+  type GamepadButtonBinding,
+  type GamepadCalibration,
+} from "./gamepad-calibration";
 
 type GamepadInputProviderOptions = {
   callbacks: InputActionCallbacks;
@@ -20,7 +25,7 @@ export class GamepadInputProvider implements InputProvider {
   private readonly calibration: GamepadCalibration;
   private readonly mapper: InputMapper;
   private controls: Controls = createNeutralControls();
-  private prevButtons: boolean[] = [];
+  private prevActionStates: Record<string, boolean> = {};
   private armed = false;
   private resetPending = false;
 
@@ -31,7 +36,10 @@ export class GamepadInputProvider implements InputProvider {
     this.mapper = new InputMapper(options.mapperOptions);
   }
 
-  init(): void { this.armed = false; this.prevButtons = []; }
+  init(): void {
+    this.armed = false;
+    this.prevActionStates = {};
+  }
 
   read(dt: number): Controls {
     const pads =
@@ -49,7 +57,7 @@ export class GamepadInputProvider implements InputProvider {
     const pitch = this.getAxisValue(pad.axes, this.calibration.axes.pitch);
     const roll = this.getAxisValue(pad.axes, this.calibration.axes.roll);
 
-    this.handleButtons(pad.buttons, throttle);
+    this.handleButtons(pad.buttons, pad.axes, throttle);
 
     const mapped = this.mapper.mapAxes({
       thrust: throttle,
@@ -78,40 +86,48 @@ export class GamepadInputProvider implements InputProvider {
     return mapping.inverted ? -value : value;
   }
 
-  private handleButtons(buttons: readonly GamepadButton[], throttle: number): void {
-    const current = buttons.map((button) => Boolean(button?.pressed));
-
-    this.handleRisingEdge(current, this.calibration.buttons.arm, () => {
+  private handleButtons(
+    buttons: readonly GamepadButton[],
+    axes: readonly number[],
+    throttle: number,
+  ): void {
+    this.handleAction("arm", this.calibration.buttons.arm, buttons, axes, () => {
       // Full-down throttle is -1 after calibration.
       if (this.armed || throttle < -0.8) this.armed = !this.armed;
       this.callbacks.onToggleArm?.();
     });
 
-    this.handleRisingEdge(current, this.calibration.buttons.reset, () => {
+    this.handleAction("reset", this.calibration.buttons.reset, buttons, axes, () => {
       this.armed = false;
       this.resetPending = true;
       this.callbacks.onReset();
     });
 
     if (this.calibration.buttons.camera !== undefined) {
-      this.handleRisingEdge(current, this.calibration.buttons.camera, () => {
+      this.handleAction("camera", this.calibration.buttons.camera, buttons, axes, () => {
         this.callbacks.onToggleCamera();
       });
     }
 
     if (this.calibration.buttons.mode !== undefined) {
-      this.handleRisingEdge(current, this.calibration.buttons.mode, () => {
+      this.handleAction("mode", this.calibration.buttons.mode, buttons, axes, () => {
         this.callbacks.onSwitchFlightMode?.();
       });
     }
-
-    this.prevButtons = current;
   }
 
-  private handleRisingEdge(current: boolean[], index: number, onRise: () => void): void {
-    const pressed = current[index] ?? false;
-    const wasPressed = this.prevButtons[index] ?? false;
-    if (pressed && !wasPressed) {
+  private handleAction(
+    key: string,
+    binding: GamepadButtonBinding | undefined,
+    buttons: readonly GamepadButton[],
+    axes: readonly number[],
+    onRise: () => void,
+  ): void {
+    if (binding === undefined) return;
+    const isPressed = isBindingPressed(binding, buttons, axes);
+    const wasPressed = this.prevActionStates[key] ?? false;
+    this.prevActionStates[key] = isPressed;
+    if (isPressed && !wasPressed) {
       onRise();
     }
   }
@@ -133,7 +149,7 @@ export class GamepadInputProvider implements InputProvider {
     this.controls.speedMultiplier = 1;
     this.controls.arm = this.armed;
     this.controls.reset = false;
-    this.prevButtons = [];
+    this.prevActionStates = {};
     this.resetPending = false;
 
     return this.controls;

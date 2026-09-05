@@ -629,3 +629,504 @@ body {
     font-size: 11px;
     font-weight: bold;
 }
+
+/* ── Controller Calibration & Test Modal ──────────── */
+
+.cal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(6px);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cal-modal {
+    background: #111b24fa;
+    border: 1px solid #ffffff35;
+    border-radius: 12px;
+    width: min(880px, calc(100vw - 32px));
+    max-height: min(90vh, calc(100dvh - 36px));
+    overflow-y: auto;
+    padding: 18px 22px;
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #f0f4f8;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ffffff20;
+}
+
+.cal-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cal-header-title h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #00ffcc;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.cal-status-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-family: "Courier New", "Consolas", monospace;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #1a2834;
+    border: 1px solid #ffffff25;
+}
+
+.cal-status-badge.connected {
+    color: #00ffcc;
+    border-color: #00ffcc60;
+}
+
+.cal-status-badge.disconnected {
+    color: #ffaa33;
+    border-color: #ffaa3360;
+}
+
+.cal-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    display: inline-block;
+}
+
+.cal-wizard-banner {
+    background: rgba(0, 255, 204, 0.08);
+    border: 1px solid #00ffcc60;
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.cal-wizard-banner-text {
+    font-size: 13px;
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.cal-wizard-step-tag {
+    background: #00ffcc25;
+    color: #00ffcc;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+.cal-gimbals-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.cal-gimbal-card {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.cal-gimbal-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #8bb3cf;
+    font-weight: 600;
+}
+
+.gimbal-box {
+    width: 140px;
+    height: 140px;
+    background: #0a1118;
+    border: 2px solid #233748;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.8);
+}
+
+.gimbal-crosshair-h {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.gimbal-crosshair-v {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.gimbal-center-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 32px;
+    height: 32px;
+    transform: translate(-50%, -50%);
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+}
+
+.gimbal-stick-dot {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: #00ffcc;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px #00ffcc, 0 0 4px #ffffff;
+    transition: left 0.04s ease-out, top 0.04s ease-out;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.gimbal-target-ring {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border: 2px solid #ffcc00;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: target-pulse 1s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 4;
+}
+
+@keyframes target-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.9; }
+    50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.4; }
+}
+
+.cal-gimbal-readouts {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 11px;
+    color: #cfdbe6;
+    font-family: "Courier New", "Consolas", monospace;
+}
+
+.cal-channels-table {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cal-channel-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 50px 80px 75px 65px;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+}
+
+.cal-channel-name {
+    font-weight: 600;
+    color: #8bb3cf;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cal-meter-track {
+    height: 12px;
+    background: #0a1118;
+    border: 1px solid #283a4c;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+}
+
+.cal-meter-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #186070, #00ffcc);
+    transition: width 0.04s ease-out, left 0.04s ease-out;
+}
+
+.cal-meter-center-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.cal-channel-val {
+    font-family: "Courier New", "Consolas", monospace;
+    font-size: 11px;
+    text-align: right;
+    color: #ffffff;
+}
+
+.cal-select {
+    background: #172430;
+    border: 1px solid #33485c;
+    color: #ffffff;
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 3px 6px;
+    cursor: pointer;
+}
+
+.cal-toggle-btn {
+    background: #1a2936;
+    border: 1px solid #3a5066;
+    color: #ffffffb3;
+    font-size: 10px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.cal-toggle-btn.active {
+    background: #264a40;
+    border-color: #00ffcc80;
+    color: #00ffcc;
+    font-weight: 600;
+}
+
+.cal-toggle-btn:hover {
+    background: #253849;
+}
+
+.cal-detect-btn {
+    background: #22384a;
+    border: 1px solid #3d5e7a;
+    color: #00ffcc;
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.cal-detect-btn.detecting {
+    background: #ffaa0030;
+    border-color: #ffaa00;
+    color: #ffcc44;
+    animation: target-pulse 0.8s ease-in-out infinite;
+}
+
+.cal-buttons-section {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cal-buttons-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.cal-button-card {
+    background: #0a1118;
+    border: 1px solid #25394c;
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cal-button-card.pressed {
+    border-color: #00ffcc;
+    box-shadow: 0 0 8px rgba(0, 255, 204, 0.3);
+}
+
+.cal-button-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8bb3cf;
+}
+
+.cal-raw-matrix {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 10px;
+    color: #6d8ba0;
+}
+
+.cal-btn-chip {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: #14202c;
+    border: 1px solid #2c3f50;
+    color: #8bb3cf;
+    font-size: 10px;
+    font-family: "Courier New", "Consolas", monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.08s ease;
+}
+
+.cal-btn-chip.active {
+    background: #00ffcc;
+    color: #000000;
+    font-weight: 700;
+    border-color: #ffffff;
+    box-shadow: 0 0 8px #00ffcc;
+    transform: scale(1.15);
+}
+
+.cal-presets-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 4px;
+}
+
+.cal-presets-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cal-preset-btn {
+    background: #1a2a38;
+    border: 1px solid #33485c;
+    color: #ffffff;
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cal-preset-btn:hover {
+    background: #263d50;
+    border-color: #00ffcc80;
+}
+
+.cal-wizard-launch-btn {
+    background: #1c3645;
+    border: 1px solid #00ffcc70;
+    color: #00ffcc;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cal-wizard-launch-btn:hover {
+    background: #244b60;
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+}
+
+.cal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 6px;
+    border-top: 1px solid #ffffff20;
+}
+
+.cal-duplicate-warning {
+    background: rgba(255, 60, 60, 0.15);
+    border: 1px solid rgba(255, 80, 80, 0.7);
+    color: #ff9999;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.cal-axis-chip {
+    background: #14202c;
+    border: 1px solid #2c3f50;
+    border-radius: 4px;
+    padding: 2px 6px;
+    color: #8bb3cf;
+    transition: all 0.08s ease;
+}
+
+.cal-axis-chip.active {
+    border-color: #00ffcc;
+    color: #00ffcc;
+    background: rgba(0, 255, 204, 0.1);
+}
+
+.cal-save-btn {
+    background: #00ffcc !important;
+    color: #001f18 !important;
+    font-weight: 700 !important;
+    border: none !important;
+    padding: 8px 18px !important;
+    border-radius: 6px !important;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cal-save-btn:hover {
+    background: #33ffdd !important;
+    box-shadow: 0 0 12px rgba(0, 255, 204, 0.45);
+}
+
+.cal-cancel-btn {
+    background: #253340 !important;
+    color: #f0f4f8 !important;
+    border: 1px solid #44596d !important;
+    padding: 8px 16px !important;
+    border-radius: 6px !important;
+    cursor: pointer;
+}
+
+.cal-cancel-btn:hover {
+    background: #334455 !important;
+}
