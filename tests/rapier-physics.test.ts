@@ -22,12 +22,38 @@ async function setup(z: number) {
   return physics;
 }
 function advance(physics: RapierPhysics, seconds: number, controls = neutral) {
-  for (let i = 0; i < Math.round(seconds * 240); i++) physics.step(controls, 1 / 240, -Infinity);
+  for (let i = 0; i < Math.round(seconds * 480); i++) physics.step(controls, 1 / 480, -Infinity);
   return physics.getTelemetry();
 }
 afterEach(() => { for (const instance of instances.splice(0)) instance.dispose(); });
 
 describe("Rapier flight and contacts", () => {
+  it("reports hard impact without forced disarm when the gameplay cutoff is disabled", async () => {
+    const config = structuredClone(Tinyhawk3Config);
+    config.body.crashCutoff = false;
+    const physics = new RapierPhysics(config); instances.push(physics);
+    await physics.init({x:0,y:0,z:2});
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(20,20,0.2)); floor.position.z=-0.1;
+    physics.createCollider(floor);
+    let maximumImpact = 0;
+    for(let i=0;i<480;i++) maximumImpact = Math.max(maximumImpact,physics.step(neutral,1/480,-Infinity).impactDeltaVelocity ?? 0);
+    expect(maximumImpact).toBeGreaterThan(3);
+    expect(physics.getTelemetry().crashed).toBe(false);
+    physics.setArmed(true);
+    expect(advance(physics,0.1,{...neutral,throttle:0.1}).armed).toBe(true);
+  });
+  it("handles a glancing duct contact without declaring a hard crash", async () => {
+    const physics = await setup(1);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.02,10,10)); wall.position.set(0.3,0,1);
+    physics.createCollider(wall);
+    const body = (physics as unknown as {body:RAPIER.RigidBody}).body;
+    body.setLinvel({x:0.8,y:2,z:0},true);
+    const result=advance(physics,0.5);
+    expect(result.localPosition.x).toBeLessThan(0.3);
+    expect(result.localPosition.y).toBeGreaterThan(0.2);
+    expect(result.crashed).toBe(false);
+  });
+
   it("settles on mesh geometry while disarmed, without crashing on a gentle landing", async () => {
     const physics = await setup(0.05);
     const result = advance(physics, 1);

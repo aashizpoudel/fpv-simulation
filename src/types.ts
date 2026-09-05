@@ -22,6 +22,12 @@ export type Quaternion = {
 };
 
 export type DroneTelemetry = {
+  batteryVoltage?: number;
+  batteryCharge?: number;
+  batteryCurrent?: number;
+  motorCommands?: number[];
+  saturation?: { roll: number; pitch: number; yaw: number };
+  impactDeltaVelocity?: number;
   localPosition: Vec3;
   localOrientation: Quaternion;
   localVelocity: Vec3;

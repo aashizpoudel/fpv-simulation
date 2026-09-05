@@ -25,14 +25,16 @@ export class PIDController {
     this.dFilterHz = dFilterHz;
   }
 
-  update(setpoint: number, measurement: number, dt: number): number {
+  update(setpoint: number, measurement: number, dt: number, saturationError = 0): number {
+    if (!Number.isFinite(dt) || dt <= 0) throw new Error("PID timestep must be positive");
     const error = setpoint - measurement;
 
     // P term
     const P = this.kP * error;
 
     // I term with windup clamp
-    this.integral += error * dt;
+    // Conditional integration permits unwinding, but not further saturation.
+    if (error * saturationError <= 0) this.integral += error * dt;
     if (this.integral > this.iLimit) this.integral = this.iLimit;
     if (this.integral < -this.iLimit) this.integral = -this.iLimit;
     const I = this.kI * this.integral;

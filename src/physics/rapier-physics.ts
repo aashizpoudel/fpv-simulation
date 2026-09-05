@@ -1,3 +1,6 @@
+import { BatteryModel } from "./battery-model";
+import { aerodynamicForces } from "./aerodynamics";
+import { normalizePreset } from "../config/presets";
 import RAPIER, { ColliderDesc } from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
@@ -8,7 +11,10 @@ import { AcroMode } from "../controllers/modes/acro-mode";
 import { AngleMode } from "../controllers/modes/angle-mode";
 import type { IFlightMode } from "../controllers/modes/flight-mode-interface";
 import { DroneConfig, Tinyhawk3Config } from "../config/tinyhawk-config";
-import type { IController, PhysicsCommand } from "../controllers/controller-interface";
+import type {
+  IController,
+  PhysicsCommand,
+} from "../controllers/controller-interface";
 
 const GRAVITY = 9.81;
 
@@ -28,14 +34,19 @@ export class RapierPhysics {
   private droneCollider?: RAPIER.Collider;
   private mapBody?: RAPIER.RigidBody;
   private events?: RAPIER.EventQueue;
+  private droneColliders: RAPIER.Collider[] = [];
+  private battery: BatteryModel;
+  private touchingLastStep = false;
 
   constructor(private config: DroneConfig = Tinyhawk3Config) {
+    this.config = normalizePreset(config);
+    this.battery = new BatteryModel(this.config.battery);
     this.crashed = false;
     this.armed = false;
-    this.spawnHeight = 0.5
-    this.lastVelocity = { x: 0, y: 0, z: 0 }
-    this.droneTelemetry = this.emptyTelemetry()
-    this.startPosition = { x: 0, y: 0, z: config.height + this.spawnHeight }
+    this.spawnHeight = 0.5;
+    this.lastVelocity = { x: 0, y: 0, z: 0 };
+    this.droneTelemetry = this.emptyTelemetry();
+    this.startPosition = { x: 0, y: 0, z: config.height + this.spawnHeight };
   }
 
   public setRoofHeight(height: number): void {
@@ -53,7 +64,7 @@ export class RapierPhysics {
       rotorThrusts: [0, 0, 0, 0],
       crashed: false,
       armed: false,
-    }
+    };
   }
 
   public createCollider(mesh: THREE.Object3D): void {
@@ -85,7 +96,7 @@ export class RapierPhysics {
             vertex.set(
               positionAttr.getX(i),
               positionAttr.getY(i),
-              positionAttr.getZ(i)
+              positionAttr.getZ(i),
             );
             vertex.applyMatrix4(worldMatrix);
             vertices.push(vertex.x, vertex.y, vertex.z);
@@ -120,29 +131,38 @@ export class RapierPhysics {
 
     const colliderDesc = RAPIER.ColliderDesc.trimesh(
       new Float32Array(vertices),
-      new Uint32Array(indices)
+      new Uint32Array(indices),
     );
 
     this.world.createCollider(colliderDesc, rigidBody);
-    console.log(`Created trimesh collider with ${vertices.length / 3} vertices and ${indices.length / 3} triangles`);
+    console.log(
+      `Created trimesh collider with ${vertices.length / 3} vertices and ${indices.length / 3} triangles`,
+    );
   }
 
-  public setupDrone(startPosition: Vec3, config?: DroneConfig | undefined) {
+  private setupDrone(startPosition: Vec3) {
     this.spawnHeight = this.config.height + 0.01;
     this.startPosition = startPosition;
-    if (config) {
-      this.config = config
-    }
 
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(startPosition.x, startPosition.y, startPosition.z + this.spawnHeight)
+      .setTranslation(
+        startPosition.x,
+        startPosition.y,
+        startPosition.z + this.spawnHeight,
+      )
       .setLinearDamping(this.config.linearDamping)
       .setAngularDamping(this.config.angularDamping)
       .setCcdEnabled(true);
 
     if (!this.world) {
-      throw "World not initialized"
+      throw "World not initialized";
     }
+    bodyDesc.setAdditionalMassProperties(
+      this.config.mass,
+      this.config.body.centerOfMass,
+      this.config.body.inertia,
+      { x: 0, y: 0, z: 0, w: 1 },
+    );
     this.body = this.world.createRigidBody(bodyDesc);
 
     const halfExtents = {
@@ -156,10 +176,10 @@ export class RapierPhysics {
       halfExtents.y,
       halfExtents.z,
     )
-      .setMass(this.config.mass)
+      .setMass(0)
       .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
-      .setFriction(0.8)
-      .setRestitution(0.1);
+      .setFriction(this.config.body.friction)
+      .setRestitution(this.config.body.restitution);
 
     this.rotorOffsets = this.config.rotors.map((r) => r.position);
 
@@ -179,16 +199,7 @@ export class RapierPhysics {
 
       if (mode) {
         // New modular FlightController path
-        this.controller = new FlightController(
-          this.rotorOffsets!,
-          {
-            throttleRate: this.config.throttleRate,
-            maxThrustPerRotor: this.config.rotors[0]?.maxThrust ?? 12,
-            rotorMode: this.config.rotorMode,
-            yawTorquePerNewton: this.config.yawTorquePerNewton,
-          },
-          mode,
-        );
+        this.controller = new FlightController(this.config, mode);
       } else {
         // Fallback to legacy AcroController
         this.controller = new AcroController(this.rotorOffsets!, {
@@ -202,8 +213,44 @@ export class RapierPhysics {
       }
     }
 
-    this.droneTelemetry.localPosition = { x: startPosition.x, y: startPosition.y, z: startPosition.z + this.spawnHeight };
-    this.droneCollider = this.world.createCollider(colliderDesc, this.body);
+    this.droneTelemetry.localPosition = {
+      x: startPosition.x,
+      y: startPosition.y,
+      z: startPosition.z + this.spawnHeight,
+    };
+    this.droneColliders = [];
+    if (this.config.body.collisionShape === "ducts") {
+      // Central battery/canopy plus four short Z-axis cylinders. Duct interiors
+      // remain solid; this approximation avoids the old square outer corners.
+      const bodyCollider = ColliderDesc.cuboid(0.018, 0.012, halfExtents.z);
+      const shapes = [
+        bodyCollider,
+        ...this.config.rotors.map((r) =>
+          ColliderDesc.cylinder(
+            this.config.body.ductHeight / 2,
+            this.config.body.ductRadius,
+          )
+            .setRotation({ x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 })
+            .setTranslation(r.position.x, r.position.y, r.position.z),
+        ),
+      ];
+      for (const shape of shapes)
+        this.droneColliders.push(
+          this.world.createCollider(
+            shape
+              .setMass(0)
+              .setFriction(this.config.body.friction)
+              .setRestitution(this.config.body.restitution)
+              .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS),
+            this.body,
+          ),
+        );
+    } else
+      this.droneColliders.push(
+        this.world.createCollider(colliderDesc, this.body),
+      );
+    this.droneCollider = this.droneColliders[0];
+    this.body.recomputeMassPropertiesFromColliders();
   }
 
   /** Build a flight mode from the controller type string, or null if unsupported */
@@ -212,12 +259,16 @@ export class RapierPhysics {
     if (!pidRateConfig) return null;
 
     if (type === "acro") {
-      return new AcroMode(pidRateConfig);
+      return new AcroMode(pidRateConfig, this.config.rates.expo);
     }
     if (type === "angle") {
       const pidAngleConfig = this.config.pidAngleConfig;
       if (!pidAngleConfig) return null;
-      return new AngleMode(pidAngleConfig, pidRateConfig);
+      return new AngleMode(
+        pidAngleConfig,
+        pidRateConfig,
+        this.config.rates.expo,
+      );
     }
     return null;
   }
@@ -234,13 +285,13 @@ export class RapierPhysics {
 
   private resetWorld() {
     if (this.world) {
-      this.world.free()
+      this.world.free();
     }
     this.world = new RAPIER.World({ x: 0, y: 0, z: -GRAVITY });
     this.events?.free();
     this.events = new RAPIER.EventQueue(true);
     this.mapBody = undefined;
-    this.setupDrone(this.startPosition, this.config)
+    this.setupDrone(this.startPosition);
     // Create ceiling collider if roofHeight is finite
     this.createCeilingCollider();
     // Re-create the map collider if one was previously registered
@@ -253,7 +304,7 @@ export class RapierPhysics {
     if (!this.world || !Number.isFinite(this.roofHeight)) return;
 
     const ceilingBody = this.world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, this.roofHeight)
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, this.roofHeight),
     );
     // Large thin cuboid: 500m x 500m half-extents, 0.1m half-thickness
     const ceilingCollider = RAPIER.ColliderDesc.cuboid(500, 500, 0.1)
@@ -268,6 +319,8 @@ export class RapierPhysics {
   }
 
   public reset(): void {
+    this.battery.reset();
+    this.touchingLastStep = false;
     this.crashed = false;
     this.armed = false;
     this.lastVelocity = { x: 0, y: 0, z: 0 };
@@ -275,14 +328,20 @@ export class RapierPhysics {
     if (!this.body || !this.world) this.resetWorld();
     else {
       // Keep the static mesh/BVH; resetting the drone must not rebuild the world.
-      this.body.setTranslation({ ...this.startPosition, z: this.startPosition.z + this.spawnHeight }, true);
+      this.body.setTranslation(
+        { ...this.startPosition, z: this.startPosition.z + this.spawnHeight },
+        true,
+      );
       this.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
       this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       this.body.resetForces(true);
       this.body.resetTorques(true);
       this.controller?.reset();
-      this.droneTelemetry.localPosition = { ...this.startPosition, z: this.startPosition.z + this.spawnHeight };
+      this.droneTelemetry.localPosition = {
+        ...this.startPosition,
+        z: this.startPosition.z + this.spawnHeight,
+      };
     }
   }
 
@@ -293,14 +352,17 @@ export class RapierPhysics {
     this.world = undefined;
     this.body = undefined;
     this.droneCollider = undefined;
+    this.droneColliders = [];
     this.mapBody = undefined;
   }
 
   public setArmed(armed: boolean): void {
-    this.armed = armed && !this.crashed;
-    if (!armed && this.controller) {
-      this.controller.reset();
+    const next = armed && !this.crashed;
+    if (this.armed && !next && this.controller) {
+      if (this.controller instanceof FlightController) this.controller.disarm();
+      else this.controller.reset();
     }
+    this.armed = next;
   }
 
   public getTelemetry(): DroneTelemetry {
@@ -324,21 +386,49 @@ export class RapierPhysics {
     }
   }
 
-  public step(controls: Controls, deltaTime: number, clampZ: number): DroneTelemetry {
+  public step(
+    controls: Controls,
+    deltaTime: number,
+    clampZ: number,
+  ): DroneTelemetry {
     if (!this.world || !this.body || !this.controller) {
-      throw "Body is not setup!! Call init first."
+      throw "Body is not setup!! Call init first.";
     }
 
     // Get current physics state
-    // Motors stop when disarmed, but gravity and contacts continue.
-    if (this.armed && !this.crashed) {
+    // Motor commands stop when disarmed; modeled spool-down, gravity and contacts continue.
+    if (!Number.isFinite(deltaTime) || deltaTime <= 0)
+      throw new Error("Physics timestep must be positive");
+    this.battery.step(
+      this.controller instanceof FlightController
+        ? this.controller.getMotorOutputs()
+        : [],
+      deltaTime,
+    );
+    if (
+      this.controller instanceof FlightController ||
+      (this.armed && !this.crashed)
+    ) {
       const controllerTelemetry = this.getTelemetryForController();
-      const command = this.controller.computePhysicsCommand(controls, controllerTelemetry, deltaTime);
+      const command = this.controller.computePhysicsCommand(
+        controls,
+        controllerTelemetry,
+        deltaTime,
+      );
       this.applyPhysicsCommand(command);
     } else {
       this.body.resetForces(true);
       this.body.resetTorques(true);
     }
+    const aero = aerodynamicForces(
+      this.body.linvel(),
+      this.body.angvel(),
+      this.body.rotation(),
+      this.config.aerodynamics,
+    );
+    this.body.addForce(aero.force, true);
+    this.body.addTorque(aero.torque, true);
+    const velocityBeforeStep = this.body.linvel();
     this.world.timestep = deltaTime;
     this.world.step(this.events);
     const translation = this.body.translation();
@@ -349,22 +439,40 @@ export class RapierPhysics {
     // Sum normal contact impulses: gentle landings settle; hard impacts cut motors.
     let impactImpulse = 0;
     this.events?.drainContactForceEvents((event) => {
-      if (event.collider1() === this.droneCollider?.handle || event.collider2() === this.droneCollider?.handle) {
+      if (
+        this.droneColliders.some(
+          (c) =>
+            event.collider1() === c.handle || event.collider2() === c.handle,
+        )
+      ) {
         impactImpulse += event.totalForceMagnitude() * deltaTime;
       }
     });
     // Rapier's CCD clamping can stop motion without a matching contact-force
     // event. Include the measured velocity jump when a contact manifold exists.
     let touching = false;
-    if (this.droneCollider) this.world.contactPairsWith(this.droneCollider, (other) => {
-      this.world!.contactPair(this.droneCollider!, other, (manifold) => {
-        touching ||= manifold.numContacts() > 0;
+    for (const collider of this.droneColliders)
+      this.world.contactPairsWith(collider, (other) => {
+        this.world!.contactPair(collider, other, (manifold) => {
+          touching ||= manifold.numContacts() > 0;
+        });
       });
-    });
     const velocityJump = Math.hypot(
-      velocity.x - this.lastVelocity.x, velocity.y - this.lastVelocity.y, velocity.z - this.lastVelocity.z,
+      velocity.x - velocityBeforeStep.x,
+      velocity.y - velocityBeforeStep.y,
+      velocity.z - velocityBeforeStep.z,
     );
-    if (impactImpulse / this.config.mass > 3 || (touching && velocityJump > 3)) this.crashed = true;
+    const impactDeltaVelocity = Math.max(
+      impactImpulse / this.config.mass,
+      (touching || this.touchingLastStep) ? velocityJump : 0,
+    );
+    // CCD may remove the manifold in the same step that resolves its impulse.
+    this.touchingLastStep = touching;
+    if (
+      this.config.body.crashCutoff &&
+      impactDeltaVelocity > this.config.body.crashDeltaVelocity
+    )
+      this.crashed = true;
 
     // Calculate G-force
     const acceleration = {
@@ -379,27 +487,37 @@ export class RapierPhysics {
       y: acceleration.y,
       z: acceleration.z + GRAVITY,
     };
-    const gforce = Math.sqrt(
-      properAcceleration.x ** 2 + properAcceleration.y ** 2 + properAcceleration.z ** 2
-    ) / GRAVITY;
+    const gforce =
+      Math.sqrt(
+        properAcceleration.x ** 2 +
+          properAcceleration.y ** 2 +
+          properAcceleration.z ** 2,
+      ) / GRAVITY;
 
     // Handle crash condition
     if (translation.z < -200) {
       this.crashed = true;
-      this.body.setTranslation({ x: translation.x, y: translation.y, z: 0 }, true);
+      this.body.setTranslation(
+        { x: translation.x, y: translation.y, z: 0 },
+        true,
+      );
       this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
     if (this.crashed) {
       this.armed = false;
-      this.controller.reset();
+      if (this.controller instanceof FlightController) this.controller.disarm();
+      else this.controller.reset();
       this.body.resetForces(true);
       this.body.resetTorques(true);
     }
 
     // Clamp to ground — correct the rigid body so it doesn't fall through
     if (translation.z < clampZ) {
-      this.body.setTranslation({ x: translation.x, y: translation.y, z: clampZ }, true);
+      this.body.setTranslation(
+        { x: translation.x, y: translation.y, z: clampZ },
+        true,
+      );
       const v = this.body.linvel();
       if (v.z < 0) {
         this.body.setLinvel({ x: v.x, y: v.y, z: 0 }, true);
@@ -411,20 +529,34 @@ export class RapierPhysics {
     // Update telemetry
     const controllerTelemetry = this.controller.getTelemetry();
     this.droneTelemetry = {
-      localPosition: { x: clampedTranslation.x, y: clampedTranslation.y, z: clampedTranslation.z },
-      localOrientation: { x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w },
+      localPosition: {
+        x: clampedTranslation.x,
+        y: clampedTranslation.y,
+        z: clampedTranslation.z,
+      },
+      localOrientation: {
+        x: rotation.x,
+        y: rotation.y,
+        z: rotation.z,
+        w: rotation.w,
+      },
       localVelocity: { x: velocity.x, y: velocity.y, z: velocity.z },
       localAngularVelocity: { x: angVel.x, y: angVel.y, z: angVel.z },
       gforce,
       throttle: this.armed ? controllerTelemetry.throttlePercent : 0,
       rotorThrusts: controllerTelemetry.rotorThrusts,
+      motorCommands: controllerTelemetry.motorCommands,
+      saturation: controllerTelemetry.saturation,
+      impactDeltaVelocity,
+      batteryVoltage: this.battery.voltage,
+      batteryCharge: this.battery.charge,
+      batteryCurrent: this.battery.current,
       crashed: this.crashed,
       armed: this.armed,
     };
 
     return this.droneTelemetry;
   }
-
 
   /**
    * Get telemetry for controller (already in Z-up space)
@@ -447,6 +579,7 @@ export class RapierPhysics {
       gforce: this.droneTelemetry.gforce,
       throttle: this.droneTelemetry.throttle,
       rotorThrusts: this.droneTelemetry.rotorThrusts,
+      batteryVoltage: this.battery.voltage,
       crashed: this.crashed,
       armed: this.armed,
     };
@@ -466,10 +599,12 @@ export class RapierPhysics {
     this.body.addForce(command.force, true);
 
     // Handle angular velocity (SimpleController)
-    if (command.angularVelocity &&
+    if (
+      command.angularVelocity &&
       (command.angularVelocity.x !== 0 ||
         command.angularVelocity.y !== 0 ||
-        command.angularVelocity.z !== 0)) {
+        command.angularVelocity.z !== 0)
+    ) {
       this.body.setAngvel(command.angularVelocity, true);
     }
 
@@ -478,5 +613,4 @@ export class RapierPhysics {
       this.body.addTorque(command.torque, true);
     }
   }
-
 }

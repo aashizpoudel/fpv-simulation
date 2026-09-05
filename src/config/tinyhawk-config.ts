@@ -1,85 +1,52 @@
-// tinyhawk3.config.ts
+import { hoverCommand } from "../physics/motor-model";
+import type { DroneConfig } from "./drone-config";
+export type { DroneConfig, RotorConfig, ControllerType } from "./drone-config";
 
-export interface RotorConfig {
-  name: string;
-  // Local-space position in meters, relative to body center
-  position: { x: number; y: number; z: number };
-  // Maximum thrust in Newtons
-  maxThrust: number;
-}
-
-export type ControllerType = "acro" | "angle" | "simple";
-
-export interface DroneConfig {
-  // Physical dimensions (full extents)
-  width: number; // meters
-  length: number; // meters
-  height: number; // meters
-  modelUrl: string;
-
-  mass: number; // kg
-
-  // Physics / collider parameters
-  linearDamping: number;
-  angularDamping: number;
-
-  // Rotor layout
-  rotors: RotorConfig[];
-
-  // Control tuning
-  hoverThrottle: number; // 0..1 fraction of max thrust per rotor
-  maxTiltAngleDeg: number;
-  throttleRate: number;
-  stickRate: number;
-
-  // Controller selection
-  controllerType: ControllerType;
-  simpleController?: {
-    maxThrust?: number;
-    maxAngularSpeed?: number;
-    throttleRate?: number;
-    damping?: number;
-  };
-
-  // Force application mode
-  rotorMode: boolean; // true = per-rotor at offsets, false = aggregate at body center
-  yawTorquePerNewton: number;
-
-  // Camera distance / offset overrides (optional; renderer falls back to
-  // automatic size-based values when omitted)
-  cameraConfig?: {
-    thirdPersonBehind: number;   // meters behind drone
-    thirdPersonHeight: number;   // meters above drone
-    orbitInitialDistance: number; // initial orbit camera distance
-    fpvForwardOffset: number;    // FPV camera forward offset from center
-    fpvTiltDeg?: number;         // FPV camera uptilt angle in degrees
-  };
-
-  // PID rate controller config (acro mode)
-  pidRateConfig?: {
-    roll: { kP: number; kI: number; kD: number };
-    pitch: { kP: number; kI: number; kD: number };
-    yaw: { kP: number; kI: number; kD: number };
-    iLimit: number;
-    dFilterHz: number;
-    maxRate: { roll: number; pitch: number; yaw: number }; // deg/s
-  };
-
-  // PID angle controller config (angle mode — outer loop)
-  pidAngleConfig?: {
-    roll: { kP: number; kI: number; kD: number };
-    pitch: { kP: number; kI: number; kD: number };
-    maxAngle: { roll: number; pitch: number }; // degrees
-  };
-}
-
-// EMAX Tinyhawk 3 – real specs, Z-up world
-// Sources: EMAX USA product page, Oscar Liang review, motor/prop datasheets
-// AUW: ~44g (32g dry + 12.5g 1S 450mAh battery)
-// Motors: TH0802 II 15000KV, ~20g thrust per motor on 1S
-// Props: Avan TH 40mm 4-blade
-// Wheelbase: 76mm, frame: 105x105x45mm polypropylene whoop
+// Tinyhawk III-inspired estimated preset.
+// Published size/motor class; propulsion and aerodynamic coefficients are estimates.
 export const Tinyhawk3Config: DroneConfig = {
+  name: "75 mm 1S — Tinyhawk III inspired (estimated)",
+  body: {
+    centerOfMass: { x: 0, y: 0, z: -0.004 },
+    inertia: { x: 0.000022, y: 0.000022, z: 0.000038 },
+    collisionShape: "ducts",
+    ductRadius: 0.024,
+    ductHeight: 0.022,
+    friction: 0.8,
+    restitution: 0.1,
+    crashCutoff: true,
+    crashDeltaVelocity: 3,
+  },
+  propulsion: {
+    referenceVoltage: 3.8,
+    thrustCurve: [
+      [0, 0],
+      [0.25, 0.0625],
+      [0.5, 0.25],
+      [0.75, 0.5625],
+      [1, 1],
+    ],
+    riseTime: 0.025,
+    fallTime: 0.04,
+    idle: 0.05,
+    airmode: true,
+  },
+  aerodynamics: {
+    linear: { x: 0.008, y: 0.008, z: 0.012 },
+    quadratic: { x: 0.001, y: 0.001, z: 0.002 },
+    angular: { x: 0.000012, y: 0.000012, z: 0.00002 },
+  },
+  battery: {
+    capacityAh: 0.45,
+    initialCharge: 1,
+    emptyVoltage: 3.2,
+    fullVoltage: 4.35,
+    resistance: 0.08,
+    idleCurrent: 0.2,
+    maxMotorCurrent: 2.5,
+    fixedVoltage: null,
+  },
+  rates: { expo: 0.25 },
   // Outer shell size (collision box)
   width: 0.105,
   length: 0.105,
@@ -89,16 +56,16 @@ export const Tinyhawk3Config: DroneConfig = {
   // Mass: 44g AUW (32g dry + 12.5g battery)
   mass: 0.044,
 
-  // Damping — whoop ducts add significant drag
-  linearDamping: 0.6,
-  angularDamping: 0.8,
+  // Explicit aerodynamic model replaces generic damping
+  linearDamping: 0,
+  angularDamping: 0,
 
   // Rotors — 76mm wheelbase, X-config
   rotors: (() => {
     // arm length = wheelbase / 2 = 38mm, each arm in X-Y plane
     const d = 0.076 / 2 / Math.SQRT2; // ~0.0269m center-to-motor along each axis
     const armHeight = 0.0;
-    // ~20g per motor on 1S = 0.196N
+    // Unverified reference thrust: 20 gram-force = 0.196 N
     const maxThrustPerRotor = 0.196;
 
     return [
@@ -125,8 +92,8 @@ export const Tinyhawk3Config: DroneConfig = {
     ];
   })(),
 
-  // Hover throttle: sqrt(mass*g / (4 * maxThrustPerRotor)) = sqrt(0.044*9.81 / (4*0.196)) ≈ 0.742
-  hoverThrottle: 0.742,
+  // Derived from the curve below once the preset is constructed.
+  hoverThrottle: 0,
   maxTiltAngleDeg: 55,
   throttleRate: 0.3,
   stickRate: 0.12,
@@ -135,19 +102,19 @@ export const Tinyhawk3Config: DroneConfig = {
   yawTorquePerNewton: 0.003,
 
   cameraConfig: {
-    thirdPersonBehind: 0.63,   // base (0.105) * 6
-    thirdPersonHeight: 0.32,   // base (0.105) * 3
+    thirdPersonBehind: 0.63, // base (0.105) * 6
+    thirdPersonHeight: 0.32, // base (0.105) * 3
     orbitInitialDistance: 0.5,
-    fpvForwardOffset: 0.04,    // front edge of whoop frame
-    fpvTiltDeg: 20,            // 20° standard FPV camera uptilt
+    fpvForwardOffset: 0.04, // front edge of whoop frame
+    fpvTiltDeg: 20, // 20° standard FPV camera uptilt
   },
 
   pidRateConfig: {
-    roll: { kP: 0.45, kI: 0.35, kD: 0.003 },
-    pitch: { kP: 0.45, kI: 0.35, kD: 0.003 },
-    yaw: { kP: 0.35, kI: 0.25, kD: 0.0 },
+    roll: { kP: 0.06, kI: 0.12, kD: 0.0015 },
+    pitch: { kP: 0.06, kI: 0.12, kD: 0.0015 },
+    yaw: { kP: 0.18, kI: 0.15, kD: 0.0 },
     iLimit: 0.3,
-    dFilterHz: 100,
+    dFilterHz: 40,
     maxRate: { roll: 670, pitch: 670, yaw: 400 },
   },
 
@@ -157,3 +124,9 @@ export const Tinyhawk3Config: DroneConfig = {
     maxAngle: { roll: 55, pitch: 55 },
   },
 };
+
+Tinyhawk3Config.hoverThrottle = hoverCommand(
+  Tinyhawk3Config.mass,
+  Tinyhawk3Config.rotors.reduce((s, r) => s + r.maxThrust, 0),
+  Tinyhawk3Config.propulsion,
+);

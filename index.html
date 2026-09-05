@@ -53,6 +53,7 @@
             <!-- Bottom-center: position + arm status -->
             <div class="osd-el osd-bottom-center">
                 <div id="armStatus">DISARMED</div>
+                <div id="battery">— V</div>
                 <div id="position">0.0, 0.0, 0.0</div>
             </div>
         </div>
@@ -102,12 +103,43 @@
             </div>
 
             <div class="settings-group">
+                <div class="settings-title">Drone &amp; Flight Feel</div>
+                <p id="presetName"></p>
+                <label>Roll rate (°/s)<input id="rateRoll" type="number" min="10" max="1200" /></label>
+                <label>Pitch rate (°/s)<input id="ratePitch" type="number" min="10" max="1200" /></label>
+                <label>Yaw rate (°/s)<input id="rateYaw" type="number" min="10" max="1200" /></label>
+                <label>Stick expo<input id="rateExpo" type="number" min="0" max="0.8" step="0.05" /></label>
+                <label>Camera tilt (°)<input id="cameraTilt" type="number" min="0" max="60" /></label>
+                <label>Starting battery (%)<input id="batteryCharge" type="number" min="0" max="100" /></label>
+                <label class="settings-checkbox"><input id="airmode" type="checkbox" /> Airmode</label>
+                <button id="applyFlightSettings" type="button">Apply &amp; restart flight</button>
+                <button id="restoreFlightSettings" type="button">Restore defaults</button>
+                <button id="exportFlightPreset" type="button">Export active preset</button>
+                <label>Import preset<input id="importFlightPreset" type="file" accept=".json,application/json" /></label>
+                <details>
+                    <summary>Advanced physical parameters</summary>
+                    <p class="settings-hint">SI units. These parameters are estimates; edits restart the flight.</p>
+                    <textarea id="advancedPreset" aria-label="Advanced preset JSON" spellcheck="false"></textarea>
+                    <button id="applyAdvancedPreset" type="button">Apply advanced preset &amp; restart</button>
+                </details>
+                <p id="flightSettingsStatus" role="status"></p>
+            </div>
+            <div class="settings-group">
+                <div class="settings-title">Record &amp; Compare</div>
+                <button id="recordFlight" type="button">Reset &amp; record flight</button>
+                <button id="exportFlightRecording" type="button" disabled>Stop &amp; export recording</button>
+                <label>Import &amp; replay<input id="importFlightRecording" type="file" accept=".json,application/json" /></label>
+                <button id="stopReplay" type="button" hidden>Stop replay &amp; reset</button>
+                <p id="recordingStatus" role="status">Records up to two minutes of simulated flight. Replay starts from reset.</p>
+            </div>
+
+            <div class="settings-group">
                 <div class="settings-title">Flight Controls</div>
                 <p>Shift+M arm / disarm · R reset</p>
                 <p>W / S raise / lower throttle · A / D yaw</p>
                 <p>Arrow keys pitch / roll · F angle / acro mode</p>
                 <p>C toggle camera view · Drag to look in orbit</p>
-                <p>Raise throttle to ~74% to lift off. Try angle mode for self-leveling.</p>
+                <p id="hoverHint">Try angle mode for self-leveling.</p>
                 <button id="calibrate" type="button">Calibrate radio / gamepad</button>
                 <p class="settings-hint">Radio: lower throttle fully before arming.</p>
             </div>

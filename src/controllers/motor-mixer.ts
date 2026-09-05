@@ -1,110 +1,91 @@
-/*
-  Motor mixer — converts throttle + PID corrections into per-rotor thrusts,
-  then computes world-space forces and torques from rotor geometry.
-  Extracted from acroController.ts.
-*/
-
 import type { Vec3, Quaternion } from "../types";
+import type { RotorConfig, PropulsionConfig } from "../config/drone-config";
 import { clamp } from "../utils/math";
 import { rotateVector, cross, add, scale } from "./math-utils";
+import type { ModeOutput } from "./modes/flight-mode-interface";
 
-export type MixerRotor = {
-  position: Vec3;
-  yawSign: number; // +1 CCW, -1 CW
-};
-
-/** Assign alternating CCW/CW yaw signs sorted by angle around +Z */
+export type MixerRotor = { position: Vec3; yawSign: number };
 export function assignYawSigns(positions: Vec3[]): MixerRotor[] {
-  return [...positions]
-    .sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x))
-    .map((p, i) => ({ position: p, yawSign: i % 2 === 0 ? 1 : -1 }));
+  // Preserve configured motor order for telemetry and per-motor parameters.
+  const ordered = positions
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => Math.atan2(a.p.y, a.p.x) - Math.atan2(b.p.y, b.p.x));
+  return positions.map((position, i) => ({
+    position,
+    yawSign: ordered.findIndex((r) => r.i === i) % 2 === 0 ? 1 : -1,
+  }));
 }
 
 export class MotorMixer {
-  private readonly rotors: MixerRotor[];
-  private readonly maxThrustPerRotor: number;
-  private readonly yawTorquePerNewton: number;
-  private readonly rotorMode: boolean;
-  private _rotorThrusts: number[];
-
+  private rotors: MixerRotor[];
+  saturation: ModeOutput = { roll: 0, pitch: 0, yaw: 0 };
   constructor(
-    rotorPositions: Vec3[],
-    maxThrustPerRotor: number,
-    yawTorquePerNewton: number,
-    rotorMode: boolean,
+    rotors: RotorConfig[],
+    private config: PropulsionConfig,
+    private yawTorquePerNewton: number,
+    private centerOfMass: Vec3,
   ) {
-    this.rotors = assignYawSigns(rotorPositions);
-    this.maxThrustPerRotor = maxThrustPerRotor;
-    this.yawTorquePerNewton = yawTorquePerNewton;
-    this.rotorMode = rotorMode;
-    this._rotorThrusts = new Array(this.rotors.length).fill(0);
+    this.rotors = assignYawSigns(rotors.map((r) => r.position));
   }
-
-  /** Convert throttle (0-1) to thrust (N) via squared curve */
-  throttleToThrust(t: number): number {
-    return t * t * this.maxThrustPerRotor;
-  }
-
-  /**
-   * Mix throttle + PID corrections into per-rotor thrust values.
-   * roll/pitch/yaw are normalized corrections (-1..1 range from PID output).
-   */
+  /** Preserve differential commands by shifting collective; scale only if the
+   * differential span cannot fit. With Airmode off, clip at requested collective.
+   * This is a documented simplified policy, not firmware emulation. */
   mix(throttle: number, roll: number, pitch: number, yaw: number): number[] {
-    const base = this.throttleToThrust(throttle);
-
-    this.rotors.forEach((r, i) => {
-      const pitchCorr =
-        (r.position.x >= 0 ? -pitch : pitch) * this.maxThrustPerRotor;
-      const rollCorr =
-        (r.position.y >= 0 ? roll : -roll) * this.maxThrustPerRotor;
-      const yawCorr = r.yawSign * yaw * this.maxThrustPerRotor;
-
-      this._rotorThrusts[i] = clamp(
-        base + pitchCorr + rollCorr + yawCorr,
-        0,
-        this.maxThrustPerRotor,
-      );
-    });
-
-    return this._rotorThrusts;
+    const signs = this.rotors.map((r) => ({
+      roll: Math.sign(r.position.y),
+      pitch: -Math.sign(r.position.x),
+      yaw: r.yawSign,
+    }));
+    let correction = signs.map(
+      (s) => s.roll * roll + s.pitch * pitch + s.yaw * yaw,
+    );
+    const idle = this.config.idle;
+    const span = Math.max(...correction) - Math.min(...correction);
+    if (this.config.airmode && span > 1 - idle)
+      correction = correction.map((c) => (c * (1 - idle)) / span);
+    const collective = this.config.airmode
+      ? clamp(
+          throttle,
+          idle - Math.min(...correction),
+          1 - Math.max(...correction),
+        )
+      : Math.max(idle, throttle);
+    const commands = correction.map((c) => clamp(collective + c, idle, 1));
+    // Requested minus achieved correction for conditional integration next step.
+    for (const axis of ["roll", "pitch", "yaw"] as const) {
+      const achieved =
+        commands.reduce((sum, u, i) => sum + u * signs[i][axis], 0) / 4;
+      const error = { roll, pitch, yaw }[axis] - achieved;
+      this.saturation[axis] = Math.abs(error) < 1e-9 ? 0 : error;
+    }
+    return commands;
   }
-
-  /** Compute world-space force and torque from per-rotor thrusts + orientation */
   computeForces(
-    rotorThrusts: number[],
+    thrusts: number[],
     orientation: Quaternion,
   ): { force: Vec3; torque: Vec3 } {
     const up = rotateVector(orientation, { x: 0, y: 0, z: 1 });
-
-    let totalForce: Vec3 = { x: 0, y: 0, z: 0 };
-    let totalTorque: Vec3 = { x: 0, y: 0, z: 0 };
-
+    let force: Vec3 = { x: 0, y: 0, z: 0 },
+      torque: Vec3 = { x: 0, y: 0, z: 0 };
     this.rotors.forEach((r, i) => {
-      const thrust = rotorThrusts[i];
-      if (thrust <= 0) return;
-
-      const worldOffset = rotateVector(orientation, r.position);
-      const force = scale(up, thrust);
-
-      // Torque from rotor offset
-      const torqueFromOffset = cross(worldOffset, force);
-
-      // Yaw reaction torque
-      const tz = r.yawSign * thrust * this.yawTorquePerNewton;
-      const yawTorqueWorld = tz === 0 ? { x: 0, y: 0, z: 0 } : scale(up, tz);
-
-      totalForce = add(totalForce, force);
-      totalTorque = add(totalTorque, add(torqueFromOffset, yawTorqueWorld));
+      const f = scale(up, thrusts[i]);
+      const offset = rotateVector(orientation, {
+        x: r.position.x - this.centerOfMass.x,
+        y: r.position.y - this.centerOfMass.y,
+        z: r.position.z - this.centerOfMass.z,
+      });
+      force = add(force, f);
+      torque = add(
+        torque,
+        add(
+          cross(offset, f),
+          scale(up, r.yawSign * thrusts[i] * this.yawTorquePerNewton),
+        ),
+      );
     });
-
-    return { force: totalForce, torque: totalTorque };
+    return { force, torque };
   }
-
-  getRotorThrusts(): number[] {
-    return [...this._rotorThrusts];
-  }
-
   reset(): void {
-    this._rotorThrusts.fill(0);
+    this.saturation = { roll: 0, pitch: 0, yaw: 0 };
   }
 }

@@ -1,3 +1,4 @@
+import { rateTarget } from "../rates";
 /*
   Acro (rate) flight mode — PID rate controller on roll/pitch/yaw.
   Extracted from acroController.ts.
@@ -27,7 +28,7 @@ export class AcroMode implements IFlightMode {
   private readonly maxRatePitch: number; // rad/s
   private readonly maxRateYaw: number; // rad/s
 
-  constructor(config: PidRateConfig) {
+  constructor(config: PidRateConfig, private expo = 0) {
     this.pidRoll = new PIDController(config.roll.kP, config.roll.kI, config.roll.kD, config.iLimit, config.dFilterHz);
     this.pidPitch = new PIDController(config.pitch.kP, config.pitch.kI, config.pitch.kD, config.iLimit, config.dFilterHz);
     this.pidYaw = new PIDController(config.yaw.kP, config.yaw.kI, config.yaw.kD, config.iLimit, config.dFilterHz);
@@ -40,14 +41,14 @@ export class AcroMode implements IFlightMode {
     const { controls, bodyAngularVelocity, throttle, dt } = input;
 
     // Target rates from stick inputs (rad/s)
-    const targetRoll = controls.roll * this.maxRateRoll;
-    const targetPitch = controls.pitch * this.maxRatePitch;
-    const targetYaw = controls.yaw * this.maxRateYaw;
+    const targetRoll = rateTarget(controls.roll, this.maxRateRoll / DEG2RAD, this.expo);
+    const targetPitch = rateTarget(controls.pitch, this.maxRatePitch / DEG2RAD, this.expo);
+    const targetYaw = rateTarget(controls.yaw, this.maxRateYaw / DEG2RAD, this.expo);
 
     // Run PID controllers
-    const roll = this.pidRoll.update(targetRoll, bodyAngularVelocity.x, dt);
-    const pitch = this.pidPitch.update(targetPitch, bodyAngularVelocity.y, dt);
-    const yaw = this.pidYaw.update(targetYaw, bodyAngularVelocity.z, dt);
+    const roll = this.pidRoll.update(targetRoll, bodyAngularVelocity.x, dt, input.saturation?.roll);
+    const pitch = this.pidPitch.update(targetPitch, bodyAngularVelocity.y, dt, input.saturation?.pitch);
+    const yaw = this.pidYaw.update(targetYaw, bodyAngularVelocity.z, dt, input.saturation?.yaw);
 
     // Anti-windup: zero integrals at low throttle
     if (throttle < 0.05) {

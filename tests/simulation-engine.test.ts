@@ -44,11 +44,31 @@ class FakePhysics {
 }
 
 describe("SimulationEngine", () => {
+  it("preserves the catch-up window and reports discarded time", () => {
+    const physics = new FakePhysics();
+    const engine = new SimulationEngine({physics: physics as unknown as RapierPhysics});
+    engine.step(neutralControls, 0.5);
+    expect(physics.step).toHaveBeenCalledTimes(32);
+    expect(engine.droppedTime).toBeCloseTo(0.5 - 1/15);
+    expect(engine.simulationTime).toBeCloseTo(1/15);
+    engine.reset(); expect(engine.droppedTime).toBe(0);
+  });
+  it("stops exactly on a replay boundary without an extra physics tick", () => {
+    const physics = new FakePhysics();
+    const engine = new SimulationEngine({physics: physics as unknown as RapierPhysics});
+    let steps = 0;
+    engine.beforeFixedStep = input => steps++ < 3 ? input : null;
+    engine.step(neutralControls, 1/30);
+    expect(physics.step).toHaveBeenCalledTimes(3);
+    engine.step(neutralControls, 1/30);
+    expect(physics.step).toHaveBeenCalledTimes(3);
+  });
+
   it("advances a full second at 30 FPS with the production timestep", () => {
     const physics = new FakePhysics();
     const engine = new SimulationEngine({ physics: physics as unknown as RapierPhysics });
     for (let i = 0; i < 30; i++) engine.step(neutralControls, 1 / 30);
-    expect(physics.step).toHaveBeenCalledTimes(240);
+    expect(physics.step).toHaveBeenCalledTimes(480);
   });
   it("accumulates time and steps on fixed cadence", () => {
     const physics = new FakePhysics();

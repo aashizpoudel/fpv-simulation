@@ -1,5 +1,5 @@
 import type { CameraMode, DroneTelemetry, Vec3 } from "../types";
-import type { DroneConfig } from "../config/tinyhawk-config";
+import type { DroneConfig } from "../config/drone-config";
 import type { WorldConfig } from "../config/dedust-world-config";
 
 export interface IRenderer {

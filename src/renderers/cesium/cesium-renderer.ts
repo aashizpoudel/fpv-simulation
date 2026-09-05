@@ -1,7 +1,7 @@
 import * as Cesium from "cesium";
 import { IRenderer } from "../renderer-interface";
 import type { CameraMode, DroneTelemetry, Vec3, Quaternion } from "../../types";
-import type { DroneConfig } from "../../config/tinyhawk-config";
+import type { DroneConfig } from "../../config/drone-config";
 
 type PoseState = {
   position: Cesium.Cartesian3;

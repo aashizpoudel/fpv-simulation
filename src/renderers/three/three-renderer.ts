@@ -3,7 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 import type { CameraMode, DroneTelemetry, Vec3 } from "../../types";
-import type { DroneConfig } from "../../config/tinyhawk-config";
+import type { DroneConfig } from "../../config/drone-config";
 import type { WorldConfig } from "../../config/dedust-world-config";
 import type { IRenderer } from "../renderer-interface";
 import { fetchSplatLodManifest } from "./splat-lod-loader";

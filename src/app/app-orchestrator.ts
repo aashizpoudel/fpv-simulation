@@ -1,14 +1,28 @@
-import { Tinyhawk3Config } from "../config/tinyhawk-config";
+import type { DroneConfig } from "../config/drone-config";
+import { defaultPreset, normalizePreset } from "../config/presets";
+import { downloadJson, takePendingReplay } from "./flight-settings";
+import {
+  createRecording,
+  MAX_RECORDING_STEPS,
+  type FlightRecording,
+} from "../core/flight-recording";
 import type { WorldConfig } from "../config/dedust-world-config";
-import { SimulationEngine, type SimulationEngineOptions } from "../core/simulation-engine";
+import {
+  SimulationEngine,
+  type SimulationEngineOptions,
+} from "../core/simulation-engine";
 import { InputManager } from "../input/input-manager";
-import { createRenderer, type RendererType } from "../renderers/renderer-factory";
+import {
+  createRenderer,
+  type RendererType,
+} from "../renderers/renderer-factory";
 import type { IRenderer } from "../renderers/renderer-interface";
 import type { CameraMode, DroneTelemetry, Vec3 } from "../types";
 import { quaternionToEulerDeg } from "../utils/math";
 
 export type AppOrchestratorOptions = {
   rendererType: RendererType;
+  droneConfig?: DroneConfig;
   containerId?: string;
   feedCanvasId?: string | null;
   simulationStart?: Vec3;
@@ -37,15 +51,26 @@ type HudElements = {
 
 export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const ui = getHudElements();
+  const worldName = options.worldConfig?.name ?? "cesium";
+  let replay = await takePendingReplay(worldName);
+  const config = normalizePreset(
+    replay?.config ?? options.droneConfig ?? defaultPreset(),
+  );
+  let replayIndex = 0;
+  let recording: FlightRecording | undefined;
+  let recordingActive = false;
+  let pendingRecordedReset = false;
   const renderer: IRenderer = await createRenderer(options.rendererType);
   const simulationEngine = new SimulationEngine({
-    config: Tinyhawk3Config,
+    config: config,
     roofHeight: options.worldConfig?.roofHeight,
     ...options.simulationOptions,
   });
 
   let cameraMode: CameraMode = options.initialCameraMode ?? "orbit";
-  const cameraSelect = document.getElementById("cameraSelect") as HTMLSelectElement | null;
+  const cameraSelect = document.getElementById(
+    "cameraSelect",
+  ) as HTMLSelectElement | null;
   if (cameraSelect) {
     cameraSelect.value = cameraMode;
     cameraSelect.addEventListener("change", () => {
@@ -53,7 +78,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
       localStorage.setItem("drone_sim_camera", cameraMode);
     });
   }
-  let flightMode: "acro" | "angle" = Tinyhawk3Config.controllerType === "angle" ? "angle" : "acro";
+  let flightMode: "acro" | "angle" =
+    config.controllerType === "angle" ? "angle" : "acro";
   let lastTime = performance.now();
   let frameCount = 0;
   let fpsTime = performance.now();
@@ -63,7 +89,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const inputProvider = new InputManager({
     callbacks: {
       onReset: () => {
-        resetRequested = true;
+        if (!replay) resetRequested = true;
       },
       onToggleCamera: () => {
         cameraMode = nextCameraMode(cameraMode);
@@ -71,22 +97,26 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
         localStorage.setItem("drone_sim_camera", cameraMode);
       },
       onSwitchFlightMode: () => {
+        if (replay) return;
         flightMode = flightMode === "acro" ? "angle" : "acro";
         simulationEngine.switchFlightMode(flightMode);
       },
       onInputSourceChanged: (source) => {
         const element = document.getElementById("inputSource");
-        if (element) element.textContent = source === "gamepad" ? "RADIO / GAMEPAD" : "KEYBOARD";
+        if (element)
+          element.textContent =
+            source === "gamepad" ? "RADIO / GAMEPAD" : "KEYBOARD";
       },
     },
   });
 
   const containerId = options.containerId ?? "renderingContainer";
   const container = requireElement(containerId);
-  const simulationStart = options.simulationStart ?? { x: 10, y: 1, z: 4 };
+  const simulationStart = replay?.initialPosition ??
+    options.simulationStart ?? { x: 10, y: 1, z: 4 };
   const rendererStart = options.rendererStart ?? simulationStart;
 
-  renderer.setDroneConfig?.(Tinyhawk3Config);
+  renderer.setDroneConfig?.(config);
   if (options.worldConfig) renderer.setWorldConfig?.(options.worldConfig);
   renderer.setFeedCanvas?.(options.feedCanvasId ?? null);
   renderer.setFeedMode?.("auto");
@@ -107,7 +137,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     await Promise.resolve(renderer.init(container, rendererStart));
     await simulationEngine.init(simulationStart);
     physicsReady = true;
-    if (pendingMapCollider) simulationEngine.createMapCollider(pendingMapCollider);
+    if (pendingMapCollider)
+      simulationEngine.createMapCollider(pendingMapCollider);
   } catch (error) {
     renderer.dispose();
     simulationEngine.dispose();
@@ -115,21 +146,115 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   }
 
   inputProvider.init();
+  const recordingStatus = document.getElementById("recordingStatus")!;
+  const recordButton = document.getElementById(
+    "recordFlight",
+  ) as HTMLButtonElement;
+  const exportButton = document.getElementById(
+    "exportFlightRecording",
+  ) as HTMLButtonElement;
+  const stopReplayButton = document.getElementById(
+    "stopReplay",
+  ) as HTMLButtonElement;
+  const restartInput = () => {
+    inputProvider.dispose();
+    inputProvider.init();
+  };
+  const startRecording = () => {
+    replay = undefined;
+    replayIndex = 0;
+    stopReplayButton.hidden = true;
+    restartInput();
+    simulationEngine.reset();
+    simulationEngine.switchFlightMode(flightMode);
+    recording = createRecording(
+      config,
+      worldName,
+      simulationStart,
+      simulationEngine.timestep,
+    );
+    pendingRecordedReset = false;
+    recordingActive = true;
+    exportButton.disabled = false;
+    recordingStatus.textContent = "Recording from reset. Arm to begin flying.";
+    recordButton.blur();
+  };
+  const exportRecording = () => {
+    if (!recording?.steps.length) return;
+    recordingActive = false;
+    downloadJson("whoop-flight.json", JSON.stringify(recording));
+    recordingStatus.textContent = `Exported ${(recording.steps.length * recording.fixedTimeStep).toFixed(1)} seconds.`;
+    exportButton.blur();
+  };
+  const stopReplay = () => {
+    replay = undefined;
+    replayIndex = 0;
+    stopReplayButton.hidden = true;
+    restartInput();
+    simulationEngine.reset();
+    simulationEngine.switchFlightMode(flightMode);
+    recordingStatus.textContent = "Replay stopped. Flight reset.";
+    stopReplayButton.blur();
+  };
+  recordButton.addEventListener("click", startRecording);
+  exportButton.addEventListener("click", exportRecording);
+  stopReplayButton.addEventListener("click", stopReplay);
+  if (replay) {
+    stopReplayButton.hidden = false;
+    recordingStatus.textContent = "Replaying recorded inputs…";
+  }
+  simulationEngine.beforeFixedStep = (input) => {
+    if (replay) {
+      const step = replay.steps[replayIndex++];
+      if (!step) {
+        recordingStatus.textContent =
+          "Replay complete. Stop replay to return to live controls.";
+        return null;
+      }
+      if (step.controls.reset) simulationEngine.resetBody();
+      if (step.mode !== flightMode || step.controls.reset) {
+        flightMode = step.mode;
+        simulationEngine.switchFlightMode(flightMode);
+      }
+      simulationEngine.setArmed(step.controls.arm);
+      return step.controls;
+    }
+    if (recordingActive && recording) {
+      recording.steps.push({
+        controls: { ...input, reset: pendingRecordedReset },
+        mode: flightMode,
+      });
+      pendingRecordedReset = false;
+      if (recording.steps.length >= MAX_RECORDING_STEPS) {
+        recordingActive = false;
+        recordingStatus.textContent =
+          "Two-minute recording limit reached. Export to save.";
+      }
+    }
+    return input;
+  };
+  const hoverHint = document.getElementById("hoverHint");
+  if (hoverHint)
+    hoverHint.textContent = `Estimated hover: ${(config.hoverThrottle * 100).toFixed(0)}% at ${config.propulsion.referenceVoltage} V; varies with battery. Try angle mode for self-leveling.`;
   lastTime = performance.now();
   const loading = document.getElementById("lodStatus");
-  if (loading) loading.textContent = "Ready • Shift+M to arm • W to raise throttle";
+  if (loading)
+    loading.textContent = "Ready • Shift+M to arm • W to raise throttle";
   let animationId = 0;
   let stopped = false;
   const calibrate = document.getElementById("calibrate");
   const onCalibrate = () => {
     void inputProvider.recalibrate().catch((error) => {
-      if (loading) loading.textContent = `Calibration cancelled: ${error instanceof Error ? error.message : String(error)}`;
+      if (loading)
+        loading.textContent = `Calibration cancelled: ${error instanceof Error ? error.message : String(error)}`;
     });
     calibrate?.blur();
   };
   calibrate?.addEventListener("click", onCalibrate);
 
-  const onVisibilityChange = () => { lastTime = performance.now(); };
+  const onVisibilityChange = () => {
+    lastTime = performance.now();
+  };
   document.addEventListener("visibilitychange", onVisibilityChange);
   const animate = () => {
     if (stopped) return;
@@ -137,22 +262,24 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     const deltaTime = (now - lastTime) / 1000;
     lastTime = now;
     // A hidden tab is paused; do not turn time away into a catch-up burst.
-    if (document.hidden) { animationId = requestAnimationFrame(animate); return; }
+    if (document.hidden) {
+      animationId = requestAnimationFrame(animate);
+      return;
+    }
 
     const controls = inputProvider.read(deltaTime);
-    if (controls.reset || resetRequested) {
+    if (!replay && (controls.reset || resetRequested)) {
+      pendingRecordedReset = true;
       simulationEngine.reset();
       simulationEngine.switchFlightMode(flightMode);
       ui.statusBanner.classList.remove("show");
       resetRequested = false;
     }
 
-    simulationEngine.setArmed(controls.arm);
+    if (!replay) simulationEngine.setArmed(controls.arm);
     const telemetry = simulationEngine.step(controls, deltaTime);
 
-    if (telemetry.crashed) {
-      ui.statusBanner.classList.add("show");
-    }
+    ui.statusBanner.classList.toggle("show", telemetry.crashed);
 
     renderer.render(telemetry, cameraMode);
     if (now - lastHudUpdate > 100) {
@@ -176,9 +303,14 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     stopped = true;
     cancelAnimationFrame(animationId);
     calibrate?.removeEventListener("click", onCalibrate);
+    recordButton.removeEventListener("click", startRecording);
+    exportButton.removeEventListener("click", exportRecording);
+    stopReplayButton.removeEventListener("click", stopReplay);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     inputProvider.dispose();
-    renderer.dispose();
+    // Navigation releases the document's WebGL context and workers. Calling
+    // Spark.dispose here races its pending GPU readbacks/worker replies.
+    // Explicit renderer disposal remains in the initialization failure path.
     simulationEngine.dispose();
   });
 }
@@ -224,7 +356,12 @@ function requireSelector<T extends Element>(selector: string): T {
   return element;
 }
 
-function updateHUD(ui: HudElements, telemetry: DroneTelemetry, _cameraMode: CameraMode, flightMode: "acro" | "angle" = "acro") {
+function updateHUD(
+  ui: HudElements,
+  telemetry: DroneTelemetry,
+  _cameraMode: CameraMode,
+  flightMode: "acro" | "angle" = "acro",
+) {
   const pos = telemetry.localPosition;
   const vel = telemetry.localVelocity;
   const { rollDeg, pitchDeg } = quaternionToEulerDeg(
@@ -238,6 +375,9 @@ function updateHUD(ui: HudElements, telemetry: DroneTelemetry, _cameraMode: Came
   // Top row
   ui.flightMode.textContent = `${modeLabel} | ${_cameraMode.toUpperCase()}`;
   ui.altitude.textContent = `${pos.z.toFixed(1)}m`;
+  const battery = document.getElementById("battery");
+  if (battery)
+    battery.textContent = `${(telemetry.batteryVoltage ?? 0).toFixed(2)} V · ${((telemetry.batteryCharge ?? 0) * 100).toFixed(0)}%`;
 
   // Left / Right center
   ui.speed.textContent = speed.toFixed(1);

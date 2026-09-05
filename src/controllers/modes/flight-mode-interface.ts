@@ -6,6 +6,7 @@ export type ModeInput = {
   orientation: Quaternion;
   throttle: number;
   dt: number;
+  saturation?: ModeOutput;
 };
 
 export type ModeOutput = {

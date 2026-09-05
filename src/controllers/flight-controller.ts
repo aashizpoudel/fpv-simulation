@@ -1,106 +1,107 @@
-/*
-  FlightController — modular composer that replaces AcroController.
-  Delegates to: ThrottleManager, MotorMixer, and a pluggable IFlightMode.
-*/
-
-import type { Controls, DroneTelemetry, Vec3 } from "../types";
-import type { ControllerTelemetry, IController, PhysicsCommand } from "./controller-interface";
+import type { Controls, DroneTelemetry } from "../types";
+import type { DroneConfig } from "../config/drone-config";
+import type {
+  ControllerTelemetry,
+  IController,
+  PhysicsCommand,
+} from "./controller-interface";
 import type { IFlightMode } from "./modes/flight-mode-interface";
 import { ThrottleManager } from "./throttle-manager";
 import { MotorMixer } from "./motor-mixer";
+import { MotorModel } from "../physics/motor-model";
 import { conjugateQuat, rotateVector } from "./math-utils";
 
-type FlightControllerConfig = {
-  throttleRate: number;
-  maxThrustPerRotor: number;
-  rotorMode: boolean;
-  yawTorquePerNewton: number;
-};
-
 export class FlightController implements IController {
-  private readonly throttleManager: ThrottleManager;
-  private readonly mixer: MotorMixer;
-  private mode: IFlightMode;
-
+  private throttleManager: ThrottleManager;
+  private mixer: MotorMixer;
+  private motors: MotorModel[];
+  private thrusts: number[];
+  private commands: number[];
   constructor(
-    rotorPositions: Vec3[],
-    config: FlightControllerConfig,
-    initialMode: IFlightMode,
+    config: DroneConfig,
+    private mode: IFlightMode,
   ) {
     this.throttleManager = new ThrottleManager(config.throttleRate);
     this.mixer = new MotorMixer(
-      rotorPositions,
-      config.maxThrustPerRotor,
+      config.rotors,
+      config.propulsion,
       config.yawTorquePerNewton,
-      config.rotorMode,
+      config.body.centerOfMass,
     );
-    this.mode = initialMode;
+    this.motors = config.rotors.map(
+      (r) => new MotorModel(config.propulsion, r.maxThrust),
+    );
+    this.thrusts = this.motors.map(() => 0);
+    this.commands = [...this.thrusts];
   }
-
   computePhysicsCommand(
     controls: Controls,
     telemetry: DroneTelemetry,
     dt: number,
   ): PhysicsCommand {
-    // 1. Update throttle
-    const throttle = this.throttleManager.update(
-      controls.thrust,
-      controls.speedMultiplier,
-      dt,
-      controls.throttle,
+    const throttle = telemetry.armed
+      ? this.throttleManager.update(
+          controls.thrust,
+          controls.speedMultiplier,
+          dt,
+          controls.throttle,
+        )
+      : 0;
+    if (telemetry.armed) {
+      const output = this.mode.compute({
+        controls,
+        bodyAngularVelocity: rotateVector(
+          conjugateQuat(telemetry.localOrientation),
+          telemetry.localAngularVelocity,
+        ),
+        orientation: telemetry.localOrientation,
+        throttle,
+        dt,
+        saturation: this.mixer.saturation,
+      });
+      this.commands = this.mixer.mix(
+        throttle,
+        output.roll,
+        output.pitch,
+        output.yaw,
+      );
+    } else {
+      this.commands.fill(0);
+    }
+    this.thrusts = this.motors.map((motor, i) =>
+      motor.step(this.commands[i], telemetry.batteryVoltage ?? 3.8, dt),
     );
-
-    // 2. Convert world angular velocity to body frame
-    const conjQ = conjugateQuat(telemetry.localOrientation);
-    const bodyAngVel = rotateVector(conjQ, telemetry.localAngularVelocity);
-
-    // 3. Run flight mode
-    const modeOutput = this.mode.compute({
-      controls,
-      bodyAngularVelocity: bodyAngVel,
-      orientation: telemetry.localOrientation,
-      throttle,
-      dt,
-    });
-
-    // 4. Mix into per-rotor thrusts
-    const rotorThrusts = this.mixer.mix(
-      throttle,
-      modeOutput.roll,
-      modeOutput.pitch,
-      modeOutput.yaw,
-    );
-
-    // 5. Compute world-space forces and torques
-    const { force, torque } = this.mixer.computeForces(
-      rotorThrusts,
-      telemetry.localOrientation,
-    );
-
-    // 6. Return physics command
     return {
-      force,
-      torque,
+      ...this.mixer.computeForces(this.thrusts, telemetry.localOrientation),
       angularVelocity: { x: 0, y: 0, z: 0 },
       resetForces: true,
     };
   }
-
+  disarm(): void {
+    this.throttleManager.reset();
+    this.mode.reset();
+    this.mixer.reset();
+    this.commands.fill(0);
+  }
   switchMode(mode: IFlightMode): void {
     this.mode.reset();
     this.mode = mode;
-  }
-
-  reset(): void {
-    this.throttleManager.reset();
     this.mixer.reset();
-    this.mode.reset();
   }
-
+  reset(): void {
+    this.disarm();
+    this.motors.forEach((m) => m.reset());
+    this.thrusts.fill(0);
+  }
+  getMotorOutputs(): number[] {
+    return this.motors.map((m) => m.output);
+  }
   getTelemetry(): ControllerTelemetry {
     return {
       throttlePercent: this.throttleManager.throttle * 100,
-      rotorThrusts: this.mixer.getRotorThrusts(),
+      rotorThrusts: [...this.thrusts],
+      motorCommands: [...this.commands],
+      saturation: { ...this.mixer.saturation },
     };
   }
 }

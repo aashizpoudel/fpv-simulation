@@ -1,9 +1,10 @@
-import type { RigidBody } from "@dimforge/rapier3d-compat";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
 
 export type ControllerTelemetry = {
   throttlePercent: number;
   rotorThrusts: number[];
+  motorCommands?: number[];
+  saturation?: { roll: number; pitch: number; yaw: number };
 };
 
 export interface IController {

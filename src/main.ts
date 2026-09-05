@@ -1,3 +1,4 @@
+import { loadFlightConfig, setupFlightSettings } from "./app/flight-settings";
 import "./styles.css";
 import { startApp } from "./app/app-orchestrator";
 import { DedustWorldConfig, resolveWorldConfig } from "./config/dedust-world-config";
@@ -21,7 +22,11 @@ const initialCameraMode = resolveCameraMode(isCesium);
 
 setupConfigControls(rendererType, worldName);
 
+const droneConfig = loadFlightConfig();
+setupFlightSettings(droneConfig, isCesium ? "cesium" : worldConfig.name);
+
 startApp({
+  droneConfig,
   rendererType,
   simulationStart,
   rendererStart,

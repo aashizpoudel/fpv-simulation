@@ -8,6 +8,8 @@
     position: fixed;
     left: 20px;
     top: 65px;
+    max-height: calc(100dvh - 85px);
+    overflow-y: auto;
     z-index: 150;
     max-width: min(420px, calc(100vw - 40px));
     padding: 10px 14px;
@@ -339,3 +341,9 @@ body {
     width: 100% !important;
     height: 100% !important;
 }
+
+.flight-help input[type="number"] { width: 85px; background: #17212b; color: #fff; border: 1px solid #536170; border-radius: 4px; padding: 5px; }
+.flight-help input[type="file"] { width: 190px; font-size: 11px; }
+.flight-help textarea { box-sizing: border-box; width: 100%; height: 220px; background: #17212b; color: #fff; font: 11px monospace; }
+.flight-help button:disabled { opacity: .45; }
+#flightSettingsStatus, #recordingStatus { font-size: 11px; overflow-wrap: anywhere; }
