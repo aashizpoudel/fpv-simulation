@@ -148,9 +148,14 @@
                         <p>Arrow keys pitch / roll · F angle / acro mode</p>
                         <p>C toggle camera view · Drag to look in orbit</p>
                         <p id="hoverHint">Try angle mode for self-leveling.</p>
-                        <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+                        <div class="input-source-controls" role="group" aria-label="Flight control source">
+                            <button id="inputSourceKeyboardBtn" class="input-source-toggle" type="button" aria-pressed="true">Keyboard</button>
+                            <button id="inputSourceGamepadBtn" class="input-source-toggle" type="button" aria-pressed="false" disabled>Radio / Gamepad</button>
+                            <button id="detectGamepadBtn" type="button">Detect</button>
+                        </div>
+                        <p id="gamepadDetectionStatus" class="settings-hint" role="status">No gamepad detected.</p>
+                        <div class="settings-actions">
                             <button id="calibrate" type="button">Calibrate radio / gamepad</button>
-                            <button id="switchToKeyboardBtn" type="button" class="btn-cancel">Switch to Keyboard</button>
                         </div>
                         <p class="settings-hint">Radio: lower throttle fully before arming.</p>
                     </div>

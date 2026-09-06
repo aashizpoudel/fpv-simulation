@@ -87,6 +87,40 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   let resetRequested = false;
   let handleToggleRecording = () => {};
   let handleToggleHelp = () => {};
+  const inputSourceBadge = document.getElementById("inputSource");
+  const keyboardSourceButton = document.getElementById(
+    "inputSourceKeyboardBtn",
+  ) as HTMLButtonElement | null;
+  const gamepadSourceButton = document.getElementById(
+    "inputSourceGamepadBtn",
+  ) as HTMLButtonElement | null;
+  const gamepadDetectionStatus = document.getElementById(
+    "gamepadDetectionStatus",
+  );
+
+  const updateInputSourceUI = (source: "keyboard" | "gamepad") => {
+    if (inputSourceBadge) {
+      inputSourceBadge.textContent =
+        source === "gamepad" ? "RADIO / GAMEPAD" : "KEYBOARD";
+    }
+    keyboardSourceButton?.setAttribute(
+      "aria-pressed",
+      String(source === "keyboard"),
+    );
+    gamepadSourceButton?.setAttribute(
+      "aria-pressed",
+      String(source === "gamepad"),
+    );
+  };
+
+  const updateGamepadAvailabilityUI = (available: boolean) => {
+    if (gamepadSourceButton) gamepadSourceButton.disabled = !available;
+    if (gamepadDetectionStatus) {
+      gamepadDetectionStatus.textContent = available
+        ? "Gamepad detected."
+        : "No gamepad detected. Connect one, press a button, then select Detect.";
+    }
+  };
 
   const inputProvider = new InputManager({
     callbacks: {
@@ -110,12 +144,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
       onToggleHelp: () => {
         handleToggleHelp();
       },
-      onInputSourceChanged: (source) => {
-        const element = document.getElementById("inputSource");
-        if (element)
-          element.textContent =
-            source === "gamepad" ? "RADIO / GAMEPAD" : "KEYBOARD";
-      },
+      onInputSourceChanged: updateInputSourceUI,
+      onGamepadAvailabilityChanged: updateGamepadAvailabilityUI,
     },
   });
 
@@ -324,12 +354,38 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
 
   const onSwitchToKeyboard = () => {
     inputProvider.useKeyboard();
-    const element = document.getElementById("inputSource");
-    if (element) element.textContent = "KEYBOARD";
     if (loading) loading.textContent = "Switched to Keyboard controls";
   };
-  const switchToKeyboardBtn = document.getElementById("switchToKeyboardBtn");
-  switchToKeyboardBtn?.addEventListener("click", onSwitchToKeyboard);
+  keyboardSourceButton?.addEventListener("click", onSwitchToKeyboard);
+
+  gamepadSourceButton?.addEventListener("click", () => {
+    if (gamepadDetectionStatus) {
+      gamepadDetectionStatus.textContent = "Connecting to gamepad…";
+    }
+    void inputProvider.useGamepad().then((activated) => {
+      if (gamepadDetectionStatus) {
+        gamepadDetectionStatus.textContent = activated
+          ? "Using radio / gamepad controls."
+          : "Could not activate the gamepad. Select Detect and try again.";
+      }
+    }).catch((error) => {
+      if (gamepadDetectionStatus) {
+        gamepadDetectionStatus.textContent =
+          `Could not activate the gamepad: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    });
+  });
+
+  const detectGamepadButton = document.getElementById("detectGamepadBtn");
+  detectGamepadButton?.addEventListener("click", () => {
+    const detected = inputProvider.detectGamepad();
+    if (loading) {
+      loading.textContent = detected
+        ? "Gamepad detected. Select Radio / Gamepad to use it."
+        : "No gamepad detected. Connect one, press a button, and try again.";
+    }
+    detectGamepadButton.blur();
+  });
 
   const helpSwitchKeyboardBtn = document.getElementById(
     "helpSwitchKeyboardBtn",

@@ -66,4 +66,25 @@ describe("KeyboardInputProvider", () => {
 
     provider.dispose();
   });
+
+  it("keeps camera and flight-mode shortcuts active when flight input is disabled", () => {
+    const callbacks = {
+      onReset: vi.fn(),
+      onToggleCamera: vi.fn(),
+      onSwitchFlightMode: vi.fn(),
+    };
+    const provider = new KeyboardInputProvider({ callbacks });
+    provider.init();
+    provider.setFlightInputEnabled(false);
+
+    fireKeyboardEvent("keydown", "w");
+    fireKeyboardEvent("keydown", "c");
+    fireKeyboardEvent("keydown", "f");
+
+    expect(provider.read(1).thrust).toBe(0);
+    expect(callbacks.onToggleCamera).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSwitchFlightMode).toHaveBeenCalledTimes(1);
+
+    provider.dispose();
+  });
 });

@@ -23,22 +23,31 @@ export class InputManager implements InputProvider {
   private readonly keyboardProvider: KeyboardInputProvider;
   private gamepadProvider?: GamepadInputProvider;
   private activeProvider: InputProvider;
-  private readonly gamepadIndex: number;
+  private gamepadIndex: number;
   private readonly mapperOptions?: InputMapperOptions;
   private calibrating = false;
+  private userPrefersKeyboard = false;
 
   private readonly handleConnect = (event: GamepadEvent) => {
-    if (event.gamepad.index !== this.gamepadIndex) return;
+    this.callbacks.onGamepadAvailabilityChanged?.(true);
+    if (this.userPrefersKeyboard) return;
     this.activateGamepad(event.gamepad.index, event.gamepad).catch(() => {
       this.switchToKeyboard();
     });
   };
 
   private readonly handleDisconnect = (event: GamepadEvent) => {
-    if (event.gamepad.index !== this.gamepadIndex) return;
+    const wasActive =
+      this.activeProvider === this.gamepadProvider &&
+      event.gamepad.index === this.gamepadIndex;
+    if (event.gamepad.index !== this.gamepadIndex) {
+      this.notifyGamepadAvailability();
+      return;
+    }
     this.gamepadProvider?.dispose();
     this.gamepadProvider = undefined;
-    this.switchToKeyboard();
+    if (wasActive) this.switchToKeyboard();
+    this.notifyGamepadAvailability();
   };
 
   constructor(options: InputManagerOptions) {
@@ -55,10 +64,17 @@ export class InputManager implements InputProvider {
   }
 
   init(): void {
-    this.activeProvider.init();
+    this.keyboardProvider.setFlightInputEnabled(
+      this.activeProvider === this.keyboardProvider,
+    );
+    this.keyboardProvider.init();
+    if (this.activeProvider !== this.keyboardProvider) {
+      this.activeProvider.init();
+    }
     window.addEventListener("gamepadconnected", this.handleConnect);
     window.addEventListener("gamepaddisconnected", this.handleDisconnect);
 
+    this.notifyGamepadAvailability();
     this.tryAdoptExistingGamepad();
   }
 
@@ -70,11 +86,16 @@ export class InputManager implements InputProvider {
   dispose(): void {
     window.removeEventListener("gamepadconnected", this.handleConnect);
     window.removeEventListener("gamepaddisconnected", this.handleDisconnect);
-    this.activeProvider.dispose();
     if (this.activeProvider !== this.keyboardProvider) {
-      this.keyboardProvider.dispose();
+      this.activeProvider.dispose();
     }
-    this.gamepadProvider?.dispose();
+    this.keyboardProvider.dispose();
+    if (
+      this.gamepadProvider &&
+      this.gamepadProvider !== this.activeProvider
+    ) {
+      this.gamepadProvider.dispose();
+    }
   }
 
   async recalibrate(): Promise<void> {
@@ -112,8 +133,10 @@ export class InputManager implements InputProvider {
       saveCalibration(withId);
 
       if (detectedPad) {
+        this.callbacks.onGamepadAvailabilityChanged?.(true);
         await this.useCalibration(detectedPad, withId);
       } else {
+        this.callbacks.onGamepadAvailabilityChanged?.(false);
         this.switchToKeyboard();
       }
     } catch (error) {
@@ -129,14 +152,41 @@ export class InputManager implements InputProvider {
   }
 
   public useKeyboard(): void {
+    this.userPrefersKeyboard = true;
     this.switchToKeyboard();
   }
 
-  switchProvider(newProvider: InputProvider): void {
+  public async useGamepad(): Promise<boolean> {
+    const detected = this.findConnectedGamepad();
+    if (!detected) {
+      this.callbacks.onGamepadAvailabilityChanged?.(false);
+      return false;
+    }
+
+    this.userPrefersKeyboard = false;
+    this.gamepadIndex = detected.index;
+    this.callbacks.onGamepadAvailabilityChanged?.(true);
+    await this.activateGamepad(detected.index, detected.pad);
+    return this.activeProvider === this.gamepadProvider;
+  }
+
+  public detectGamepad(): boolean {
+    const available = this.findConnectedGamepad() !== null;
+    this.callbacks.onGamepadAvailabilityChanged?.(available);
+    return available;
+  }
+
+  private switchProvider(newProvider: InputProvider): void {
     if (this.activeProvider === newProvider) return;
-    this.activeProvider.dispose();
+
+    if (this.activeProvider !== this.keyboardProvider) {
+      this.activeProvider.dispose();
+    }
+
+    const keyboardActive = newProvider === this.keyboardProvider;
+    this.keyboardProvider.setFlightInputEnabled(keyboardActive);
     this.activeProvider = newProvider;
-    this.activeProvider.init();
+    if (!keyboardActive) this.activeProvider.init();
   }
 
   private switchToKeyboard() {
@@ -145,9 +195,10 @@ export class InputManager implements InputProvider {
   }
 
   private tryAdoptExistingGamepad() {
-    const pad = navigator.getGamepads?.()[this.gamepadIndex];
-    if (pad) {
-      this.activateGamepad(this.gamepadIndex, pad).catch(() => {
+    if (this.userPrefersKeyboard) return;
+    const detected = this.findConnectedGamepad();
+    if (detected) {
+      this.activateGamepad(detected.index, detected.pad).catch(() => {
         this.switchToKeyboard();
       });
     }
@@ -157,6 +208,7 @@ export class InputManager implements InputProvider {
     if (this.calibrating) return;
     const gamepad = pad ?? navigator.getGamepads?.()[index];
     if (!gamepad) return;
+    this.gamepadIndex = index;
 
     let calibration = loadCalibration(gamepad.id);
     if (!calibration) {
@@ -193,8 +245,24 @@ export class InputManager implements InputProvider {
 
   private async calibrate(index: number): Promise<GamepadCalibration> {
     this.calibrating = true;
-    this.activeProvider.dispose();
     try { return await runCalibrationWizard(index); }
-    finally { this.calibrating = false; this.activeProvider.init(); }
+    finally { this.calibrating = false; }
+  }
+
+  private findConnectedGamepad(): { index: number; pad: Gamepad } | null {
+    const pads = navigator.getGamepads?.();
+    if (!pads) return null;
+
+    for (let index = 0; index < pads.length; index++) {
+      const pad = pads[index];
+      if (pad) return { index, pad };
+    }
+    return null;
+  }
+
+  private notifyGamepadAvailability(): void {
+    this.callbacks.onGamepadAvailabilityChanged?.(
+      this.findConnectedGamepad() !== null,
+    );
   }
 }

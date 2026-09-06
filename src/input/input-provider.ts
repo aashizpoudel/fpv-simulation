@@ -9,6 +9,7 @@ export type InputActionCallbacks = {
   onToggleRecording?: () => void;
   onToggleHelp?: () => void;
   onInputSourceChanged?: (source: "keyboard" | "gamepad") => void;
+  onGamepadAvailabilityChanged?: (available: boolean) => void;
 };
 
 export type InputMapping = {

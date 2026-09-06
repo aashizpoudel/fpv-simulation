@@ -46,6 +46,8 @@ export class KeyboardInputProvider implements InputProvider {
   private axis = { thrust: 0, pitch: 0, roll: 0, yaw: 0 };
   private resetPending = false;
   private armed = false;
+  private flightInputEnabled = true;
+  private initialized = false;
   private handleKeyDown: (event: KeyboardEvent) => void;
   private handleKeyUp: (event: KeyboardEvent) => void;
   private clearInput = () => {
@@ -101,18 +103,20 @@ export class KeyboardInputProvider implements InputProvider {
     this.handleKeyDown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && /INPUT|SELECT|TEXTAREA|BUTTON/.test(event.target.tagName)) return;
       const key = event.key.toLowerCase();
-      if (key.startsWith("arrow") || key === " ") event.preventDefault();
-      this.keys[key] = true;
+      if (this.flightInputEnabled) {
+        if (key.startsWith("arrow") || key === " ") event.preventDefault();
+        this.keys[key] = true;
+      }
 
       if (!event.repeat && key === "r") {
         this.clearInput();
-        this.resetPending = true;
+        if (this.flightInputEnabled) this.resetPending = true;
         this.callbacks.onReset();
       }
       if (!event.repeat && key === "c") {
         this.callbacks.onToggleCamera();
       }
-      if (!event.repeat && key === "m" && event.shiftKey) {
+      if (this.flightInputEnabled && !event.repeat && key === "m" && event.shiftKey) {
         this.armed = !this.armed;
         this.callbacks.onToggleArm?.();
       }
@@ -137,16 +141,25 @@ export class KeyboardInputProvider implements InputProvider {
     };
 
     this.handleKeyUp = (event: KeyboardEvent) => {
+      if (!this.flightInputEnabled) return;
       const key = event.key.toLowerCase();
       this.keys[key] = false;
     };
   }
 
   init(): void {
+    if (this.initialized) return;
+    this.initialized = true;
     this.clearInput();
     document.addEventListener("keydown", this.handleKeyDown);
     document.addEventListener("keyup", this.handleKeyUp);
     window.addEventListener("blur", this.clearInput);
+  }
+
+  setFlightInputEnabled(enabled: boolean): void {
+    if (this.flightInputEnabled === enabled) return;
+    this.clearInput();
+    this.flightInputEnabled = enabled;
   }
 
   read(dt: number): Controls {
@@ -214,6 +227,8 @@ export class KeyboardInputProvider implements InputProvider {
   }
 
   dispose(): void {
+    if (!this.initialized) return;
+    this.initialized = false;
     this.clearInput();
     document.removeEventListener("keydown", this.handleKeyDown);
     document.removeEventListener("keyup", this.handleKeyUp);
