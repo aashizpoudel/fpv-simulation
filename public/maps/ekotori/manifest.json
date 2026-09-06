@@ -1,0 +1,35 @@
+{
+  "levels": [
+    {
+      "lod": 0,
+      "file": "./ekotori.ksplat",
+      "splatCount": 793485,
+      "bytes": 19281208
+    }
+  ],
+  "collision": {
+    "file": "./ekotori.collision.glb",
+    "bytes": 48536520,
+    "triangles": 2699824,
+    "source": "./ekotori.ksplat",
+    "voxelSize": 0.05,
+    "groundLevel": 0.17499999701976754,
+    "spawnPosition": {
+      "x": 1.65,
+      "y": -1,
+      "z": 0.21499999701976755
+    },
+    "bounds": {
+      "min": {
+        "x": -33.224998474121094,
+        "y": -13.975000381469727,
+        "z": -1.825000047683721
+      },
+      "max": {
+        "x": 32.375,
+        "y": 23.024999618530277,
+        "z": 9.774999618530277
+      }
+    }
+  }
+}

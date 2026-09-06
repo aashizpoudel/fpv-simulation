@@ -3,6 +3,7 @@ import "./styles.css";
 import { startApp } from "./app/app-orchestrator";
 import { DedustWorldConfig, resolveWorldConfig } from "./config/dedust-world-config";
 import { FactorySplatWorldConfig } from "./config/factory-splat-world-config";
+import { EkotoriWorldConfig } from "./config/ekotori-world-config";
 import type { RendererType } from "./renderers/renderer-factory";
 import type { CameraMode, Vec3 } from "./types";
 
@@ -53,10 +54,11 @@ function resolveRendererType(): RendererType {
 function resolveWorldName(): string {
   const params = new URLSearchParams(window.location.search);
   const param = params.get("world") || localStorage.getItem("drone_sim_world");
-  return param === "dedust" ? "dedust" : "factory-splat";
+  return param === "ekotori" || param === "dedust" ? param : "factory-splat";
 }
 
 function resolveWorld(name: string) {
+  if (name === "ekotori") return EkotoriWorldConfig;
   return name === "dedust" ? DedustWorldConfig : FactorySplatWorldConfig;
 }
 

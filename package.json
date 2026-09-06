@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "collision:ekotori": "node scripts/build-ekotori-collision.mjs",
     "splat:repack": "node scripts/repack-splat-lod.mjs",
     "physics:benchmark": "node scripts/physics-benchmark.mjs"
   },

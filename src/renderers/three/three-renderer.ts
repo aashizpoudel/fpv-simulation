@@ -7,6 +7,8 @@ import type { DroneConfig } from "../../config/drone-config";
 import type { WorldConfig } from "../../config/dedust-world-config";
 import type { IRenderer } from "../renderer-interface";
 import { fetchSplatLodManifest } from "./splat-lod-loader";
+import { renderQuality } from "./render-quality";
+import { externalCameraRig, headingRotation } from "./external-camera";
 
 /** One WebGL context and one camera per frame, with camera-driven Spark LOD. */
 export class ThreejsRenderer implements IRenderer {
@@ -21,6 +23,8 @@ export class ThreejsRenderer implements IRenderer {
   private droneConfig?: DroneConfig;
   private worldConfig?: WorldConfig;
   private previousMode?: CameraMode;
+  private cameraRig = externalCameraRig(0.105);
+  private heading = new THREE.Quaternion();
   private position = new THREE.Vector3();
   private offset = new THREE.Vector3();
   private look = new THREE.Vector3();
@@ -35,6 +39,7 @@ export class ThreejsRenderer implements IRenderer {
 
   setDroneConfig(config: DroneConfig): void {
     this.droneConfig = config;
+    this.cameraRig = externalCameraRig(Math.max(config.length, config.width));
     const tiltDeg = config.cameraConfig?.fpvTiltDeg ?? 20;
     const tiltRad = (tiltDeg * Math.PI) / 180;
     const lookTarget = new THREE.Vector3(Math.cos(tiltRad), 0, Math.sin(tiltRad));
@@ -53,7 +58,9 @@ export class ThreejsRenderer implements IRenderer {
     this.camera.up.set(0, 0, 1);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
-    this.controls.minDistance = 0.2;
+    this.controls.minDistance = this.cameraRig.minOrbitDistance;
+    this.controls.enablePan = false;
+    this.controls.maxPolarAngle = Math.PI / 2;
     this.controls.maxDistance = 100;
     this.scene.background = new THREE.Color(0x161c23);
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2));
@@ -119,18 +126,20 @@ export class ThreejsRenderer implements IRenderer {
       this.scene.add(this.spark);
       this.applyQuality();
       this.splats = new SplatMesh({
-        url: new URL(level.file, url).href, lod: true, raycastable: false,
+        // Retain original splats so Detail can bypass the generated LOD tree.
+        url: new URL(level.file, url).href, lod: true, nonLod: true, raycastable: false,
         onProgress: (event) => this.status(event.total
           ? "Loading environment… " + Math.round(event.loaded / event.total * 100) + "%"
           : "Preparing environment detail…"),
       });
-      this.splats.rotation.x = config.visualRotationX ?? 0;
+      this.splats.rotation.set(config.visualRotationX ?? 0, 0, config.visualRotationZ ?? 0, "XYZ");
       this.splats.scale.setScalar(config.mapScale ?? 1);
       await this.splats.initialized;
       this.scene.add(this.splats);
+      this.applyQuality();
     } else if (config.mapGlbPath) {
       const map = (await loader.loadAsync(this.assetUrl(config.mapGlbPath))).scene;
-      map.rotation.x = config.visualRotationX ?? Math.PI / 2;
+      map.rotation.set(config.visualRotationX ?? Math.PI / 2, 0, config.visualRotationZ ?? 0, "XYZ");
       map.scale.setScalar(config.mapScale ?? 1);
       this.scene.add(map);
       if (!config.collisionGlbPath) this.onMapLoaded?.(map);
@@ -166,18 +175,24 @@ export class ThreejsRenderer implements IRenderer {
     this.drone.quaternion.set(q.x, q.y, q.z, q.w);
     this.drone.visible = mode !== "fpv";
     this.controls.enabled = mode === "orbit";
+    if (this.previousMode !== mode) {
+      this.camera.fov = mode === "fpv" ? 85 : mode === "third"
+        ? this.cameraRig.thirdFov : this.cameraRig.orbitFov;
+      this.camera.updateProjectionMatrix();
+    }
     if (mode === "fpv") {
       this.offset.set(this.droneConfig?.cameraConfig?.fpvForwardOffset ?? 0.04, 0, 0.02)
         .applyQuaternion(this.drone.quaternion);
       this.camera.position.copy(this.position).add(this.offset);
       this.camera.quaternion.copy(this.drone.quaternion).multiply(this.fpvRotation);
     } else if (mode === "third") {
-      this.offset.set(-0.9, 0, 0.4).applyQuaternion(this.drone.quaternion);
+      headingRotation(this.drone.quaternion, this.heading);
+      this.offset.copy(this.cameraRig.thirdOffset).applyQuaternion(this.heading);
       this.camera.position.copy(this.position).add(this.offset);
-      this.look.set(1, 0, 0).applyQuaternion(this.drone.quaternion).add(this.position);
+      this.look.copy(this.cameraRig.thirdTarget).applyQuaternion(this.heading).add(this.position);
       this.camera.lookAt(this.look);
     } else {
-      if (this.previousMode !== mode) this.camera.position.copy(this.position).add(this.offset.set(-2, -2, 1.5));
+      if (this.previousMode !== mode) this.camera.position.copy(this.position).add(this.cameraRig.orbitOffset);
       else this.camera.position.add(this.offset.copy(this.position).sub(this.controls.target));
       this.controls.target.copy(this.position);
       this.controls.update();
@@ -197,15 +212,17 @@ export class ThreejsRenderer implements IRenderer {
 
   private applyQuality(): void {
     const quality = (document.getElementById("quality") as HTMLSelectElement | null)?.value ?? "balanced";
-    const settings = quality === "detail" ? { pixels: 1.5, splats: 1_000_000 }
-      : quality === "performance" ? { pixels: 0.75, splats: 300_000 }
-      : { pixels: 1, splats: 650_000 };
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, settings.pixels));
+    const settings = renderQuality(quality, window.devicePixelRatio);
+    this.renderer.setPixelRatio(settings.pixelRatio);
     if (this.spark) {
+      this.spark.enableLod = settings.enableLod;
       this.spark.lodSplatCount = settings.splats;
+      this.spark.minSortIntervalMs = settings.minSortIntervalMs;
+      this.spark.sortRadial = settings.sortRadial;
       this.spark.focalAdjustment = 2.0;
       this.spark.blurAmount = 0.0;
     }
+    if (this.splats) this.splats.enableLod = settings.enableLod;
     this.resize();
   }
 

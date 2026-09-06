@@ -10,6 +10,8 @@ import { existsSync } from "node:fs";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FactorySplatWorldConfig } from "../src/config/factory-splat-world-config";
 
+import { EkotoriWorldConfig } from "../src/config/ekotori-world-config";
+
 const neutral: Controls = { thrust: 0, pitch: 0, roll: 0, yaw: 0, speedMultiplier: 1, arm: false, reset: false };
 const instances: RapierPhysics[] = [];
 async function setup(z: number) {
@@ -28,6 +30,60 @@ function advance(physics: RapierPhysics, seconds: number, controls = neutral) {
 afterEach(() => { for (const instance of instances.splice(0)) instance.dispose(); });
 
 describe("Rapier flight and contacts", () => {
+  it("lands, takes off, hits Ekotori's real ceiling, and resets on its generated mesh", async () => {
+    const config = EkotoriWorldConfig;
+    const bytes = await readFile(`public/${config.collisionGlbPath}`);
+    const map = (await new GLTFLoader().parseAsync(
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), "",
+    )).scene;
+    map.rotation.x = config.collisionRotationX!;
+    map.updateMatrixWorld(true);
+    const spawn = config.spawnPosition;
+    const floorRay = new THREE.Raycaster(
+      new THREE.Vector3(spawn.x, spawn.y, spawn.z + 0.1), new THREE.Vector3(0, 0, -1),
+    );
+    expect(floorRay.intersectObject(map)[0].point.z).toBeCloseTo(config.groundLevel, 4);
+    for (const dx of [-0.07, 0, 0.07]) for (const dy of [-0.07, 0, 0.07]) {
+      floorRay.ray.origin.set(spawn.x + dx, spawn.y + dy, 1);
+      const support = floorRay.intersectObject(map)[0];
+      expect(support).toBeDefined();
+      expect(Math.abs(support.point.z - config.groundLevel)).toBeLessThan(0.025);
+    }
+    const clearanceRay = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, 0, 1), 0, 2);
+    for (const dx of [-0.2, 0, 0.2]) for (const dy of [-0.2, 0, 0.2]) {
+      clearanceRay.ray.origin.set(spawn.x + dx, spawn.y + dy, config.groundLevel + 0.1);
+      expect(clearanceRay.intersectObject(map)).toHaveLength(0);
+    }
+    const ceilingRay = new THREE.Raycaster(
+      new THREE.Vector3(spawn.x, spawn.y, spawn.z + 0.2), new THREE.Vector3(0, 0, 1),
+    );
+    const ceiling = ceilingRay.intersectObject(map)[0];
+    expect(ceiling).toBeDefined();
+    const physics = new RapierPhysics(Tinyhawk3Config);
+    instances.push(physics);
+    await physics.init(spawn);
+    physics.createCollider(map);
+    const landed = advance(physics, 5);
+    expect(landed.localPosition.z).toBeGreaterThan(config.groundLevel);
+    expect(landed.localPosition.z).toBeLessThan(config.groundLevel + 0.1);
+    expect(landed.crashed).toBe(false);
+    physics.setArmed(true);
+    expect(advance(physics, 0.5, { ...neutral, arm: true, throttle: 1 }).localPosition.z)
+      .toBeGreaterThan(spawn.z + 0.1);
+    // Test the measured ceiling directly; free-flight drift can miss this ray's
+    // ceiling patch in the finer scan. Keep the takeoff check above independent.
+    const body = (physics as unknown as { body: RAPIER.RigidBody }).body;
+    body.setTranslation({ x: spawn.x, y: spawn.y, z: ceiling.point.z - 0.3 }, true);
+    body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+    body.setLinvel({ x: 0, y: 0, z: 5 }, true);
+    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    const impact = advance(physics, 0.2, { ...neutral, arm: true, throttle: 1 });
+    expect(impact.crashed).toBe(true);
+    expect(impact.localPosition.z).toBeLessThan(ceiling.point.z);
+    physics.reset();
+    expect(advance(physics, 5).crashed).toBe(false);
+    expect(physics.getTelemetry().localPosition.z).toBeGreaterThan(config.groundLevel);
+  }, 30000);
   it("reports hard impact without forced disarm when the gameplay cutoff is disabled", async () => {
     const config = structuredClone(Tinyhawk3Config);
     config.body.crashCutoff = false;

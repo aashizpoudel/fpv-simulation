@@ -21,6 +21,8 @@ export interface WorldConfig {
   collisionGlbPath?: string;
   /** X rotation applied to the visible asset. Defaults to PI / 2 for GLBs. */
   visualRotationX?: number;
+  /** Local Z rotation before X rotation, for source coordinate conversion. */
+  visualRotationZ?: number;
   /** X rotation applied to collisionGlbPath. Defaults to PI / 2. */
   collisionRotationX?: number;
   /** Collision asset's placement in simulation coordinates, before mapScale. */

@@ -43,7 +43,17 @@ Use the calibration button to map sticks and buttons. Follow the requested stick
 direction: it determines axis inversion. Radio throttle is absolute, unlike
 keyboard throttle. Lower it fully before arming. Calibration is stored locally.
 
+External cameras frame the real drone size: chase is about 35 cm away with a
+60° field of view; orbit starts about 49 cm away at 55°. Chase follows yaw only
+to keep the horizon level. Orbit supports rotation/zoom, stays above the drone,
+and keeps its target centered. FPV remains at 85° with the configured tilt.
+
 The rendering quality selector adjusts resolution and the spatial splat budget.
+Detail bypasses LOD simplification and renders the full local source splats at
+1.5× resolution on standard monitors or up to 2× on Retina displays. It uses
+Z-depth sorting without the 40 ms sort throttle. This costs GPU time and memory;
+it does not reconstruct detail absent from the source scan. Balanced and
+Performance retain their 650K / 300K spatial LOD budgets.
 Use Performance on slower hardware. Frame rate depends on GPU, viewport, and
 how close the camera is to surfaces.
 
@@ -79,7 +89,7 @@ npm run build
 npm run preview
 ```
 
-Build validates that Factory assets exist and match their manifest sizes.
+Build validates that Factory and Ekotori assets exist and match their manifests.
 Tests cover fixed-step timing, radio throttle, disarmed gravity, gentle landings,
 hard impacts, high-speed thin-wall CCD, reset, and the actual Factory spawn and
 ceiling (the Factory integration test requires the generated collider).
@@ -94,3 +104,39 @@ For the automated Firefox flight check, launch an isolated Firefox profile with
 reset, camera and flight-mode switching, quality selection, and console errors.
 Screenshots are written to a temporary directory reported on completion.
 Set `FPV_URL=http://127.0.0.1:4173/fpv-simulation/` to test the preview server.
+
+## Ekotori
+
+Select **Ekotori** under Environment or open `?world=ekotori`.
+Spark reads raw KSPLAT coordinates: visuals first rotate 180° around local Z,
+then 90° around X. PlayCanvas already bakes the first rotation into the generated
+`ekotori.collision.glb`, so its collider rotates only 90° around X. Rapier uses the generated triangle mesh, not a flat-ground fallback.
+Spawn is in an open aisle at simulation X=1.65, Y=-1; its height is measured from
+the generated floor, and the generator checks a 14 cm footprint for holes and
+raised edges, plus a 40 cm-wide, 2 m-tall launch column for overhead obstacles.
+Ceilings are real geometry.
+
+Rebuild from the local `public/maps/ekotori/ekotori.ksplat`:
+
+```sh
+npm run collision:ekotori
+```
+
+This requires GPU/WebGPU access (a sandbox may need permission). It follows
+[PlayCanvas's collision-generation workflow](https://developer.playcanvas.com/user-manual/splat-transform/collision/):
+crop distant outliers, filter the seed-connected cluster, voxelize at **0.05 m**,
+fill the exterior of the indoor scan, carve with a **0.12 m × 0.06 m height/radius**
+capsule, and extract a smoothed triangle mesh. The temporary `.voxel.json` output
+triggers mesh generation; converting straight to `.glb` only exports splats.
+The script validates triangle primitives and updates collision size, triangle
+count, bounds, and spawn in `manifest.json` after successful generation.
+
+The generated collider contains **2,699,824 triangles**, approximately **46.3 MiB**.
+It approximates scanned surfaces; 5 cm voxels cannot preserve every tiny gap.
+The original `ekotori-collider.glb` is a misnamed Gaussian point cloud and remains
+unused. Factory's existing repack script downloads its prebuilt collision mesh;
+Ekotori's new script generates one locally from splats.
+
+Open `?world=ekotori&collision=1` to inspect collision alignment. Tests verify the
+actual generated floor, takeoff, ceiling impact, and reset. `npm run build`
+validates both maps' triangle assets as well as the splat manifests.
