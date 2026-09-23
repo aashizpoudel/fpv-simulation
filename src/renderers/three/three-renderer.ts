@@ -147,7 +147,20 @@ export class ThreejsRenderer implements IRenderer {
   }
 
   private async loadCollision(loader: GLTFLoader, config: WorldConfig): Promise<void> {
-    const map = (await loader.loadAsync(this.assetUrl(config.collisionGlbPath!))).scene;
+    const url = this.assetUrl(config.collisionGlbPath!);
+    let map: THREE.Group;
+    if (url.endsWith(".gz")) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Could not load collision mesh (${response.status})`);
+      const data = await response.arrayBuffer();
+      const bytes = new Uint8Array(data);
+      const glb = bytes[0] === 0x1f && bytes[1] === 0x8b
+        ? await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer()
+        : data;
+      map = (await loader.parseAsync(glb, new URL(".", url).href)).scene;
+    } else {
+      map = (await loader.loadAsync(url)).scene;
+    }
     map.rotation.x = config.collisionRotationX ?? Math.PI / 2;
     map.scale.setScalar(config.mapScale ?? 1);
     if (config.collisionPosition) map.position.set(

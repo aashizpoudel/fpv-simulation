@@ -7,6 +7,7 @@ import type { Controls } from "../src/types";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FactorySplatWorldConfig } from "../src/config/factory-splat-world-config";
 
@@ -32,7 +33,7 @@ afterEach(() => { for (const instance of instances.splice(0)) instance.dispose()
 describe("Rapier flight and contacts", () => {
   it("lands, takes off, hits Ekotori's real ceiling, and resets on its generated mesh", async () => {
     const config = EkotoriWorldConfig;
-    const bytes = await readFile(`public/${config.collisionGlbPath}`);
+    const bytes = gunzipSync(await readFile(`public/${config.collisionGlbPath}`));
     const map = (await new GLTFLoader().parseAsync(
       bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), "",
     )).scene;

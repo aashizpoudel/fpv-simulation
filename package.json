@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run assets:prepare && vite",
     "typecheck": "tsc --noEmit",
-    "build": "npm run assets:prepare && npm run assets:check && npm run typecheck && vite build",
-    "assets:prepare": "node scripts/prepare-factory-assets.mjs",
+    "build": "npm run assets:prepare && npm run assets:check && npm run typecheck && vite build && node scripts/finalize-build.mjs",
+    "assets:prepare": "node scripts/prepare-factory-assets.mjs && node scripts/prepare-ekotori-collision.mjs",
     "assets:check": "node scripts/check-assets.mjs",
     "preview": "vite preview",
     "test": "vitest run",
@@ -30,6 +30,7 @@
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
     "vite-plugin-static-copy": "^0.17.0",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "wrangler": "^4.137.0"
   }
 }

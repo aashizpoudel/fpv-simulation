@@ -5,6 +5,7 @@ build/
 public/maps/factory-splat/*.ksplat
 public/maps/factory-splat/*.glb
 public/maps/factory-splat/manifest.json
+public/maps/ekotori/*.gz
 *.DS_Store
 architecture.md
 

@@ -1,11 +1,10 @@
 # FPV Drone Simulator
 
-A browser-based FPV drone simulator built with Three.js, Spark, and Rapier.
-It supports keyboard controls, USB radios, and gamepads.
+A browser-based FPV drone simulator built with Three.js, Spark, and Rapier. Fly with a keyboard, USB radio, or gamepad.
 
 ## Run locally
 
-Use Node.js 22 or later.
+Requires Node.js 22 or later.
 
 ```sh
 npm install
@@ -14,63 +13,31 @@ npm run dev
 
 Open http://localhost:5173/fpv-simulation/.
 
-The Factory map uses generated assets that are not stored in Git. On a fresh
-checkout, create them before starting the development server:
-
-```sh
-npm run splat:repack
-```
-
 ## Controls
 
 | Input | Action |
 | --- | --- |
 | Shift+M | Arm or disarm |
-| W / S | Increase or decrease throttle |
+| W / S | Throttle |
 | A / D | Yaw |
 | Arrow keys | Pitch and roll |
-| F | Switch between angle and acro modes |
-| C | Switch camera view |
+| F | Flight mode |
+| C | Camera view |
 | R | Reset |
-| G | Start or stop recording |
-| H | Show or hide help |
-| Mouse drag / wheel | Rotate or zoom the orbit camera |
+| G | Record |
+| H | Help |
 
-To use a USB radio or gamepad:
-
-1. Connect the device and press one of its buttons.
-2. Open **Settings > Flight Controls**.
-3. Select **Detect**, then select **Radio / Gamepad**.
-4. Calibrate the device if requested.
-
-You can return to keyboard control from the same settings section.
+Configure a USB radio or gamepad under **Settings > Flight Controls**.
 
 ## Environments
 
-Select an environment in Settings or use a URL parameter:
+Choose Factory, DeDust, or Ekotori in Settings, or use `?world=factory-splat`, `?world=dedust`, or `?world=ekotori`.
 
-- `?world=factory-splat`
-- `?world=dedust`
-- `?world=ekotori`
-
-To rebuild the Ekotori collision mesh:
-
-```sh
-npm run collision:ekotori
-```
-
-## Development
+## Build
 
 ```sh
 npm test
-npm run typecheck
 npm run build
-npm run preview
 ```
 
-The production build creates missing Factory assets automatically, including
-on a fresh Cloudflare checkout. Set the Cloudflare build command to
-`npm run build` and the output directory to `build`. The base path defaults to
-`/fpv-simulation/`. Set `VITE_BASE_PATH=/` in Cloudflare for a root domain,
-or use another path such as `VITE_BASE_PATH=/sim/`. Deploy the complete
-`build/` directory so that maps and runtime assets remain available.
+Deploy the `build/` directory. The base path defaults to `/fpv-simulation/`; set `VITE_BASE_PATH=/` to serve from the root.

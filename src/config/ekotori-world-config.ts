@@ -6,7 +6,7 @@ import manifest from "../../public/maps/ekotori/manifest.json";
 export const EkotoriWorldConfig: WorldConfig = {
   name: "ekotori",
   splatLodManifestPath: "maps/ekotori/manifest.json",
-  collisionGlbPath: `maps/ekotori/${manifest.collision.file.replace("./", "")}`,
+  collisionGlbPath: "maps/ekotori/ekotori.collision.glb.gz",
   visualRotationX: Math.PI / 2,
   visualRotationZ: Math.PI,
   collisionRotationX: Math.PI / 2,

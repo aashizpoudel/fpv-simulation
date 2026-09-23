@@ -22,7 +22,7 @@ describe("Ekotori world", () => {
 
   it("uses generated triangles aligned with the visual splats", () => {
     const config = EkotoriWorldConfig;
-    expect(config.collisionGlbPath).toBe("maps/ekotori/ekotori.collision.glb");
+    expect(config.collisionGlbPath).toBe("maps/ekotori/ekotori.collision.glb.gz");
     expect(config.collisionRotationX).toBe(config.visualRotationX);
     expect(config.visualRotationX).toBe(Math.PI / 2);
     expect(config.spawnPosition.z).toBeGreaterThan(config.groundLevel);
