@@ -97,7 +97,7 @@ export const Tinyhawk3Config: DroneConfig = {
   maxTiltAngleDeg: 55,
   throttleRate: 0.3,
   stickRate: 0.12,
-  controllerType: "acro",
+  controllerType: "angle",
   rotorMode: true,
   yawTorquePerNewton: 0.003,
 

@@ -4,6 +4,16 @@
     box-sizing: border-box;
 }
 
+:root {
+    --ui-bg: #111517;
+    --ui-surface: #1b2123;
+    --ui-hover: #282f31;
+    --ui-border: #596164;
+    --ui-divider: #343c3e;
+    --ui-text: #f2f2f0;
+    --ui-muted: #b7bcbd;
+}
+
 .top-right-bar {
     position: fixed;
     top: 12px;
@@ -248,6 +258,139 @@ body {
     inset: 0;
     width: 100%;
     height: 100%;
+}
+.settings-actions[hidden] {
+    display: none;
+}
+
+.welcome {
+    position: fixed;
+    inset: 0;
+    z-index: 140;
+    display: grid;
+    place-items: center;
+    overflow-y: auto;
+    padding: 32px;
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    font: 16px/1.5 system-ui, sans-serif;
+}
+
+.welcome[hidden] {
+    display: none;
+}
+
+.welcome-card {
+    width: min(520px, 100%);
+}
+
+.welcome-kicker {
+    margin: 0 0 8px;
+    color: var(--ui-muted);
+    font-size: 14px;
+}
+
+.welcome h1 {
+    margin: 0 0 12px;
+    font-size: clamp(30px, 5vw, 42px);
+    font-weight: 650;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+}
+
+.welcome-card > p:not(.welcome-status):not(.welcome-kicker) {
+    color: var(--ui-muted);
+}
+
+.welcome-card > h1 + p {
+    margin: 0;
+}
+
+.welcome-card > .welcome-detail {
+    margin: 12px 0 0;
+}
+
+.welcome-choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 32px;
+}
+
+.welcome-choices label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--ui-text);
+    font-size: 14px;
+}
+
+.welcome-choices select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--ui-border);
+    border-radius: 3px;
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    font: inherit;
+}
+
+.welcome-status {
+    margin: 16px 0 0;
+    color: var(--ui-muted);
+    font-size: 14px;
+}
+
+.welcome-status:empty {
+    display: none;
+}
+
+.welcome-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+}
+
+.welcome-actions button {
+    min-width: 120px;
+    padding: 10px 18px;
+    border-radius: 3px;
+    font: 600 15px system-ui, sans-serif;
+    cursor: pointer;
+}
+
+.welcome-play {
+    border: 1px solid var(--ui-text);
+    background: var(--ui-text);
+    color: var(--ui-bg);
+}
+
+.welcome-play:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.welcome-settings {
+    border: 1px solid var(--ui-border);
+    background: transparent;
+    color: var(--ui-text);
+}
+
+.welcome-actions button:focus-visible,
+.welcome-choices select:focus-visible {
+    outline: 2px solid var(--ui-text);
+    outline-offset: 2px;
+}
+
+.welcome-active .top-right-bar,
+.welcome-active .osd {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    .welcome { padding: 24px; }
+    .welcome-choices { grid-template-columns: 1fr; }
+    .welcome-actions button { flex: 1; }
 }
 
 /* ── OSD Overlay ──────────────────────────────────── */
@@ -669,8 +812,8 @@ body {
     border: 1px solid #ffffff35;
     border-radius: 12px;
     width: min(880px, calc(100vw - 32px));
-    max-height: min(90vh, calc(100dvh - 36px));
-    overflow-y: auto;
+    height: min(90vh, calc(100dvh - 36px));
+    overflow: hidden;
     padding: 18px 22px;
     box-shadow: 0 16px 50px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
     font-family: system-ui, -apple-system, sans-serif;
@@ -678,6 +821,21 @@ body {
     display: flex;
     flex-direction: column;
     gap: 14px;
+}
+
+.cal-header,
+.cal-footer {
+    flex-shrink: 0;
+}
+
+.cal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-right: 4px;
 }
 
 .cal-header {
@@ -1042,22 +1200,14 @@ body {
     transform: scale(1.15);
 }
 
-.cal-presets-bar {
+.cal-wizard-actions {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
     padding-top: 4px;
 }
 
-.cal-presets-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.cal-preset-btn {
+.cal-secondary-btn {
     background: #1a2a38;
     border: 1px solid #33485c;
     color: #ffffff;
@@ -1068,7 +1218,7 @@ body {
     transition: all 0.15s ease;
 }
 
-.cal-preset-btn:hover {
+.cal-secondary-btn:hover {
     background: #263d50;
     border-color: #00ffcc80;
 }
@@ -1094,6 +1244,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
     padding-top: 6px;
     border-top: 1px solid #ffffff20;
 }
@@ -1150,4 +1302,281 @@ body {
 
 .cal-cancel-btn:hover {
     background: #334455 !important;
+}
+
+@media (max-width: 600px) {
+    .cal-modal {
+        padding: 14px;
+    }
+
+    .cal-gimbals-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .cal-gimbal-card {
+        min-width: 0;
+        padding: 8px;
+    }
+
+    .gimbal-box {
+        width: min(110px, 100%);
+        height: auto;
+        aspect-ratio: 1;
+    }
+
+    .cal-channel-row {
+        grid-template-columns: 80px minmax(0, 1fr) 54px;
+        gap: 6px;
+    }
+
+    .cal-channel-row > * {
+        min-width: 0;
+    }
+
+    .cal-buttons-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cal-button-card {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .cal-wizard-banner {
+        flex-wrap: wrap;
+    }
+}
+
+/* Shared controls and panels */
+.top-bar-btn,
+.settings-toggle-btn,
+.flight-help,
+.help-card,
+.cal-modal {
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-divider);
+    border-radius: 3px;
+    box-shadow: none;
+    backdrop-filter: none;
+    color: var(--ui-text);
+    font-family: system-ui, sans-serif;
+}
+
+.top-bar-btn,
+.settings-toggle-btn {
+    background: var(--ui-surface);
+}
+
+.top-bar-btn:hover,
+.settings-toggle-btn:hover {
+    background: var(--ui-hover);
+    border-color: var(--ui-border);
+    color: var(--ui-text);
+}
+
+.top-bar-btn:focus-visible,
+.settings-toggle-btn:focus-visible,
+.flight-help button:focus-visible,
+.flight-help select:focus-visible,
+.flight-help input:focus-visible,
+.flight-help textarea:focus-visible,
+.cal-modal button:focus-visible,
+.cal-modal select:focus-visible {
+    outline: 2px solid var(--ui-text);
+    outline-offset: 2px;
+}
+
+.settings-group,
+.help-section,
+.cal-gimbal-card,
+.cal-channels-table,
+.cal-buttons-section {
+    background: var(--ui-surface);
+    border: 1px solid var(--ui-divider);
+    border-radius: 3px;
+}
+
+.flight-help summary,
+.help-header,
+.cal-header,
+.cal-footer {
+    border-color: var(--ui-divider);
+}
+
+.summary-title,
+.help-header-title,
+.cal-header-title h3,
+.cal-wizard-banner-text {
+    color: var(--ui-text);
+}
+
+.settings-title,
+.help-section-title,
+.cal-gimbal-title,
+.cal-channel-name,
+.cal-button-name {
+    color: var(--ui-muted);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.input-badge,
+.key-badge,
+.cal-wizard-step-tag,
+.cal-axis-chip {
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-border);
+    border-radius: 3px;
+    letter-spacing: 0;
+}
+
+.flight-help button,
+.flight-help select,
+.flight-help input[type="number"],
+.flight-help textarea,
+.cal-select,
+.cal-toggle-btn,
+.cal-detect-btn,
+.cal-secondary-btn,
+.cal-wizard-launch-btn {
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-border);
+    border-radius: 3px;
+    box-shadow: none;
+    font-family: system-ui, sans-serif;
+}
+
+.flight-help button:hover,
+.cal-toggle-btn:hover,
+.cal-secondary-btn:hover,
+.cal-wizard-launch-btn:hover {
+    background: var(--ui-hover);
+    border-color: var(--ui-text);
+    color: var(--ui-text);
+    box-shadow: none;
+}
+
+.flight-help .input-source-toggle[aria-pressed="true"],
+.cal-toggle-btn.active,
+.cal-btn-chip.active {
+    background: var(--ui-text);
+    border-color: var(--ui-text);
+    color: var(--ui-bg);
+    box-shadow: none;
+    transform: none;
+}
+
+.flight-help .input-source-toggle:disabled {
+    background: var(--ui-surface);
+    color: var(--ui-muted);
+    border-color: var(--ui-divider);
+}
+
+.flight-help .settings-checkbox input {
+    accent-color: var(--ui-text);
+}
+
+.settings-close-btn,
+.btn-cancel,
+.cal-cancel-btn {
+    background: var(--ui-surface) !important;
+    border: 1px solid var(--ui-border) !important;
+    border-radius: 3px !important;
+    color: var(--ui-text) !important;
+}
+
+.settings-close-btn:hover,
+.btn-cancel:hover,
+.cal-cancel-btn:hover {
+    background: var(--ui-hover) !important;
+    border-color: var(--ui-text) !important;
+    color: var(--ui-text) !important;
+}
+
+.cal-save-btn {
+    background: var(--ui-text) !important;
+    border: 1px solid var(--ui-text) !important;
+    border-radius: 3px !important;
+    color: var(--ui-bg) !important;
+    box-shadow: none;
+}
+
+.cal-save-btn:hover {
+    background: #d4d8d8 !important;
+    box-shadow: none;
+}
+
+.advanced-summary {
+    color: var(--ui-muted) !important;
+}
+
+.help-modal,
+.cal-overlay {
+    backdrop-filter: none;
+}
+
+.cal-status-badge,
+.cal-wizard-banner,
+.gimbal-box,
+.cal-meter-track,
+.cal-button-card,
+.cal-btn-chip {
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-divider);
+    border-radius: 3px;
+    box-shadow: none;
+}
+
+.cal-status-badge.connected,
+.cal-status-badge.disconnected {
+    border-color: var(--ui-border);
+}
+
+.cal-status-badge.connected,
+.cal-gimbal-readouts,
+.cal-channel-val,
+.cal-raw-matrix {
+    color: var(--ui-text);
+}
+
+.gimbal-stick-dot,
+.cal-meter-fill {
+    background: var(--ui-text);
+    box-shadow: none;
+}
+
+.gimbal-stick-dot {
+    border-color: var(--ui-bg);
+}
+
+.cal-button-card.pressed,
+.cal-axis-chip.active {
+    border-color: var(--ui-text);
+    box-shadow: none;
+}
+
+.cal-axis-chip.active {
+    background: var(--ui-hover);
+    color: var(--ui-text);
+}
+
+.osd-controls-hint,
+.osd-lod-status {
+    color: var(--ui-text);
+}
+
+.recording-indicator {
+    background: var(--ui-bg);
+    border-radius: 3px;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.rec-dot,
+.status-banner {
+    box-shadow: none;
+    text-shadow: none;
 }

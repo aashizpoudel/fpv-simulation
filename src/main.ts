@@ -1,6 +1,7 @@
 import { loadFlightConfig, setupFlightSettings } from "./app/flight-settings";
 import "./styles.css";
 import { startApp } from "./app/app-orchestrator";
+import { setupWelcomeScreen } from "./app/welcome-screen";
 import { DedustWorldConfig, resolveWorldConfig } from "./config/dedust-world-config";
 import { FactorySplatWorldConfig } from "./config/factory-splat-world-config";
 import { EkotoriWorldConfig } from "./config/ekotori-world-config";
@@ -26,14 +27,16 @@ setupConfigControls(rendererType, worldName);
 const droneConfig = loadFlightConfig();
 setupFlightSettings(droneConfig, isCesium ? "cesium" : worldConfig.name);
 
-startApp({
+const appReady = startApp({
   droneConfig,
   rendererType,
   simulationStart,
   rendererStart,
   initialCameraMode,
   worldConfig: isCesium ? undefined : worldConfig,
-}).catch((error) => {
+});
+setupWelcomeScreen(worldName, rendererType, appReady);
+void appReady.catch((error) => {
   console.error("Failed to start app", error);
   const status = document.getElementById("lodStatus");
   if (status) {
@@ -72,22 +75,10 @@ function resolveCameraMode(cesium: boolean): CameraMode {
 }
 
 function setupConfigControls(currentRenderer: RendererType, currentWorld: string): void {
-  const rendererSelect = document.getElementById("rendererSelect") as HTMLSelectElement | null;
   const worldSelect = document.getElementById("worldSelect") as HTMLSelectElement | null;
   const worldSelectLabel = document.getElementById("worldSelectLabel");
   const collisionCheckbox = document.getElementById("collisionCheckbox") as HTMLInputElement | null;
   const qualitySelect = document.getElementById("quality") as HTMLSelectElement | null;
-
-  if (rendererSelect) {
-    rendererSelect.value = currentRenderer;
-    rendererSelect.addEventListener("change", () => {
-      const selected = rendererSelect.value;
-      localStorage.setItem("drone_sim_renderer", selected);
-      const url = new URL(window.location.href);
-      url.searchParams.set("renderer", selected);
-      window.location.href = url.toString();
-    });
-  }
 
   if (worldSelect) {
     worldSelect.value = currentWorld;

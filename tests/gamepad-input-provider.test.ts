@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { GamepadInputProvider } from "../src/input/gamepad-input-provider";
-import { DEFAULT_CALIBRATION, CALIBRATION_PRESETS } from "../src/input/gamepad-calibration";
+import { DEFAULT_CALIBRATION, loadCalibration, saveCalibration } from "../src/input/gamepad-calibration";
 
 afterEach(() => vi.unstubAllGlobals());
 it("maps radio throttle absolutely, blocks high-throttle arming, and disarms on disconnect", () => {
@@ -70,15 +70,35 @@ it("yaws in the correct direction when stick is deflected", () => {
   expect(provider.read(1 / 60).yaw).toBe(-1); // Negative yaw in flight controller = turn RIGHT
 });
 
-it("exports standard FPV Radio Mode 2 and gamepad presets", () => {
-  expect(CALIBRATION_PRESETS.fpvRadioMode2.calibration.axes.throttle.index).toBe(2);
-  expect(CALIBRATION_PRESETS.standardGamepad.calibration.axes.throttle.index).toBe(1);
+it("uses the swapped pitch and roll axes in the default mapping", () => {
   expect(DEFAULT_CALIBRATION.axes.throttle.index).toBe(0);
   expect(DEFAULT_CALIBRATION.axes.throttle.inverted).toBe(false);
   expect(DEFAULT_CALIBRATION.axes.yaw.index).toBe(3);
   expect(DEFAULT_CALIBRATION.axes.yaw.inverted).toBe(true);
-  expect(DEFAULT_CALIBRATION.axes.roll.index).toBe(1);
+  expect(DEFAULT_CALIBRATION.axes.roll.index).toBe(2);
   expect(DEFAULT_CALIBRATION.axes.roll.inverted).toBe(false);
-  expect(DEFAULT_CALIBRATION.axes.pitch.index).toBe(2);
+  expect(DEFAULT_CALIBRATION.axes.pitch.index).toBe(1);
   expect(DEFAULT_CALIBRATION.axes.pitch.inverted).toBe(false);
+});
+
+it("updates the previous saved default while preserving custom axis mappings", () => {
+  const oldDefault = {
+    ...structuredClone(DEFAULT_CALIBRATION),
+    axes: {
+      ...structuredClone(DEFAULT_CALIBRATION.axes),
+      pitch: { index: 2, inverted: false },
+      roll: { index: 1, inverted: false },
+    },
+    gamepadId: "old-default",
+  };
+  saveCalibration(oldDefault);
+  expect(loadCalibration("old-default")?.axes.pitch.index).toBe(1);
+  expect(loadCalibration("old-default")?.axes.roll.index).toBe(2);
+
+  saveCalibration({ ...oldDefault, gamepadId: "custom", axes: {
+    ...oldDefault.axes,
+    throttle: { index: 4, inverted: false },
+  } });
+  expect(loadCalibration("custom")?.axes.pitch.index).toBe(2);
+  expect(loadCalibration("custom")?.axes.roll.index).toBe(1);
 });

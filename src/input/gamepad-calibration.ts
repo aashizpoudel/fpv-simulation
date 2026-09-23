@@ -31,8 +31,8 @@ export const DEFAULT_CALIBRATION: GamepadCalibration = {
   axes: {
     throttle: { index: 0, inverted: false },
     yaw: { index: 3, inverted: true },
-    pitch: { index: 2, inverted: false },
-    roll: { index: 1, inverted: false },
+    pitch: { index: 1, inverted: false },
+    roll: { index: 2, inverted: false },
   },
   buttons: {
     arm: { axis: 4, direction: "positive" },
@@ -109,63 +109,6 @@ export function serializeButtonBinding(
   return "none";
 }
 
-export const CALIBRATION_PRESETS: Record<
-  string,
-  { name: string; calibration: Omit<GamepadCalibration, "gamepadId"> }
-> = {
-  emaxRadio: {
-    name: "EMAX Radio (A0:Thr, A3:Yaw-Inv, A1:Rol, A2:Pit, A4:Arm, A5:Reset)",
-    calibration: {
-      axes: {
-        throttle: { index: 0, inverted: false },
-        yaw: { index: 3, inverted: true },
-        pitch: { index: 2, inverted: false },
-        roll: { index: 1, inverted: false },
-      },
-      buttons: {
-        arm: { axis: 4, direction: "positive" },
-        reset: { axis: 5, direction: "positive" },
-        camera: 6,
-        mode: 7,
-      },
-    },
-  },
-  standardGamepad: {
-    name: "Xbox / Standard Gamepad",
-    calibration: {
-      axes: {
-        throttle: { index: 1, inverted: true },
-        yaw: { index: 0, inverted: false },
-        pitch: { index: 3, inverted: true },
-        roll: { index: 2, inverted: false },
-      },
-      buttons: {
-        arm: 4,
-        reset: 5,
-        camera: 2,
-        mode: 0,
-      },
-    },
-  },
-  fpvRadioMode2: {
-    name: "FPV Radio (Mode 2 - AETR)",
-    calibration: {
-      axes: {
-        throttle: { index: 2, inverted: false },
-        yaw: { index: 3, inverted: false },
-        pitch: { index: 1, inverted: true },
-        roll: { index: 0, inverted: false },
-      },
-      buttons: {
-        arm: 4,
-        reset: 5,
-        camera: 6,
-        mode: 7,
-      },
-    },
-  },
-};
-
 function getStorageKey(gamepadId: string): string {
   return `${STORAGE_PREFIX}${gamepadId}`;
 }
@@ -188,6 +131,18 @@ export function loadCalibration(gamepadId: string): GamepadCalibration | null {
 
   try {
     const parsed = JSON.parse(stored) as GamepadCalibration;
+    const axes = parsed.axes;
+    // Update calibrations saved with the previous default; leave custom mappings alone.
+    if (
+      axes?.throttle?.index === 0 && !axes.throttle.inverted &&
+      axes.yaw?.index === 3 && axes.yaw.inverted &&
+      axes.pitch?.index === 2 && !axes.pitch.inverted &&
+      axes.roll?.index === 1 && !axes.roll.inverted
+    ) {
+      parsed.axes.pitch.index = 1;
+      parsed.axes.roll.index = 2;
+      localStorage.setItem(getStorageKey(gamepadId), JSON.stringify(parsed));
+    }
     return { ...DEFAULT_CALIBRATION, ...parsed, gamepadId: parsed.gamepadId || gamepadId };
   } catch {
     return null;

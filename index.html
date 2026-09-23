@@ -3,15 +3,57 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>FPV Drone Simulator</title>
+        <title>Free FPV Simulator Online | FPV Sim</title>
+        <meta name="description" content="Play a free FPV drone simulator online. Fly photorealistic Factory and Ekotori maps or DeDust with a keyboard, gamepad, or USB radio. No installation required." />
+        <link rel="canonical" href="https://www.fpvsim.top/" />
+        <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Free FPV Simulator Online | FPV Sim" />
+        <meta property="og:description" content="Play a free FPV drone simulator online. Fly photorealistic Factory and Ekotori maps or DeDust with a keyboard, gamepad, or USB radio. No installation required." />
+        <meta property="og:url" content="https://www.fpvsim.top/" />
+        <meta property="og:image" content="https://www.fpvsim.top/og-fpv-simulator.jpg" />
+        <meta property="og:image:alt" content="Side-by-side renders of the Factory and Ekotori Gaussian splat maps used in the FPV drone simulator." />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Free FPV Simulator Online | FPV Sim" />
+        <meta name="twitter:description" content="Play a free FPV drone simulator online. Fly photorealistic Factory and Ekotori maps or DeDust with a keyboard, gamepad, or USB radio. No installation required." />
+        <meta name="twitter:image" content="https://www.fpvsim.top/og-fpv-simulator.jpg" />
     </head>
-    <body>
+    <body class="welcome-active">
+        <main>
         <div id="renderingContainer"></div>
+        <section class="welcome" id="welcomeScreen" aria-labelledby="sim-title">
+            <div class="welcome-card">
+                <p class="welcome-kicker">Welcome to FPV Sim</p>
+                <h1 id="sim-title">Free FPV Simulator</h1>
+                <p>Fly an FPV drone online through the photorealistic Factory and Ekotori maps, or explore DeDust. Use a keyboard, gamepad, or USB radio to practice your flying.</p>
+                <p class="welcome-detail">Choose a map and control type, then start flying for free in your browser. No installation required.</p>
+                <div class="welcome-choices">
+                    <label for="welcomeWorldSelect">Map
+                        <select id="welcomeWorldSelect">
+                            <option value="factory-splat">Factory</option>
+                            <option value="ekotori">Ekotori</option>
+                            <option value="dedust">DeDust</option>
+                        </select>
+                    </label>
+                    <label for="welcomeControlSelect">Control type
+                        <select id="welcomeControlSelect">
+                            <option value="keyboard">Keyboard</option>
+                            <option value="gamepad">Radio / Gamepad</option>
+                        </select>
+                    </label>
+                </div>
+                <p class="welcome-status" id="welcomeStatus" role="status">Choose a map and control type, then play.</p>
+                <div class="welcome-actions">
+                    <button id="welcomePlayBtn" class="welcome-play" type="button">Play</button>
+                    <button id="welcomeSettingsBtn" class="welcome-settings" type="button">Settings</button>
+                </div>
+            </div>
+        </section>
 
         <!-- OSD Overlay -->
         <div class="osd">
             <!-- Top row -->
-            <span class="osd-el osd-top-left" id="flightMode">ACRO</span>
+            <span class="osd-el osd-top-left" id="flightMode">ANGLE</span>
             <span class="osd-el osd-top-center" id="altitude">—</span>
             <span class="osd-el osd-top-right" id="fps">—</span>
             <span class="osd-el osd-lod-status" id="lodStatus" role="status">Loading environment and collision geometry…</span>
@@ -86,7 +128,7 @@
             </button>
         </div>
 
-        <details class="flight-help" open>
+        <details class="flight-help">
             <summary>
                 <div class="summary-title">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -100,16 +142,10 @@
             </summary>
 
             <div class="settings-grid">
-                <!-- Column 1: Engine, View & Controls -->
+                <!-- Column 1: Environment, View & Controls -->
                 <div class="settings-column">
                     <div class="settings-group">
-                        <div class="settings-title">Engine &amp; Environment</div>
-                        <label>Renderer
-                            <select id="rendererSelect">
-                                <option value="threejs">Three.js (Spark 3DGS)</option>
-                                <option value="cesium">Cesium (3D Tiles)</option>
-                            </select>
-                        </label>
+                        <div class="settings-title">Environment</div>
                         <label id="worldSelectLabel">Environment
                             <select id="worldSelect">
                                 <option value="factory-splat">Factory (Gaussian Splats)</option>
@@ -147,14 +183,14 @@
                         <p>W / S raise / lower throttle · A / D yaw</p>
                         <p>Arrow keys pitch / roll · F angle / acro mode</p>
                         <p>C toggle camera view · Drag to look in orbit</p>
-                        <p id="hoverHint">Try angle mode for self-leveling.</p>
+                        <p id="hoverHint">Angle mode self-levels; press F for acro mode.</p>
                         <div class="input-source-controls" role="group" aria-label="Flight control source">
                             <button id="inputSourceKeyboardBtn" class="input-source-toggle" type="button" aria-pressed="true">Keyboard</button>
                             <button id="inputSourceGamepadBtn" class="input-source-toggle" type="button" aria-pressed="false" disabled>Radio / Gamepad</button>
                             <button id="detectGamepadBtn" type="button">Detect</button>
                         </div>
                         <p id="gamepadDetectionStatus" class="settings-hint" role="status">No gamepad detected.</p>
-                        <div class="settings-actions">
+                        <div class="settings-actions" id="calibrateActions" hidden>
                             <button id="calibrate" type="button">Calibrate radio / gamepad</button>
                         </div>
                         <p class="settings-hint">Radio: lower throttle fully before arming.</p>
@@ -254,7 +290,6 @@
                         <p>• <strong>Recording:</strong> Press <strong>G</strong> to start recording. Press <strong>G</strong> again to stop. Export from Settings.</p>
                         <p>• <strong>USB Radio / Gamepad:</strong> Plug in your radio or gamepad and calibrate in Settings for smooth stick response.</p>
                         <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
-                            <button id="helpCalibrateBtn" type="button" class="key-badge" style="cursor: pointer; padding: 6px 12px; font-size: 11px;">Calibrate Radio / Gamepad</button>
                             <button id="helpSwitchKeyboardBtn" type="button" class="key-badge" style="cursor: pointer; padding: 6px 12px; font-size: 11px; background: #364654; color: #ffffff;">Switch to Keyboard</button>
                         </div>
                     </div>
@@ -262,6 +297,7 @@
             </div>
         </div>
 
+        </main>
         <script type="module" src="/src/main.ts"></script>
     </body>
 </html>

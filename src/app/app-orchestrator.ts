@@ -12,6 +12,7 @@ import {
   type SimulationEngineOptions,
 } from "../core/simulation-engine";
 import { InputManager } from "../input/input-manager";
+import { createNeutralControls } from "../input/input-provider";
 import {
   createRenderer,
   type RendererType,
@@ -32,6 +33,10 @@ export type AppOrchestratorOptions = {
   worldConfig?: WorldConfig;
 };
 
+export type AppSession = {
+  play(control: "keyboard" | "gamepad"): Promise<boolean>;
+};
+
 type HudElements = {
   flightMode: HTMLElement;
   altitude: HTMLElement;
@@ -49,7 +54,7 @@ type HudElements = {
   horizonLine: HTMLElement;
 };
 
-export async function startApp(options: AppOrchestratorOptions): Promise<void> {
+export async function startApp(options: AppOrchestratorOptions): Promise<AppSession> {
   const ui = getHudElements();
   const worldName = options.worldConfig?.name ?? "cesium";
   let replay = await takePendingReplay(worldName);
@@ -78,8 +83,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
       localStorage.setItem("drone_sim_camera", cameraMode);
     });
   }
-  let flightMode: "acro" | "angle" =
-    config.controllerType === "angle" ? "angle" : "acro";
+  let flightMode: "acro" | "angle" = "angle";
+  let flightStarted = false;
   let lastTime = performance.now();
   let frameCount = 0;
   let fpsTime = performance.now();
@@ -97,6 +102,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const gamepadDetectionStatus = document.getElementById(
     "gamepadDetectionStatus",
   );
+  const calibrateActions = document.getElementById("calibrateActions");
 
   const updateInputSourceUI = (source: "keyboard" | "gamepad") => {
     if (inputSourceBadge) {
@@ -115,6 +121,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
 
   const updateGamepadAvailabilityUI = (available: boolean) => {
     if (gamepadSourceButton) gamepadSourceButton.disabled = !available;
+    if (calibrateActions) calibrateActions.hidden = !available;
     if (gamepadDetectionStatus) {
       gamepadDetectionStatus.textContent = available
         ? "Gamepad detected."
@@ -125,23 +132,25 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const inputProvider = new InputManager({
     callbacks: {
       onReset: () => {
-        if (!replay) resetRequested = true;
+        if (flightStarted && !replay) resetRequested = true;
       },
       onToggleCamera: () => {
+        if (!flightStarted) return;
         cameraMode = nextCameraMode(cameraMode);
         if (cameraSelect) cameraSelect.value = cameraMode;
         localStorage.setItem("drone_sim_camera", cameraMode);
       },
       onSwitchFlightMode: () => {
-        if (replay) return;
+        if (!flightStarted || replay) return;
         flightMode = flightMode === "acro" ? "angle" : "acro";
         simulationEngine.switchFlightMode(flightMode);
       },
       onToggleRecording: () => {
-        if (replay) return;
+        if (!flightStarted || replay) return;
         handleToggleRecording();
       },
       onToggleHelp: () => {
+        if (!flightStarted) return;
         handleToggleHelp();
       },
       onInputSourceChanged: updateInputSourceUI,
@@ -184,6 +193,9 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     throw error;
   }
 
+  simulationEngine.switchFlightMode(flightMode);
+  inputProvider.setFlightInputEnabled(false);
+  inputProvider.useKeyboard();
   inputProvider.init();
   const recordingStatus = document.getElementById("recordingStatus")!;
   const recordingIndicator = document.getElementById("recordingIndicator");
@@ -335,7 +347,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   };
   const hoverHint = document.getElementById("hoverHint");
   if (hoverHint)
-    hoverHint.textContent = `Estimated hover: ${(config.hoverThrottle * 100).toFixed(0)}% at ${config.propulsion.referenceVoltage} V; varies with battery. Try angle mode for self-leveling.`;
+    hoverHint.textContent = `Estimated hover: ${(config.hoverThrottle * 100).toFixed(0)}% at ${config.propulsion.referenceVoltage} V; varies with battery. Angle mode self-levels; press F for acro mode.`;
   lastTime = performance.now();
   const loading = document.getElementById("lodStatus");
   if (loading)
@@ -346,7 +358,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
   const onCalibrate = () => {
     void inputProvider.recalibrate().catch((error) => {
       if (loading)
-        loading.textContent = `Calibration cancelled: ${error instanceof Error ? error.message : String(error)}`;
+        loading.textContent = `Calibration failed: ${error instanceof Error ? error.message : String(error)}`;
     });
     calibrate?.blur();
   };
@@ -395,12 +407,6 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     closeHelp();
   });
 
-  const helpCalibrateBtn = document.getElementById("helpCalibrateBtn");
-  helpCalibrateBtn?.addEventListener("click", () => {
-    closeHelp();
-    onCalibrate();
-  });
-
   const onVisibilityChange = () => {
     lastTime = performance.now();
   };
@@ -416,7 +422,9 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
       return;
     }
 
-    const controls = inputProvider.read(deltaTime);
+    const controls = flightStarted
+      ? inputProvider.read(deltaTime)
+      : createNeutralControls();
     if (!replay && (controls.reset || resetRequested)) {
       pendingRecordedReset = true;
       simulationEngine.reset();
@@ -472,6 +480,20 @@ export async function startApp(options: AppOrchestratorOptions): Promise<void> {
     // Explicit renderer disposal remains in the initialization failure path.
     simulationEngine.dispose();
   });
+
+  return {
+    async play(control) {
+      if (control === "gamepad") {
+        if (!(await inputProvider.useGamepad())) return false;
+      } else {
+        inputProvider.useKeyboard();
+      }
+      inputProvider.setFlightInputEnabled(true);
+      flightStarted = true;
+      lastTime = performance.now();
+      return true;
+    },
+  };
 }
 
 function nextCameraMode(current: CameraMode): CameraMode {
@@ -519,7 +541,7 @@ function updateHUD(
   ui: HudElements,
   telemetry: DroneTelemetry,
   _cameraMode: CameraMode,
-  flightMode: "acro" | "angle" = "acro",
+  flightMode: "acro" | "angle" = "angle",
 ) {
   const pos = telemetry.localPosition;
   const vel = telemetry.localVelocity;

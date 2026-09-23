@@ -35,10 +35,8 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
   const settingsToggleBtn = document.getElementById("settingsToggleBtn");
   const closeSettingsBtn = document.getElementById("closeSettingsBtn");
 
-  // On by default; when apply is pressed, the setting should not be displayed anymore.
-  const hideSettings = sessionStorage.getItem("fpv_hide_settings") === "true";
   if (flightHelp) {
-    flightHelp.open = !hideSettings;
+    flightHelp.open = false;
     flightHelp.addEventListener("toggle", () => {
       sessionStorage.setItem(
         "fpv_hide_settings",

@@ -56,9 +56,10 @@ function run(p: RapierPhysics, controls: Controls, seconds: number, hz = 480) {
 
 describe("closed-loop flight", () => {
   for (const axis of ["roll", "pitch", "yaw"] as const)
-    it(`tracks ${axis} steps and settles after release`, async () => {
-      const c = config(),
-        p = await setup(c),
+    it(`tracks ${axis} rate steps in acro mode and settles after release`, async () => {
+      const c = config();
+      c.controllerType = "acro";
+      const p = await setup(c),
         rates: number[] = [];
       const target =
         (rateTarget(0.1, c.pidRateConfig!.maxRate[axis], c.rates.expo) * 180) /

@@ -27,6 +27,7 @@ export class InputManager implements InputProvider {
   private readonly mapperOptions?: InputMapperOptions;
   private calibrating = false;
   private userPrefersKeyboard = false;
+  private flightInputEnabled = true;
 
   private readonly handleConnect = (event: GamepadEvent) => {
     this.callbacks.onGamepadAvailabilityChanged?.(true);
@@ -65,7 +66,7 @@ export class InputManager implements InputProvider {
 
   init(): void {
     this.keyboardProvider.setFlightInputEnabled(
-      this.activeProvider === this.keyboardProvider,
+      this.flightInputEnabled && this.activeProvider === this.keyboardProvider,
     );
     this.keyboardProvider.init();
     if (this.activeProvider !== this.keyboardProvider) {
@@ -147,6 +148,7 @@ export class InputManager implements InputProvider {
       if (!this.gamepadProvider) {
         this.switchToKeyboard();
       }
+      if ((error as Error)?.message === "Calibration cancelled") return;
       throw error;
     }
   }
@@ -154,6 +156,13 @@ export class InputManager implements InputProvider {
   public useKeyboard(): void {
     this.userPrefersKeyboard = true;
     this.switchToKeyboard();
+  }
+
+  public setFlightInputEnabled(enabled: boolean): void {
+    this.flightInputEnabled = enabled;
+    this.keyboardProvider.setFlightInputEnabled(
+      enabled && this.activeProvider === this.keyboardProvider,
+    );
   }
 
   public async useGamepad(): Promise<boolean> {
@@ -184,7 +193,7 @@ export class InputManager implements InputProvider {
     }
 
     const keyboardActive = newProvider === this.keyboardProvider;
-    this.keyboardProvider.setFlightInputEnabled(keyboardActive);
+    this.keyboardProvider.setFlightInputEnabled(this.flightInputEnabled && keyboardActive);
     this.activeProvider = newProvider;
     if (!keyboardActive) this.activeProvider.init();
   }

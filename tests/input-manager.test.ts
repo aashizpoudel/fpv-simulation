@@ -92,4 +92,38 @@ describe("InputManager", () => {
     expect(onGamepadAvailabilityChanged).toHaveBeenLastCalledWith(true);
     manager.dispose();
   });
+
+  it("ignores flight keys until welcome play enables input", () => {
+    vi.stubGlobal("navigator", { getGamepads: () => [] });
+    const manager = new InputManager({
+      callbacks: { onReset: vi.fn(), onToggleCamera: vi.fn() },
+    });
+    manager.setFlightInputEnabled(false);
+    manager.init();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "M", shiftKey: true }));
+    expect(manager.read(1 / 60).arm).toBe(false);
+
+    manager.setFlightInputEnabled(true);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "M", shiftKey: true }));
+    expect(manager.read(1 / 60).arm).toBe(true);
+    manager.dispose();
+  });
+
+  it("treats closing calibration as a normal cancellation", async () => {
+    vi.stubGlobal("navigator", { getGamepads: () => [] });
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    const manager = new InputManager({
+      callbacks: { onReset: vi.fn(), onToggleCamera: vi.fn() },
+    });
+    const calibration = manager.recalibrate();
+    const close = document.getElementById("calCloseBtn");
+    expect(close).not.toBeNull();
+    close?.click();
+
+    await expect(calibration).resolves.toBeUndefined();
+    expect(document.querySelector(".cal-overlay")).toBeNull();
+  });
 });

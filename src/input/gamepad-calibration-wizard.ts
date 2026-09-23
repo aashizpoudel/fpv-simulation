@@ -1,6 +1,5 @@
 import {
   DEFAULT_CALIBRATION,
-  CALIBRATION_PRESETS,
   loadCalibration,
   isBindingPressed,
   serializeButtonBinding,
@@ -113,6 +112,7 @@ export function runCalibrationWizard(
         <button id="calCloseBtn" class="settings-close-btn" type="button" aria-label="Close">✕</button>
       </div>
 
+      <div class="cal-body">
       <!-- Guided wizard banner (hidden by default) -->
       <div class="cal-wizard-banner" id="calWizardBanner" style="display: none;">
         <div class="cal-wizard-banner-text">
@@ -120,8 +120,8 @@ export function runCalibrationWizard(
           <span id="calWizardInstruction">Push Throttle fully DOWN, then UP</span>
         </div>
         <div style="display:flex; gap:8px;">
-          <button type="button" class="cal-preset-btn" id="calWizardSkipBtn">Skip</button>
-          <button type="button" class="cal-preset-btn" id="calWizardExitBtn">Exit Wizard</button>
+          <button type="button" class="cal-secondary-btn" id="calWizardSkipBtn">Skip</button>
+          <button type="button" class="cal-secondary-btn" id="calWizardExitBtn">Exit Wizard</button>
         </div>
       </div>
 
@@ -258,23 +258,18 @@ export function runCalibrationWizard(
         </div>
       </div>
 
-      <!-- Quick Presets & Wizard trigger -->
-      <div class="cal-presets-bar">
-        <div class="cal-presets-group">
-          <span style="font-size: 11px; color:#8bb3cf;">Presets:</span>
-          <button type="button" class="cal-preset-btn" id="presetEmax">📻 EMAX Radio</button>
-          <button type="button" class="cal-preset-btn" id="presetRadio">📻 FPV Radio (Mode 2)</button>
-          <button type="button" class="cal-preset-btn" id="presetGamepad">🎮 Xbox / Gamepad</button>
-          <button type="button" class="cal-preset-btn" id="presetDefault">↺ Defaults</button>
-        </div>
+      <!-- Guided wizard trigger -->
+      <div class="cal-wizard-actions">
         <button type="button" class="cal-wizard-launch-btn" id="launchWizardBtn">✨ Run Guided Wizard</button>
+      </div>
+
       </div>
 
       <!-- Footer Actions -->
       <div class="cal-footer">
         <div style="display: flex; gap: 8px;">
           <button type="button" class="cal-cancel-btn" id="calCancelBtn">Cancel</button>
-          <button type="button" class="cal-preset-btn" id="calSwitchKeyboardBtn">⌨ Switch to Keyboard</button>
+          <button type="button" class="cal-secondary-btn" id="calSwitchKeyboardBtn">⌨ Switch to Keyboard</button>
         </div>
         <button type="button" class="cal-save-btn" id="calSaveBtn">Save &amp; Fly</button>
       </div>
@@ -515,49 +510,7 @@ export function runCalibrationWizard(
       });
     }
 
-    // 6. Presets
-    el("presetEmax")?.addEventListener("click", () => {
-      Object.assign(
-        calibration.axes,
-        CALIBRATION_PRESETS.emaxRadio.calibration.axes,
-      );
-      Object.assign(
-        calibration.buttons,
-        CALIBRATION_PRESETS.emaxRadio.calibration.buttons,
-      );
-      syncUIFromCalibration();
-    });
-    el("presetRadio").addEventListener("click", () => {
-      Object.assign(
-        calibration.axes,
-        CALIBRATION_PRESETS.fpvRadioMode2.calibration.axes,
-      );
-      Object.assign(
-        calibration.buttons,
-        CALIBRATION_PRESETS.fpvRadioMode2.calibration.buttons,
-      );
-      syncUIFromCalibration();
-    });
-
-    el("presetGamepad").addEventListener("click", () => {
-      Object.assign(
-        calibration.axes,
-        CALIBRATION_PRESETS.standardGamepad.calibration.axes,
-      );
-      Object.assign(
-        calibration.buttons,
-        CALIBRATION_PRESETS.standardGamepad.calibration.buttons,
-      );
-      syncUIFromCalibration();
-    });
-
-    el("presetDefault").addEventListener("click", () => {
-      Object.assign(calibration.axes, DEFAULT_CALIBRATION.axes);
-      Object.assign(calibration.buttons, DEFAULT_CALIBRATION.buttons);
-      syncUIFromCalibration();
-    });
-
-    // 7. Guided Wizard Logic
+    // 6. Guided Wizard Logic
     const wizardBanner = el("calWizardBanner");
     const wizardStepTag = el("calWizardStepTag");
     const wizardInstruction = el("calWizardInstruction");
@@ -618,9 +571,11 @@ export function runCalibrationWizard(
 
     // 8. Lifecycle: Close, Save, Cancel
     const cleanup = () => {
+      if (stopped) return;
       stopped = true;
       if (rafId != null) cancelAnimationFrame(rafId);
       if (wizardConfirmedTimer != null) clearTimeout(wizardConfirmedTimer);
+      window.removeEventListener("keydown", onKeyDown);
       overlay.remove();
     };
 
