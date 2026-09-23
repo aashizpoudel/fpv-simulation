@@ -15,7 +15,7 @@ npm run dev
 Open http://localhost:5173/fpv-simulation/.
 
 The Factory map uses generated assets that are not stored in Git. On a fresh
-checkout, create them before starting the simulator:
+checkout, create them before starting the development server:
 
 ```sh
 npm run splat:repack
@@ -68,5 +68,9 @@ npm run build
 npm run preview
 ```
 
-The production base path is `/fpv-simulation/`. Deploy the complete `build/`
-directory so that maps and runtime assets remain available.
+The production build creates missing Factory assets automatically, including
+on a fresh Cloudflare checkout. Set the Cloudflare build command to
+`npm run build` and the output directory to `build`. The base path defaults to
+`/fpv-simulation/`. Set `VITE_BASE_PATH=/` in Cloudflare for a root domain,
+or use another path such as `VITE_BASE_PATH=/sim/`. Deploy the complete
+`build/` directory so that maps and runtime assets remain available.

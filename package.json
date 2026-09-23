@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
-    "build": "npm run assets:check && npm run typecheck && vite build",
+    "build": "npm run assets:prepare && npm run assets:check && npm run typecheck && vite build",
+    "assets:prepare": "node scripts/prepare-factory-assets.mjs",
     "assets:check": "node scripts/check-assets.mjs",
     "preview": "vite preview",
     "test": "vitest run",
