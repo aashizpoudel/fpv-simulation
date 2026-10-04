@@ -41,3 +41,8 @@ npm run build
 ```
 
 Deploy the `build/` directory. The base path defaults to `/fpv-simulation/`; set `VITE_BASE_PATH=/` to serve from the root.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
