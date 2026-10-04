@@ -123,11 +123,27 @@
             <!-- Bottom-right: g-force -->
             <span class="osd-el osd-bottom-right" id="gforce">G:1.0g</span>
 
-            <!-- Bottom-center: position + arm status -->
-            <div class="osd-el osd-bottom-center">
-                <div id="armStatus">DISARMED</div>
-                <div id="battery">— V</div>
-                <div id="position">0.0, 0.0, 0.0</div>
+            <!-- Bottom-center: metrics + stick overlay (stick appears below metrics) -->
+            <div class="osd-bottom-center">
+                <div class="osd-metrics">
+                    <div id="armStatus">DISARMED</div>
+                    <div id="battery">— V</div>
+                    <div id="position">0.0, 0.0, 0.0</div>
+                </div>
+
+                <!-- Bottom-center: Gamepad Stick Overlay -->
+                <div class="osd-stick-overlay" id="osdStickOverlay" aria-hidden="true">
+                    <div class="stick-gimbal" id="leftStickGimbal" title="Left stick: Throttle / Yaw">
+                        <div class="stick-crosshair-h"></div>
+                        <div class="stick-crosshair-v"></div>
+                        <div class="stick-dot" id="osdLeftStickDot" style="left: 50%; top: 100%;"></div>
+                    </div>
+                    <div class="stick-gimbal" id="rightStickGimbal" title="Right stick: Pitch / Roll">
+                        <div class="stick-crosshair-h"></div>
+                        <div class="stick-crosshair-v"></div>
+                        <div class="stick-dot" id="osdRightStickDot" style="left: 50%; top: 50%;"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -210,6 +226,10 @@
                         <label class="settings-checkbox">
                             <input type="checkbox" id="horizonLineCheckbox" />
                             <span>Show horizon line (FPV)</span>
+                        </label>
+                        <label class="settings-checkbox">
+                            <input type="checkbox" id="stickOverlayCheckbox" />
+                            <span>Show stick overlay (Gamepad)</span>
                         </label>
                     </div>
             </section>

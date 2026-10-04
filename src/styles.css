@@ -586,11 +586,81 @@ body {
 }
 
 .osd-bottom-center {
-    bottom: 16px;
+    position: absolute;
+    bottom: 12px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
     text-align: center;
     font-size: 12px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.osd-metrics {
+    white-space: nowrap;
+}
+
+/* ── Gamepad stick overlay (bottom-center, below metrics) ── */
+
+.osd-stick-overlay {
+    display: none;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.osd-stick-overlay.show {
+    display: flex;
+}
+
+.stick-gimbal {
+    width: 48px;
+    height: 48px;
+    position: relative;
+    background: rgba(10, 20, 30, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    box-sizing: border-box;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.stick-crosshair-h {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-50%);
+}
+
+.stick-crosshair-v {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(-50%);
+}
+
+.stick-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #00ffcc;
+    border: 1.5px solid #ffffff;
+    box-shadow: 0 0 5px rgba(0, 255, 204, 0.7);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
 }
 
 /* ── Arm status styling ───────────────────────────── */

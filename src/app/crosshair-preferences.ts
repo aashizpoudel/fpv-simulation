@@ -51,3 +51,32 @@ export function subscribeHorizonLine(onChange: (enabled: boolean) => void): () =
   window.addEventListener(HORIZON_EVENT, listener);
   return () => window.removeEventListener(HORIZON_EVENT, listener);
 }
+
+const STICK_OVERLAY_KEY = "drone_sim_stick_overlay";
+const STICK_OVERLAY_EVENT = "drone-stick-overlay-change";
+
+export function isStickOverlayEnabled(): boolean {
+  try {
+    const val = localStorage.getItem(STICK_OVERLAY_KEY);
+    if (val === null) return true; // Default is ON
+    return val === "1";
+  } catch {
+    return true;
+  }
+}
+
+export function setStickOverlayEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(STICK_OVERLAY_KEY, enabled ? "1" : "0");
+  } catch {
+    /* Live control still works. */
+  }
+  window.dispatchEvent(new CustomEvent(STICK_OVERLAY_EVENT, { detail: enabled }));
+}
+
+export function subscribeStickOverlay(onChange: (enabled: boolean) => void): () => void {
+  onChange(isStickOverlayEnabled());
+  const listener = (event: Event) => onChange((event as CustomEvent<boolean>).detail);
+  window.addEventListener(STICK_OVERLAY_EVENT, listener);
+  return () => window.removeEventListener(STICK_OVERLAY_EVENT, listener);
+}

@@ -27,6 +27,8 @@ import {
   subscribeCrosshair,
   isHorizonLineEnabled,
   subscribeHorizonLine,
+  isStickOverlayEnabled,
+  subscribeStickOverlay,
 } from "./crosshair-preferences";
 
 export type AppOrchestratorOptions = {
@@ -134,7 +136,27 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   );
   const calibrateActions = document.getElementById("calibrateActions");
 
+  let activeInputSource: "keyboard" | "gamepad" = "keyboard";
+  let stickOverlayEnabled = isStickOverlayEnabled();
+  const stickOverlay = document.getElementById("osdStickOverlay");
+  const leftStickDot = document.getElementById("osdLeftStickDot");
+  const rightStickDot = document.getElementById("osdRightStickDot");
+
+  const updateStickOverlayVisibility = () => {
+    const shouldShow =
+      flightStarted && activeInputSource === "gamepad" && stickOverlayEnabled;
+    stickOverlay?.classList.toggle("show", shouldShow);
+  };
+  updateStickOverlayVisibility();
+
+  const unsubscribeStickOverlay = subscribeStickOverlay((enabled) => {
+    stickOverlayEnabled = enabled;
+    updateStickOverlayVisibility();
+  });
+
   const updateInputSourceUI = (source: "keyboard" | "gamepad") => {
+    activeInputSource = source;
+    updateStickOverlayVisibility();
     if (inputSourceBadge) {
       inputSourceBadge.textContent =
         source === "gamepad" ? "RADIO / GAMEPAD" : "KEYBOARD";
@@ -399,6 +421,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
   const onSwitchToKeyboard = () => {
     inputProvider.useKeyboard();
+    activeInputSource = "keyboard";
+    updateStickOverlayVisibility();
     if (loading) loading.textContent = "Switched to Keyboard controls";
   };
   keyboardSourceButton?.addEventListener("click", onSwitchToKeyboard);
@@ -470,6 +494,37 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     if (!replay) simulationEngine.setArmed(controls.arm);
     const telemetry = simulationEngine.step(controls, deltaTime);
 
+    if (
+      flightStarted &&
+      activeInputSource === "gamepad" &&
+      stickOverlayEnabled &&
+      leftStickDot &&
+      rightStickDot
+    ) {
+      const thr =
+        controls.throttle != null && Number.isFinite(controls.throttle)
+          ? controls.throttle
+          : Number.isFinite(controls.thrust)
+            ? (controls.thrust + 1) / 2
+            : 0;
+      const yaw = Number.isFinite(controls.yaw) ? controls.yaw : 0;
+      const rol = Number.isFinite(controls.roll) ? controls.roll : 0;
+      const pit = Number.isFinite(controls.pitch) ? controls.pitch : 0;
+
+      const leftX = Math.max(0, Math.min(100, ((1 - yaw) / 2) * 100));
+      const leftY = Math.max(
+        0,
+        Math.min(100, (1 - Math.max(0, Math.min(1, thr))) * 100),
+      );
+      const rightX = Math.max(0, Math.min(100, ((rol + 1) / 2) * 100));
+      const rightY = Math.max(0, Math.min(100, ((1 - pit) / 2) * 100));
+
+      leftStickDot.style.left = `${leftX}%`;
+      leftStickDot.style.top = `${leftY}%`;
+      rightStickDot.style.left = `${rightX}%`;
+      rightStickDot.style.top = `${rightY}%`;
+    }
+
     ui.statusBanner.classList.toggle("show", telemetry.crashed);
 
     renderer.render(telemetry, cameraMode);
@@ -513,6 +568,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     unsubscribeAudioVolume();
     unsubscribeCrosshair();
     unsubscribeHorizonLine();
+    unsubscribeStickOverlay();
     audioEngine.dispose();
     // Navigation releases the document's WebGL context and workers. Calling
     // Spark.dispose here races its pending GPU readbacks/worker replies.
@@ -531,6 +587,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       }
       inputProvider.setFlightInputEnabled(true);
       flightStarted = true;
+      updateStickOverlayVisibility();
       lastTime = performance.now();
       return true;
     },

@@ -4,6 +4,8 @@ import {
   setCrosshairEnabled,
   isHorizonLineEnabled,
   setHorizonLineEnabled,
+  isStickOverlayEnabled,
+  setStickOverlayEnabled,
 } from "./crosshair-preferences";
 
 export function setupSettingsTabs(): void {
@@ -48,6 +50,14 @@ export function setupSettingsTabs(): void {
     horizonCheckbox.checked = isHorizonLineEnabled();
     horizonCheckbox.addEventListener("change", () => {
       setHorizonLineEnabled(horizonCheckbox.checked);
+    });
+  }
+
+  const stickOverlayCheckbox = root.querySelector<HTMLInputElement>("#stickOverlayCheckbox");
+  if (stickOverlayCheckbox) {
+    stickOverlayCheckbox.checked = isStickOverlayEnabled();
+    stickOverlayCheckbox.addEventListener("change", () => {
+      setStickOverlayEnabled(stickOverlayCheckbox.checked);
     });
   }
 

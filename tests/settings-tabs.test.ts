@@ -7,6 +7,8 @@ import {
   subscribeCrosshair,
   isHorizonLineEnabled,
   subscribeHorizonLine,
+  isStickOverlayEnabled,
+  subscribeStickOverlay,
 } from "../src/app/crosshair-preferences";
 
 const html = readFileSync("index.html", "utf8");
@@ -140,5 +142,41 @@ describe("settings tabs and audio", () => {
     setupSettingsTabs();
     const checkbox = document.getElementById("horizonLineCheckbox") as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
+  });
+
+  it("keeps stick overlay enabled by default and toggles on user interaction", () => {
+    expect(isStickOverlayEnabled()).toBe(true);
+    setupSettingsTabs();
+    const checkbox = document.getElementById("stickOverlayCheckbox") as HTMLInputElement;
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.checked).toBe(true);
+
+    const onStick = vi.fn();
+    const unsubscribe = subscribeStickOverlay(onStick);
+    try {
+      expect(onStick).toHaveBeenLastCalledWith(true);
+
+      checkbox.checked = false;
+      checkbox.dispatchEvent(new Event("change"));
+      expect(isStickOverlayEnabled()).toBe(false);
+      expect(onStick).toHaveBeenLastCalledWith(false);
+      expect(localStorage.getItem("drone_sim_stick_overlay")).toBe("0");
+
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event("change"));
+      expect(isStickOverlayEnabled()).toBe(true);
+      expect(onStick).toHaveBeenLastCalledWith(true);
+      expect(localStorage.getItem("drone_sim_stick_overlay")).toBe("1");
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("restores stick overlay disabled state from localStorage", () => {
+    localStorage.setItem("drone_sim_stick_overlay", "0");
+    expect(isStickOverlayEnabled()).toBe(false);
+    setupSettingsTabs();
+    const checkbox = document.getElementById("stickOverlayCheckbox") as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
   });
 });
