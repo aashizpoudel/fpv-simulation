@@ -1,5 +1,7 @@
 # FPV Drone Simulator
 
+**Live Demo:** [https://www.fpvsim.top](https://www.fpvsim.top)
+
 A browser-based FPV drone simulator built with Three.js, Spark, and Rapier. Fly with a keyboard, USB radio, or gamepad.
 
 ## Run locally
