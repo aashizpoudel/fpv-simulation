@@ -374,10 +374,15 @@ body {
     cursor: wait;
 }
 
-.welcome-settings {
+.welcome-settings,
+.welcome-install {
     border: 1px solid var(--ui-border);
     background: transparent;
     color: var(--ui-text);
+}
+
+.welcome-install:hover {
+    border-color: var(--ui-text);
 }
 
 .welcome-actions button:focus-visible,

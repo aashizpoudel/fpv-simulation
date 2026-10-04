@@ -7,7 +7,7 @@ const cesiumBaseUrl = "cesium";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_BASE_PATH");
-  const configuredBase = env.VITE_BASE_PATH || "/fpv-simulation/";
+  const configuredBase = env.VITE_BASE_PATH || "/";
   const path = configuredBase.replace(/^\/+|\/+$/g, "");
   const base = path ? `/${path}/` : "/";
 

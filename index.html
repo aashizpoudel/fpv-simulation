@@ -8,6 +8,13 @@
         <meta name="robots" content="index, follow, max-image-preview:large" />
         <link rel="canonical" href="https://www.fpvsim.top/" />
         <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+        <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
+        <meta name="theme-color" content="#0a1118" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="FPV Sim" />
+        <link rel="apple-touch-icon" href="%BASE_URL%icons/icon-192.png" />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="FPV Sim" />
         <meta property="og:title" content="Free FPV Drone Simulator with Dust2 Map | FPV Sim" />
@@ -152,6 +159,13 @@
 
         <!-- Top-right Action Buttons -->
         <div class="top-right-bar">
+            <button id="pwaInstallBtn" class="top-bar-btn" type="button" aria-label="Install app" title="Install FPV Sim" style="display: none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            </button>
             <button id="helpToggleBtn" class="top-bar-btn" type="button" aria-label="Toggle help" title="Flight Controls &amp; Help (H)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>

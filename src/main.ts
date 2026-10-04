@@ -1,5 +1,6 @@
 import { loadFlightConfig, setupFlightSettings } from "./app/flight-settings";
 import "./styles.css";
+import { setupPwa } from "./pwa";
 import { startApp } from "./app/app-orchestrator";
 import { setupWelcomeScreen } from "./app/welcome-screen";
 import { DedustWorldConfig, resolveWorldConfig } from "./config/dedust-world-config";
@@ -36,6 +37,7 @@ const appReady = startApp({
   worldConfig: isCesium ? undefined : worldConfig,
 });
 setupWelcomeScreen(worldName, rendererType, appReady);
+setupPwa();
 void appReady.catch((error) => {
   console.error("Failed to start app", error);
   const status = document.getElementById("lodStatus");
