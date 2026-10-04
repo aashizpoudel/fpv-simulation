@@ -1,4 +1,4 @@
-import type { CameraMode, DroneTelemetry, Vec3 } from "../types";
+import type { CameraAudioOrientation, CameraMode, DroneTelemetry, Vec3 } from "../types";
 import type { DroneConfig } from "../config/drone-config";
 import type { WorldConfig } from "../config/dedust-world-config";
 
@@ -11,6 +11,9 @@ export interface IRenderer {
   setFeedMode?(mode: "auto" | "fpv" | "third"): void;
   setDroneConfig?(config: DroneConfig): void;
   setWorldConfig?(config: WorldConfig): void;
+  /** Camera position in simulation-local coordinates for spatial audio. */
+  getCameraPosition?(): Vec3;
+  getCameraAudioOrientation?(): CameraAudioOrientation;
   /** Optional callback invoked when the map mesh finishes loading. */
   onMapLoaded?: (mapObject: object) => void;
   /**

@@ -3,20 +3,43 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Free FPV Simulator Online | FPV Sim</title>
-        <meta name="description" content="Play a free FPV drone simulator online. Fly photorealistic Factory and Ekotori maps or DeDust with a keyboard, gamepad, or USB radio. No installation required." />
+        <title>Free FPV Drone Simulator with Dust2 Map | FPV Sim</title>
+        <meta name="description" content="Fly an FPV drone on the De Dust 2 map for free in your browser. Explore Factory and Ekotori with a keyboard, gamepad or USB radio. No installation required." />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
         <link rel="canonical" href="https://www.fpvsim.top/" />
         <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
         <meta property="og:type" content="website" />
-        <meta property="og:title" content="Free FPV Simulator Online | FPV Sim" />
-        <meta property="og:description" content="Play a free FPV drone simulator online. Fly photorealistic Factory and Ekotori maps or DeDust with a keyboard, gamepad, or USB radio. No installation required." />
+        <meta property="og:site_name" content="FPV Sim" />
+        <meta property="og:title" content="Free FPV Drone Simulator with Dust2 Map | FPV Sim" />
+        <meta property="og:description" content="Fly an FPV drone on the De Dust 2 map for free in your browser. Explore Factory and Ekotori with a keyboard, gamepad or USB radio. No installation required." />
         <meta property="og:url" content="https://www.fpvsim.top/" />
         <meta property="og:image" content="https://www.fpvsim.top/og-fpv-simulator.jpg" />
         <meta property="og:image:alt" content="Side-by-side renders of the Factory and Ekotori Gaussian splat maps used in the FPV drone simulator." />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Free FPV Simulator Online | FPV Sim" />
-        <meta name="twitter:description" content="Play a free FPV drone simulator online. Fly photorealistic Factory and Ekotori maps or DeDust with a keyboard, gamepad, or USB radio. No installation required." />
+        <meta name="twitter:title" content="Free FPV Drone Simulator with Dust2 Map | FPV Sim" />
+        <meta name="twitter:description" content="Fly an FPV drone on the De Dust 2 map for free in your browser. Explore Factory and Ekotori with a keyboard, gamepad or USB radio. No installation required." />
         <meta name="twitter:image" content="https://www.fpvsim.top/og-fpv-simulator.jpg" />
+        <meta name="twitter:image:alt" content="Factory and Ekotori Gaussian splat maps in the free FPV drone simulator." />
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": ["VideoGame", "WebApplication"],
+            "@id": "https://www.fpvsim.top/#game",
+            "name": "FPV Sim",
+            "alternateName": "Free FPV Drone Simulator with Dust2 Map",
+            "url": "https://www.fpvsim.top/",
+            "description": "Fly an FPV drone on the De Dust 2 map for free in your browser. Explore Factory and Ekotori with a keyboard, gamepad or USB radio. No installation required.",
+            "image": "https://www.fpvsim.top/og-fpv-simulator.jpg",
+            "applicationCategory": "GameApplication",
+            "genre": "Flight simulation",
+            "gamePlatform": "Web browser",
+            "operatingSystem": "Any OS with a WebGL2-capable browser",
+            "browserRequirements": "Requires JavaScript and WebGL2",
+            "isAccessibleForFree": true,
+            "inLanguage": "en",
+            "keywords": ["free FPV drone simulator", "FPV drone Dust2 map", "De Dust 2 drone simulator", "online drone simulator"]
+        }
+        </script>
     </head>
     <body class="welcome-active">
         <main>
@@ -24,15 +47,15 @@
         <section class="welcome" id="welcomeScreen" aria-labelledby="sim-title">
             <div class="welcome-card">
                 <p class="welcome-kicker">Welcome to FPV Sim</p>
-                <h1 id="sim-title">Free FPV Simulator</h1>
-                <p>Fly an FPV drone online through the photorealistic Factory and Ekotori maps, or explore DeDust. Use a keyboard, gamepad, or USB radio to practice your flying.</p>
+                <h1 id="sim-title">Free FPV Drone Simulator</h1>
+                <p>Fly an FPV drone through the classic Counter-Strike Dust2 (de_dust2) map for free, or explore the photorealistic Factory and Ekotori maps. Practice with a keyboard, gamepad, or USB radio.</p>
                 <p class="welcome-detail">Choose a map and control type, then start flying for free in your browser. No installation required.</p>
                 <div class="welcome-choices">
                     <label for="welcomeWorldSelect">Map
                         <select id="welcomeWorldSelect">
                             <option value="factory-splat">Factory</option>
                             <option value="ekotori">Ekotori</option>
-                            <option value="dedust">DeDust</option>
+                            <option value="dedust">Dust2 (De Dust 2)</option>
                         </select>
                     </label>
                     <label for="welcomeControlSelect">Control type
@@ -141,10 +164,16 @@
                 <button id="closeSettingsBtn" class="settings-close-btn" type="button" aria-label="Close settings" title="Close settings">✕ Close</button>
             </summary>
 
-            <div class="settings-grid">
-                <!-- Column 1: Environment, View & Controls -->
-                <div class="settings-column">
-                    <div class="settings-group">
+            <div class="settings-tabs" role="tablist" aria-label="Settings categories">
+                <button id="settings-tab-display" type="button" role="tab" aria-controls="settings-panel-display" aria-selected="true" tabindex="0">Display</button>
+                <button id="settings-tab-controls" type="button" role="tab" aria-controls="settings-panel-controls" aria-selected="false" tabindex="-1">Controls</button>
+                <button id="settings-tab-audio" type="button" role="tab" aria-controls="settings-panel-audio" aria-selected="false" tabindex="-1">Audio</button>
+                <button id="settings-tab-recordings" type="button" role="tab" aria-controls="settings-panel-recordings" aria-selected="false" tabindex="-1">Recordings</button>
+                <button id="settings-tab-advanced" type="button" role="tab" aria-controls="settings-panel-advanced" aria-selected="false" tabindex="-1">Advanced</button>
+                <button id="settings-tab-credits" type="button" role="tab" aria-controls="settings-panel-credits" aria-selected="false" tabindex="-1">Credits</button>
+            </div>
+            <section id="settings-panel-display" class="settings-panel settings-panel-grid" role="tabpanel" aria-labelledby="settings-tab-display" tabindex="0">
+                <div class="settings-group">
                         <div class="settings-title">Environment</div>
                         <label id="worldSelectLabel">Environment
                             <select id="worldSelect">
@@ -154,8 +183,7 @@
                             </select>
                         </label>
                     </div>
-
-                    <div class="settings-group">
+                <div class="settings-group">
                         <div class="settings-title">View &amp; Quality</div>
                         <label>Camera View
                             <select id="cameraSelect">
@@ -176,8 +204,9 @@
                             <span>Show collision wireframe</span>
                         </label>
                     </div>
-
-                    <div class="settings-group">
+            </section>
+            <section id="settings-panel-controls" class="settings-panel settings-panel-grid" role="tabpanel" aria-labelledby="settings-tab-controls" tabindex="0" hidden>
+                <div class="settings-group">
                         <div class="settings-title">Flight Controls</div>
                         <p>Shift+M arm / disarm · R reset · G record · H help</p>
                         <p>W / S raise / lower throttle · A / D yaw</p>
@@ -195,11 +224,7 @@
                         </div>
                         <p class="settings-hint">Radio: lower throttle fully before arming.</p>
                     </div>
-                </div>
-
-                <!-- Column 2: Drone & Flight Feel -->
-                <div class="settings-column">
-                    <div class="settings-group">
+                <div class="settings-group">
                         <div class="settings-title">Drone &amp; Flight Feel</div>
                         <p id="presetName"></p>
                         <label>Roll rate (°/s)<input id="rateRoll" type="number" min="10" max="1200" /></label>
@@ -214,16 +239,20 @@
                             <button id="applyFlightSettings" type="button">Apply &amp; restart flight</button>
                             <button id="restoreFlightSettings" type="button">Restore defaults</button>
                             <button id="exportFlightPreset" type="button">Export active preset</button>
-                            <button id="closeSettingsFooterBtn" type="button" class="btn-cancel">Close</button>
                         </div>
                         <label class="settings-file-label">Import preset<input id="importFlightPreset" type="file" accept=".json,application/json" /></label>
-                        <p id="flightSettingsStatus" role="status"></p>
                     </div>
-                </div>
-
-                <!-- Column 3: Record & Compare + Advanced Parameters -->
-                <div class="settings-column">
-                    <div class="settings-group">
+            </section>
+            <section id="settings-panel-audio" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-audio" tabindex="0" hidden>
+                <div class="settings-group">
+    <div class="settings-title">Game audio</div>
+    <label for="audioVolume">Master volume <output id="audioVolumeValue" for="audioVolume">100%</output></label>
+    <input id="audioVolume" class="settings-volume" type="range" min="0" max="100" step="1" value="100" aria-describedby="audioVolumeHint" />
+    <p id="audioVolumeHint" class="settings-hint">Controls motor and wind sounds. Set to 0% to mute. Changes apply immediately and are saved automatically.</p>
+</div>
+            </section>
+            <section id="settings-panel-recordings" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-recordings" tabindex="0" hidden>
+                <div class="settings-group">
                         <div class="settings-title">Record &amp; Compare</div>
                         <div class="settings-actions">
                             <button id="recordFlight" type="button">Reset &amp; record</button>
@@ -233,8 +262,9 @@
                         <label class="settings-file-label">Import &amp; replay<input id="importFlightRecording" type="file" accept=".json,application/json" /></label>
                         <p id="recordingStatus" role="status">Records up to two minutes of simulated flight. Replay starts from reset.</p>
                     </div>
-
-                    <div class="settings-group">
+            </section>
+            <section id="settings-panel-advanced" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-advanced" tabindex="0" hidden>
+                <div class="settings-group">
                         <div class="settings-title">Advanced Parameters</div>
                         <details>
                             <summary class="advanced-summary">Physical parameters (JSON)</summary>
@@ -243,8 +273,35 @@
                             <button id="applyAdvancedPreset" type="button">Apply advanced preset &amp; restart</button>
                         </details>
                     </div>
+            </section>
+            <section id="settings-panel-credits" class="settings-panel settings-panel-grid settings-credits" role="tabpanel" aria-labelledby="settings-tab-credits" tabindex="0" hidden>
+                <div class="settings-group">
+                    <h2 class="settings-title">Dust2 map</h2>
+                    <p><a href="https://sketchfab.com/3d-models/de-dust-2-with-real-light-4ce74cd95c584ce9b12b5ed9dc418db5" target="_blank" rel="noopener noreferrer">De_Dust 2 with real light</a> by Neo_minigan, via Sketchfab.</p>
+                    <p>Original Counter-Strike map credited to Valve by the model author.</p>
+                    <p><a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>. Adapted for placement and collision in this simulator.</p>
                 </div>
-            </div>
+                <div class="settings-group">
+                    <h2 class="settings-title">Factory Gaussian splat</h2>
+                    <p>Source: PlayCanvas Factory dataset.</p>
+                    <p><a href="https://code.playcanvas.com/temp/factory/lod-meta.json" target="_blank" rel="noopener noreferrer">Original splat dataset</a> &middot; <a href="https://playcanv.as/apps/b466da14/files/assets/284536691/1/Factory_collider.glb" target="_blank" rel="noopener noreferrer">Source collision mesh</a></p>
+                    <p>Converted and optimized for this simulator.</p>
+                </div>
+                <div class="settings-group">
+                    <h2 class="settings-title">Ekotori Gaussian splat</h2>
+                    <p><a href="https://superspl.at/scene/8fa2ded1" target="_blank" rel="noopener noreferrer">Ekotori</a> by jjames, via SuperSplat.</p>
+                    <p>Turun Ekotori, Finland. Captured with Teleport by Varjo.</p>
+                    <p>Converted for this simulator, with a locally generated collision mesh.</p>
+                </div>
+                <div class="settings-group">
+                    <h2 class="settings-title">Drone audio</h2>
+                    <p><a href="https://bigsoundbank.com/drone-6-s3550.html" target="_blank" rel="noopener noreferrer">Drone #6 (sound 3550)</a> by Joseph Sardin, via BigSoundBank.</p>
+                    <p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">CC0 / public domain</a>.</p>
+                    <p>Edited, leveled and looped for the motor sound. Wind is generated by the simulator.</p>
+                </div>
+            </section>
+            <p id="flightSettingsStatus" role="status"></p>
+            <div class="settings-footer"><button id="closeSettingsFooterBtn" type="button" class="btn-cancel">Close</button></div>
         </details>
 
         <!-- Crash banner -->

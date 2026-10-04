@@ -223,6 +223,18 @@ export class ThreejsRenderer implements IRenderer {
     this.renderer.setSize(width, height);
   }
 
+  getCameraPosition(): Vec3 {
+    return { x: this.camera.position.x, y: this.camera.position.y, z: this.camera.position.z };
+  }
+
+  getCameraAudioOrientation() {
+    const rotation = this.camera.getWorldQuaternion(new THREE.Quaternion());
+    return {
+      forward: new THREE.Vector3(0, 0, -1).applyQuaternion(rotation),
+      up: new THREE.Vector3(0, 1, 0).applyQuaternion(rotation),
+    };
+  }
+
   private applyQuality(): void {
     const quality = (document.getElementById("quality") as HTMLSelectElement | null)?.value ?? "balanced";
     const settings = renderQuality(quality, window.devicePixelRatio);

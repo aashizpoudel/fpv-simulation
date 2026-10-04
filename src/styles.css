@@ -58,7 +58,7 @@
     max-height: min(88vh, calc(100dvh - 40px));
     overflow-y: auto;
     z-index: 150;
-    width: min(1060px, calc(100vw - 32px));
+    width: min(760px, calc(100vw - 32px));
     padding: 16px 20px;
     border: 1px solid #ffffff30;
     border-radius: 12px;
@@ -128,25 +128,29 @@
 .btn-cancel:hover {
     background: #465869 !important;
 }
-.settings-grid {
+.settings-panel {
     display: grid;
-    grid-template-columns: 1fr 1.08fr 1.08fr;
     gap: 14px;
     margin-top: 12px;
     align-items: start;
+    min-height: 300px;
 }
-.settings-column {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+.settings-panel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-@media (max-width: 880px) {
-    .settings-grid {
+.settings-panel[hidden] {
+    display: none;
+}
+@media (max-width: 640px) {
+    .settings-panel-grid {
         grid-template-columns: 1fr;
     }
     .flight-help {
         width: min(500px, calc(100vw - 24px));
     }
+    .settings-panel { min-height: 220px; }
+    .flight-help label { flex-wrap: wrap; }
+    .flight-help select { max-width: 100%; }
 }
 .flight-help p { margin-top: 5px; }
 .flight-help button {
@@ -1579,4 +1583,54 @@ body {
 .status-banner {
     box-shadow: none;
     text-shadow: none;
+}
+
+/* Settings tabs and live audio controls */
+.settings-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 12px 2px 8px;
+    border-bottom: 1px solid var(--ui-divider);
+}
+.flight-help .settings-tabs button {
+    margin: 0;
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--ui-muted);
+}
+.flight-help .settings-tabs button[aria-selected="true"] {
+    background: var(--ui-text);
+    border-color: var(--ui-text);
+    color: var(--ui-bg);
+}
+.flight-help .settings-tabs button:hover:not([aria-selected="true"]) {
+    background: var(--ui-hover);
+    color: var(--ui-text);
+}
+@media (max-width: 640px) {
+    .settings-tabs { flex-wrap: wrap; }
+    .flight-help .settings-tabs button { padding: 7px 10px; }
+}
+.settings-panel > .settings-group { min-width: 0; }
+.settings-credits .settings-title { margin-top: 0; }
+.settings-credits a { color: var(--ui-text); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.settings-credits a:hover { color: #fff; }
+.settings-credits a:focus-visible { outline: 2px solid var(--ui-text); outline-offset: 3px; }
+.settings-panel:focus-visible { outline: 2px solid var(--ui-border); outline-offset: 3px; }
+.settings-volume {
+    width: 100%;
+    margin: 14px 0 4px;
+    accent-color: var(--ui-text);
+    cursor: pointer;
+}
+#audioVolumeValue { font-variant-numeric: tabular-nums; color: var(--ui-text); }
+.settings-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+    padding-top: 4px;
+    border-top: 1px solid var(--ui-divider);
 }

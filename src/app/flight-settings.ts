@@ -1,4 +1,5 @@
 import { storeReplay, consumeReplay } from "./replay-storage";
+import { setupSettingsTabs } from "./settings-tabs";
 import type { DroneConfig } from "../config/drone-config";
 import {
   defaultPreset,
@@ -31,6 +32,7 @@ export function loadFlightConfig(): DroneConfig {
   }
 }
 export function setupFlightSettings(config: DroneConfig, world: string): void {
+  setupSettingsTabs();
   const flightHelp = document.querySelector<HTMLDetailsElement>(".flight-help");
   const settingsToggleBtn = document.getElementById("settingsToggleBtn");
   const closeSettingsBtn = document.getElementById("closeSettingsBtn");

@@ -14,6 +14,8 @@ export type Vec3 = {
   z: number;
 };
 
+export type CameraAudioOrientation = { forward: Vec3; up: Vec3 };
+
 export type Quaternion = {
   x: number;
   y: number;

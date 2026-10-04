@@ -20,6 +20,8 @@ import {
 import type { IRenderer } from "../renderers/renderer-interface";
 import type { CameraMode, DroneTelemetry, Vec3 } from "../types";
 import { quaternionToEulerDeg } from "../utils/math";
+import { DroneAudioEngine } from "../audio/drone-audio-engine";
+import { subscribeAudioVolume } from "../audio/audio-preferences";
 
 export type AppOrchestratorOptions = {
   rendererType: RendererType;
@@ -71,6 +73,9 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     roofHeight: options.worldConfig?.roofHeight,
     ...options.simulationOptions,
   });
+  const audioEngine = new DroneAudioEngine(config);
+  const unsubscribeAudioVolume = subscribeAudioVolume(volume => audioEngine.setVolume(volume));
+  audioEngine.preload();
 
   let cameraMode: CameraMode = options.initialCameraMode ?? "orbit";
   const cameraSelect = document.getElementById(
@@ -188,6 +193,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     if (pendingMapCollider)
       simulationEngine.createMapCollider(pendingMapCollider);
   } catch (error) {
+    unsubscribeAudioVolume();
+    audioEngine.dispose();
     renderer.dispose();
     simulationEngine.dispose();
     throw error;
@@ -409,6 +416,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
   const onVisibilityChange = () => {
     lastTime = performance.now();
+    void audioEngine.setSuspended(document.hidden).catch(() => undefined);
   };
   document.addEventListener("visibilitychange", onVisibilityChange);
   const animate = () => {
@@ -439,6 +447,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     ui.statusBanner.classList.toggle("show", telemetry.crashed);
 
     renderer.render(telemetry, cameraMode);
+    audioEngine.update(telemetry, cameraMode, renderer.getCameraPosition?.(), renderer.getCameraAudioOrientation?.());
     if (now - lastHudUpdate > 100) {
       updateHUD(ui, telemetry, cameraMode, flightMode);
       if (recordingActive && recording && recTime) {
@@ -475,6 +484,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     closeHelpBtn?.removeEventListener("click", closeHelp);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     inputProvider.dispose();
+    unsubscribeAudioVolume();
+    audioEngine.dispose();
     // Navigation releases the document's WebGL context and workers. Calling
     // Spark.dispose here races its pending GPU readbacks/worker replies.
     // Explicit renderer disposal remains in the initialization failure path.
@@ -483,6 +494,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
   return {
     async play(control) {
+      // Create/resume Web Audio while this call still has the user's activation.
+      void audioEngine.start();
       if (control === "gamepad") {
         if (!(await inputProvider.useGamepad())) return false;
       } else {

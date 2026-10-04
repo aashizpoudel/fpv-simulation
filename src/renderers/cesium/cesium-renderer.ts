@@ -262,6 +262,24 @@ export class CesiumRenderer implements IRenderer {
     this.feedViewer?.resize();
   }
 
+  public getCameraPosition(): Vec3 {
+    const local = Cesium.Matrix4.multiplyByPoint(
+      this.ecefToEnuTransform,
+      this.viewer.camera.positionWC,
+      new Cesium.Cartesian3(),
+    );
+    return { x: local.x, y: local.y, z: local.z };
+  }
+
+  public getCameraAudioOrientation() {
+    return {
+      forward: Cesium.Matrix4.multiplyByPointAsVector(this.ecefToEnuTransform,
+        this.viewer.camera.directionWC, new Cesium.Cartesian3()),
+      up: Cesium.Matrix4.multiplyByPointAsVector(this.ecefToEnuTransform,
+        this.viewer.camera.upWC, new Cesium.Cartesian3()),
+    };
+  }
+
   public dispose(): void {
     window.removeEventListener("resize", this.resizeHandler);
     this.feedViewer?.destroy();
