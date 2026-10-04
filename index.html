@@ -108,8 +108,8 @@
             <div class="osd-center">
                 <div class="osd-attitude" id="attitudeWidget">
                     <div class="osd-attitude-inner">
-                        <div class="osd-horizon-line"></div>
-                        <div class="osd-crosshair"></div>
+                        <div class="osd-horizon-line" id="osdHorizonLine"></div>
+                        <div class="osd-crosshair" id="osdCrosshair"></div>
                     </div>
                 </div>
             </div>
@@ -202,6 +202,14 @@
                         <label class="settings-checkbox">
                             <input type="checkbox" id="collisionCheckbox" />
                             <span>Show collision wireframe</span>
+                        </label>
+                        <label class="settings-checkbox">
+                            <input type="checkbox" id="crosshairCheckbox" />
+                            <span>Show crosshair (FPV)</span>
+                        </label>
+                        <label class="settings-checkbox">
+                            <input type="checkbox" id="horizonLineCheckbox" />
+                            <span>Show horizon line (FPV)</span>
                         </label>
                     </div>
             </section>

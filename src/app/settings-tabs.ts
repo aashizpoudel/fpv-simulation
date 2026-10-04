@@ -1,4 +1,10 @@
 import { getAudioVolume, setAudioVolume } from "../audio/audio-preferences";
+import {
+  isCrosshairEnabled,
+  setCrosshairEnabled,
+  isHorizonLineEnabled,
+  setHorizonLineEnabled,
+} from "./crosshair-preferences";
 
 export function setupSettingsTabs(): void {
   const root = document.querySelector<HTMLElement>(".flight-help");
@@ -28,6 +34,22 @@ export function setupSettingsTabs(): void {
       tabs[next].focus();
     });
   });
+
+  const crosshairCheckbox = root.querySelector<HTMLInputElement>("#crosshairCheckbox");
+  if (crosshairCheckbox) {
+    crosshairCheckbox.checked = isCrosshairEnabled();
+    crosshairCheckbox.addEventListener("change", () => {
+      setCrosshairEnabled(crosshairCheckbox.checked);
+    });
+  }
+
+  const horizonCheckbox = root.querySelector<HTMLInputElement>("#horizonLineCheckbox");
+  if (horizonCheckbox) {
+    horizonCheckbox.checked = isHorizonLineEnabled();
+    horizonCheckbox.addEventListener("change", () => {
+      setHorizonLineEnabled(horizonCheckbox.checked);
+    });
+  }
 
   const slider = root.querySelector<HTMLInputElement>("#audioVolume");
   const output = root.querySelector<HTMLOutputElement>("#audioVolumeValue");

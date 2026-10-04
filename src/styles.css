@@ -522,6 +522,7 @@ body {
 }
 
 .osd-horizon-line {
+    display: none;
     position: absolute;
     top: 50%;
     left: 10%;
@@ -531,11 +532,20 @@ body {
     transform-origin: center center;
 }
 
+.osd-horizon-line.show {
+    display: block;
+}
+
 .osd-crosshair {
+    display: none;
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+}
+
+.osd-crosshair.show {
+    display: block;
 }
 
 .osd-crosshair::before,

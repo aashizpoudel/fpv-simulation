@@ -22,6 +22,12 @@ import type { CameraMode, DroneTelemetry, Vec3 } from "../types";
 import { quaternionToEulerDeg } from "../utils/math";
 import { DroneAudioEngine } from "../audio/drone-audio-engine";
 import { subscribeAudioVolume } from "../audio/audio-preferences";
+import {
+  isCrosshairEnabled,
+  subscribeCrosshair,
+  isHorizonLineEnabled,
+  subscribeHorizonLine,
+} from "./crosshair-preferences";
 
 export type AppOrchestratorOptions = {
   rendererType: RendererType;
@@ -54,6 +60,7 @@ type HudElements = {
   statusBanner: HTMLElement;
   osd: HTMLElement;
   horizonLine: HTMLElement;
+  crosshair: HTMLElement;
 };
 
 export async function startApp(options: AppOrchestratorOptions): Promise<AppSession> {
@@ -78,6 +85,23 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   audioEngine.preload();
 
   let cameraMode: CameraMode = options.initialCameraMode ?? "orbit";
+  let crosshairEnabled = isCrosshairEnabled();
+  let horizonLineEnabled = isHorizonLineEnabled();
+  const updateHudOverlay = () => {
+    const isFpv = cameraMode === "fpv";
+    ui.crosshair.classList.toggle("show", crosshairEnabled && isFpv);
+    ui.horizonLine.classList.toggle("show", horizonLineEnabled && isFpv);
+  };
+  updateHudOverlay();
+  const unsubscribeCrosshair = subscribeCrosshair((enabled) => {
+    crosshairEnabled = enabled;
+    updateHudOverlay();
+  });
+  const unsubscribeHorizonLine = subscribeHorizonLine((enabled) => {
+    horizonLineEnabled = enabled;
+    updateHudOverlay();
+  });
+
   const cameraSelect = document.getElementById(
     "cameraSelect",
   ) as HTMLSelectElement | null;
@@ -86,6 +110,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     cameraSelect.addEventListener("change", () => {
       cameraMode = cameraSelect.value as CameraMode;
       localStorage.setItem("drone_sim_camera", cameraMode);
+      updateHudOverlay();
     });
   }
   let flightMode: "acro" | "angle" = "angle";
@@ -144,6 +169,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
         cameraMode = nextCameraMode(cameraMode);
         if (cameraSelect) cameraSelect.value = cameraMode;
         localStorage.setItem("drone_sim_camera", cameraMode);
+        updateHudOverlay();
       },
       onSwitchFlightMode: () => {
         if (!flightStarted || replay) return;
@@ -449,7 +475,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     renderer.render(telemetry, cameraMode);
     audioEngine.update(telemetry, cameraMode, renderer.getCameraPosition?.(), renderer.getCameraAudioOrientation?.());
     if (now - lastHudUpdate > 100) {
-      updateHUD(ui, telemetry, cameraMode, flightMode);
+      updateHUD(ui, telemetry, cameraMode, flightMode, crosshairEnabled, horizonLineEnabled);
       if (recordingActive && recording && recTime) {
         const totalSec = Math.floor(
           recording.steps.length * recording.fixedTimeStep,
@@ -485,6 +511,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     document.removeEventListener("visibilitychange", onVisibilityChange);
     inputProvider.dispose();
     unsubscribeAudioVolume();
+    unsubscribeCrosshair();
+    unsubscribeHorizonLine();
     audioEngine.dispose();
     // Navigation releases the document's WebGL context and workers. Calling
     // Spark.dispose here races its pending GPU readbacks/worker replies.
@@ -535,6 +563,7 @@ function getHudElements(): HudElements {
     statusBanner: requireElement("statusBanner"),
     osd: requireSelector<HTMLElement>(".osd"),
     horizonLine: requireSelector<HTMLElement>(".osd-horizon-line"),
+    crosshair: requireSelector<HTMLElement>(".osd-crosshair"),
   };
 }
 
@@ -553,8 +582,10 @@ function requireSelector<T extends Element>(selector: string): T {
 function updateHUD(
   ui: HudElements,
   telemetry: DroneTelemetry,
-  _cameraMode: CameraMode,
+  cameraMode: CameraMode,
   flightMode: "acro" | "angle" = "angle",
+  crosshairEnabled = false,
+  horizonLineEnabled = false,
 ) {
   const pos = telemetry.localPosition;
   const vel = telemetry.localVelocity;
@@ -567,7 +598,7 @@ function updateHUD(
   const throttlePct = Math.max(0, Math.min(100, telemetry.throttle));
 
   // Top row
-  ui.flightMode.textContent = `${modeLabel} | ${_cameraMode.toUpperCase()}`;
+  ui.flightMode.textContent = `${modeLabel} | ${cameraMode.toUpperCase()}`;
   ui.altitude.textContent = `${pos.z.toFixed(1)}m`;
   const battery = document.getElementById("battery");
   if (battery)
@@ -594,4 +625,8 @@ function updateHUD(
 
   // Attitude indicator: rotate horizon line with roll, shift with pitch
   ui.horizonLine.style.transform = `rotate(${rollDeg}deg) translateY(${pitchDeg * 0.5}px)`;
+  ui.horizonLine.classList.toggle("show", horizonLineEnabled && cameraMode === "fpv");
+
+  // Center crosshair (visible only when enabled and in FPV camera mode)
+  ui.crosshair.classList.toggle("show", crosshairEnabled && cameraMode === "fpv");
 }

@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { setupSettingsTabs } from "../src/app/settings-tabs";
 import { getAudioVolume, subscribeAudioVolume } from "../src/audio/audio-preferences";
+import {
+  isCrosshairEnabled,
+  subscribeCrosshair,
+  isHorizonLineEnabled,
+  subscribeHorizonLine,
+} from "../src/app/crosshair-preferences";
 
 const html = readFileSync("index.html", "utf8");
 beforeEach(() => {
@@ -62,5 +68,77 @@ describe("settings tabs and audio", () => {
     expect(getAudioVolume()).toBe(1);
     setupSettingsTabs();
     expect((document.getElementById("audioVolume") as HTMLInputElement).value).toBe("100");
+  });
+
+  it("keeps crosshair disabled by default and toggles on user interaction", () => {
+    expect(isCrosshairEnabled()).toBe(false);
+    setupSettingsTabs();
+    const checkbox = document.getElementById("crosshairCheckbox") as HTMLInputElement;
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.checked).toBe(false);
+
+    const onCrosshair = vi.fn();
+    const unsubscribe = subscribeCrosshair(onCrosshair);
+    try {
+      expect(onCrosshair).toHaveBeenLastCalledWith(false);
+
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event("change"));
+      expect(isCrosshairEnabled()).toBe(true);
+      expect(onCrosshair).toHaveBeenLastCalledWith(true);
+      expect(localStorage.getItem("drone_sim_crosshair")).toBe("1");
+
+      checkbox.checked = false;
+      checkbox.dispatchEvent(new Event("change"));
+      expect(isCrosshairEnabled()).toBe(false);
+      expect(onCrosshair).toHaveBeenLastCalledWith(false);
+      expect(localStorage.getItem("drone_sim_crosshair")).toBe("0");
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("restores crosshair enabled state from localStorage", () => {
+    localStorage.setItem("drone_sim_crosshair", "1");
+    expect(isCrosshairEnabled()).toBe(true);
+    setupSettingsTabs();
+    const checkbox = document.getElementById("crosshairCheckbox") as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it("keeps horizon line disabled by default and toggles on user interaction", () => {
+    expect(isHorizonLineEnabled()).toBe(false);
+    setupSettingsTabs();
+    const checkbox = document.getElementById("horizonLineCheckbox") as HTMLInputElement;
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.checked).toBe(false);
+
+    const onHorizon = vi.fn();
+    const unsubscribe = subscribeHorizonLine(onHorizon);
+    try {
+      expect(onHorizon).toHaveBeenLastCalledWith(false);
+
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event("change"));
+      expect(isHorizonLineEnabled()).toBe(true);
+      expect(onHorizon).toHaveBeenLastCalledWith(true);
+      expect(localStorage.getItem("drone_sim_horizon_line")).toBe("1");
+
+      checkbox.checked = false;
+      checkbox.dispatchEvent(new Event("change"));
+      expect(isHorizonLineEnabled()).toBe(false);
+      expect(onHorizon).toHaveBeenLastCalledWith(false);
+      expect(localStorage.getItem("drone_sim_horizon_line")).toBe("0");
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("restores horizon line enabled state from localStorage", () => {
+    localStorage.setItem("drone_sim_horizon_line", "1");
+    expect(isHorizonLineEnabled()).toBe(true);
+    setupSettingsTabs();
+    const checkbox = document.getElementById("horizonLineCheckbox") as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
   });
 });
