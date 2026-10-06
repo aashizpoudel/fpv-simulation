@@ -1,7 +1,8 @@
 import type { AppSession } from "./app-orchestrator";
 import type { RendererType } from "../renderers/renderer-factory";
+import { STORAGE_KEYS } from "./storage-keys";
 
-const RESUME_KEY = "fpv_resume_after_map_change";
+const RESUME_KEY = STORAGE_KEYS.resumeAfterMapChange;
 type ControlType = "keyboard" | "gamepad";
 
 export function setupWelcomeScreen(
@@ -30,8 +31,8 @@ export function setupWelcomeScreen(
     const control = controlSelect.value as ControlType;
     if (world !== currentWorld || currentRenderer === "cesium") {
       sessionStorage.setItem(RESUME_KEY, control);
-      localStorage.setItem("drone_sim_world", world);
-      localStorage.setItem("drone_sim_renderer", "threejs");
+      localStorage.setItem(STORAGE_KEYS.world, world);
+      localStorage.setItem(STORAGE_KEYS.renderer, "threejs");
       const url = new URL(window.location.href);
       url.searchParams.set("world", world);
       if (currentRenderer === "cesium") url.searchParams.set("renderer", "threejs");

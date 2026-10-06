@@ -1,10 +1,11 @@
 import type { DroneConfig } from "./drone-config";
 import { Tinyhawk3Config } from "./tinyhawk-config";
 import { hoverCommand } from "../physics/motor-model";
+import { STORAGE_KEYS } from "../app/storage-keys";
 
 export const PRESET_VERSION = 1;
 export const PHYSICS_VERSION = "whoop-1";
-export const PRESET_STORAGE_KEY = "fpv_physics_preset_v1";
+export const PRESET_STORAGE_KEY = STORAGE_KEYS.physicsPreset;
 export type PresetDocument = { version: 1; config: DroneConfig };
 function check(ok: boolean, message: string): asserts ok {
   if (!ok) throw new Error(message);

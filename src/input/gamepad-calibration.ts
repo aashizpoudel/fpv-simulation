@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from "../app/storage-keys";
 export type GamepadAxisMapping = {
   index: number;
   inverted: boolean;
@@ -25,7 +26,7 @@ export type GamepadCalibration = {
   gamepadId: string;
 };
 
-const STORAGE_PREFIX = "fpv-sim-gamepad-calibration:";
+const STORAGE_PREFIX = STORAGE_KEYS.gamepadCalibrationPrefix;
 
 export const DEFAULT_CALIBRATION: GamepadCalibration = {
   axes: {

@@ -1,4 +1,5 @@
-const CROSSHAIR_KEY = "drone_sim_crosshair";
+import { STORAGE_KEYS } from "./storage-keys";
+const CROSSHAIR_KEY = STORAGE_KEYS.crosshair;
 const CROSSHAIR_EVENT = "drone-crosshair-change";
 
 export function isCrosshairEnabled(): boolean {
@@ -25,7 +26,7 @@ export function subscribeCrosshair(onChange: (enabled: boolean) => void): () => 
   return () => window.removeEventListener(CROSSHAIR_EVENT, listener);
 }
 
-const HORIZON_KEY = "drone_sim_horizon_line";
+const HORIZON_KEY = STORAGE_KEYS.horizonLine;
 const HORIZON_EVENT = "drone-horizon-line-change";
 
 export function isHorizonLineEnabled(): boolean {
@@ -52,7 +53,7 @@ export function subscribeHorizonLine(onChange: (enabled: boolean) => void): () =
   return () => window.removeEventListener(HORIZON_EVENT, listener);
 }
 
-const STICK_OVERLAY_KEY = "drone_sim_stick_overlay";
+const STICK_OVERLAY_KEY = STORAGE_KEYS.stickOverlay;
 const STICK_OVERLAY_EVENT = "drone-stick-overlay-change";
 
 export function isStickOverlayEnabled(): boolean {

@@ -3,11 +3,15 @@ import "./styles.css";
 import { setupPwa } from "./pwa";
 import { startApp } from "./app/app-orchestrator";
 import { setupWelcomeScreen } from "./app/welcome-screen";
-import { DedustWorldConfig, resolveWorldConfig } from "./config/dedust-world-config";
-import { FactorySplatWorldConfig } from "./config/factory-splat-world-config";
-import { EkotoriWorldConfig } from "./config/ekotori-world-config";
-import type { RendererType } from "./renderers/renderer-factory";
-import type { CameraMode, Vec3 } from "./types";
+import { resolveWorldConfig } from "./config/world-config";
+import {
+  resolveCameraMode,
+  resolveRendererType,
+  resolveWorld,
+  resolveWorldName,
+} from "./app/url-options";
+import { setupConfigControls } from "./app/config-controls";
+import type { Vec3 } from "./types";
 
 const rendererType = resolveRendererType();
 const isCesium = rendererType === "cesium";
@@ -46,81 +50,3 @@ void appReady.catch((error) => {
     status.dataset.state = "error";
   }
 });
-
-function resolveRendererType(): RendererType {
-  const params = new URLSearchParams(window.location.search);
-  const param = params.get("renderer") || localStorage.getItem("drone_sim_renderer");
-  if (param === "cesium" || param === "threejs") {
-    return param;
-  }
-  return "threejs";
-}
-
-function resolveWorldName(): string {
-  const params = new URLSearchParams(window.location.search);
-  const param = params.get("world") || localStorage.getItem("drone_sim_world");
-  return param === "ekotori" || param === "dedust" ? param : "factory-splat";
-}
-
-function resolveWorld(name: string) {
-  if (name === "ekotori") return EkotoriWorldConfig;
-  return name === "dedust" ? DedustWorldConfig : FactorySplatWorldConfig;
-}
-
-function resolveCameraMode(cesium: boolean): CameraMode {
-  const params = new URLSearchParams(window.location.search);
-  const param = params.get("camera") || localStorage.getItem("drone_sim_camera");
-  if (param === "fpv" || param === "third" || param === "orbit") {
-    return param;
-  }
-  return cesium ? "third" : "fpv";
-}
-
-function setupConfigControls(currentRenderer: RendererType, currentWorld: string): void {
-  const worldSelect = document.getElementById("worldSelect") as HTMLSelectElement | null;
-  const worldSelectLabel = document.getElementById("worldSelectLabel");
-  const collisionCheckbox = document.getElementById("collisionCheckbox") as HTMLInputElement | null;
-  const qualitySelect = document.getElementById("quality") as HTMLSelectElement | null;
-
-  if (worldSelect) {
-    worldSelect.value = currentWorld;
-    if (currentRenderer === "cesium") {
-      worldSelect.disabled = true;
-      if (worldSelectLabel) worldSelectLabel.style.opacity = "0.5";
-    }
-    worldSelect.addEventListener("change", () => {
-      const selected = worldSelect.value;
-      localStorage.setItem("drone_sim_world", selected);
-      const url = new URL(window.location.href);
-      url.searchParams.set("world", selected);
-      window.location.href = url.toString();
-    });
-  }
-
-  if (collisionCheckbox) {
-    const params = new URLSearchParams(window.location.search);
-    collisionCheckbox.checked =
-      params.get("collision") === "1" ||
-      localStorage.getItem("drone_sim_collision") === "1";
-
-    collisionCheckbox.addEventListener("change", () => {
-      const val = collisionCheckbox.checked ? "1" : "0";
-      localStorage.setItem("drone_sim_collision", val);
-      const url = new URL(window.location.href);
-      if (collisionCheckbox.checked) {
-        url.searchParams.set("collision", "1");
-      } else {
-        url.searchParams.delete("collision");
-      }
-      window.location.href = url.toString();
-    });
-  }
-
-  if (qualitySelect) {
-    const savedQuality = localStorage.getItem("drone_sim_quality");
-    if (savedQuality) qualitySelect.value = savedQuality;
-    qualitySelect.addEventListener("change", () => {
-      localStorage.setItem("drone_sim_quality", qualitySelect.value);
-    });
-  }
-}

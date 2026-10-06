@@ -1,4 +1,5 @@
-const VOLUME_KEY = "drone_sim_audio_volume";
+import { STORAGE_KEYS } from "../app/storage-keys";
+const VOLUME_KEY = STORAGE_KEYS.audioVolume;
 const VOLUME_EVENT = "drone-audio-volume";
 
 export function getAudioVolume(): number {

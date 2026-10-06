@@ -1,4 +1,4 @@
-import type { WorldConfig } from "./dedust-world-config";
+import type { WorldConfig } from "./world-config";
 import manifest from "../../public/maps/ekotori/manifest.json";
 
 /** PlayCanvas bakes KSPLAT’s 180° Z conversion into its generated collider.

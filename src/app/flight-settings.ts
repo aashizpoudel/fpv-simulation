@@ -7,18 +7,10 @@ import {
   exportPreset,
   PRESET_STORAGE_KEY,
 } from "../config/presets";
+import { downloadJson } from "./download";
 import { parseRecording, type FlightRecording } from "../core/flight-recording";
+import { STORAGE_KEYS } from "./storage-keys";
 
-export function downloadJson(name: string, text: string): void {
-  const url = URL.createObjectURL(
-    new Blob([text], { type: "application/json" }),
-  );
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 export function loadFlightConfig(): DroneConfig {
   const saved = localStorage.getItem(PRESET_STORAGE_KEY);
   if (!saved) return defaultPreset();
@@ -41,7 +33,7 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
     flightHelp.open = false;
     flightHelp.addEventListener("toggle", () => {
       sessionStorage.setItem(
-        "fpv_hide_settings",
+        STORAGE_KEYS.hideSettings,
         flightHelp.open ? "false" : "true",
       );
     });
@@ -52,7 +44,7 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
       if (!flightHelp) return;
       flightHelp.open = !flightHelp.open;
       sessionStorage.setItem(
-        "fpv_hide_settings",
+        STORAGE_KEYS.hideSettings,
         flightHelp.open ? "false" : "true",
       );
     });
@@ -65,7 +57,7 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
     }
     if (flightHelp) {
       flightHelp.open = false;
-      sessionStorage.setItem("fpv_hide_settings", "true");
+      sessionStorage.setItem(STORAGE_KEYS.hideSettings, "true");
     }
   };
 
@@ -117,7 +109,7 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
   fill(config);
   const apply = (c: DroneConfig) => {
     localStorage.setItem(PRESET_STORAGE_KEY, exportPreset(c));
-    sessionStorage.setItem("fpv_hide_settings", "true");
+    sessionStorage.setItem(STORAGE_KEYS.hideSettings, "true");
     if (flightHelp) flightHelp.open = false;
     location.reload();
   };

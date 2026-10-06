@@ -1,5 +1,5 @@
 import type { PropulsionConfig } from "../config/drone-config";
-import { clamp } from "../utils/math";
+import { clamp } from "../controllers/math-utils";
 
 export function thrustFraction(
   command: number,

@@ -1,6 +1,6 @@
 import type { CameraAudioOrientation, CameraMode, DroneTelemetry, Vec3 } from "../types";
 import type { DroneConfig } from "../config/drone-config";
-import type { WorldConfig } from "../config/dedust-world-config";
+import type { WorldConfig } from "../config/world-config";
 
 export interface IRenderer {
   init(container: HTMLElement, startPosition?: Vec3): Promise<void> | void;

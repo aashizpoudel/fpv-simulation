@@ -1,4 +1,4 @@
-import type { WorldConfig } from "./dedust-world-config";
+import type { WorldConfig } from "./world-config";
 
 /**
  * PlayCanvas Factory capture repacked for Three.js.

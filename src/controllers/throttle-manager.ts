@@ -1,9 +1,8 @@
 /*
   Throttle manager — integrates stick thrust input into a 0-1 throttle value.
-  Extracted from acroController.ts.
 */
 
-import { clamp } from "../utils/math";
+import { clamp } from "./math-utils";
 
 export class ThrottleManager {
   private _throttle = 0;

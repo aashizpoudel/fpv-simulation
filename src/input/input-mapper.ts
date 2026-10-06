@@ -1,5 +1,5 @@
 import type { Controls } from "../types";
-import { clamp } from "../utils/math";
+import { clamp } from "../controllers/math-utils";
 
 export type InputAxis = "thrust" | "pitch" | "roll" | "yaw";
 

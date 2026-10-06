@@ -19,7 +19,7 @@ export interface IController {
 
 export interface PhysicsCommand {
   force: Vec3;           // Force to apply in world space
-  angularVelocity: Vec3; // Angular velocity in world space (for SimpleController)
-  torque?: Vec3;         // Torque to apply in world space (for AcroController)
+  angularVelocity: Vec3; // Angular velocity in world space (unused by FlightController)
+  torque?: Vec3;         // Torque to apply in world space (unused by FlightController)
   resetForces: boolean;  // Whether to reset forces before applying
 }

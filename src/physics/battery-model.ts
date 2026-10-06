@@ -1,5 +1,5 @@
 import type { BatteryConfig } from "../config/drone-config";
-import { clamp } from "../utils/math";
+import { clamp } from "../controllers/math-utils";
 
 // Empirical electrical approximation, not an ESC/motor circuit simulation.
 export class BatteryModel {

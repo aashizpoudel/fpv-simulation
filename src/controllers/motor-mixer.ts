@@ -1,6 +1,6 @@
 import type { Vec3, Quaternion } from "../types";
 import type { RotorConfig, PropulsionConfig } from "../config/drone-config";
-import { clamp } from "../utils/math";
+import { clamp } from "./math-utils";
 import { rotateVector, cross, add, scale } from "./math-utils";
 import type { ModeOutput } from "./modes/flight-mode-interface";
 

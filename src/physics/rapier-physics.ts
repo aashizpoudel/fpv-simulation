@@ -1,15 +1,13 @@
 import { BatteryModel } from "./battery-model";
 import { aerodynamicForces } from "./aerodynamics";
 import { normalizePreset } from "../config/presets";
-import RAPIER, { ColliderDesc } from "@dimforge/rapier3d-compat";
+import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
-import { AcroController } from "../controllers/acroController";
-import { SimpleController } from "../controllers/simpleController";
 import { FlightController } from "../controllers/flight-controller";
-import { AcroMode } from "../controllers/modes/acro-mode";
-import { AngleMode } from "../controllers/modes/angle-mode";
-import type { IFlightMode } from "../controllers/modes/flight-mode-interface";
+import { buildFlightMode } from "../controllers/flight-mode-factory";
+import { createDroneColliders } from "./drone-colliders";
+import { meshToTrimesh } from "./map-collider";
 import { DroneConfig, Tinyhawk3Config } from "../config/tinyhawk-config";
 import type {
   IController,
@@ -76,49 +74,7 @@ export class RapierPhysics {
     // Store the mesh so the collider can be re-created after world reset
     this.mapMesh = mesh;
 
-    const vertices: number[] = [];
-    const indices: number[] = [];
-    let vertexOffset = 0;
-
-    mesh.updateMatrixWorld(true);
-
-    mesh.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.geometry) {
-        const geometry = child.geometry;
-        const positionAttr = geometry.attributes.position;
-
-        if (positionAttr) {
-          // Apply world transform to each vertex
-          const worldMatrix = child.matrixWorld;
-          const vertex = new THREE.Vector3();
-
-          for (let i = 0; i < positionAttr.count; i++) {
-            vertex.set(
-              positionAttr.getX(i),
-              positionAttr.getY(i),
-              positionAttr.getZ(i),
-            );
-            vertex.applyMatrix4(worldMatrix);
-            vertices.push(vertex.x, vertex.y, vertex.z);
-          }
-
-          // Add indices with offset
-          if (geometry.index) {
-            // Avoid spreading large collision meshes into push(); JavaScript's
-            // argument limit is far below the Factory collider's index count.
-            const indexArray = geometry.index.array as ArrayLike<number>;
-            for (let i = 0; i < indexArray.length; i++) {
-              indices.push(indexArray[i] + vertexOffset);
-            }
-          } else {
-            for (let i = 0; i < positionAttr.count; i++) {
-              indices.push(vertexOffset + i);
-            }
-          }
-          vertexOffset += positionAttr.count;
-        }
-      }
-    });
+    const { vertices, indices } = meshToTrimesh(mesh);
 
     if (vertices.length === 0 || indices.length === 0) {
       throw new Error("The environment collision mesh contains no triangles.");
@@ -165,118 +121,35 @@ export class RapierPhysics {
     );
     this.body = this.world.createRigidBody(bodyDesc);
 
-    const halfExtents = {
-      x: this.config.length / 2,
-      y: this.config.width / 2,
-      z: this.config.height / 2,
-    };
-
-    const colliderDesc = RAPIER.ColliderDesc.cuboid(
-      halfExtents.x,
-      halfExtents.y,
-      halfExtents.z,
-    )
-      .setMass(0)
-      .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
-      .setFriction(this.config.body.friction)
-      .setRestitution(this.config.body.restitution);
-
     this.rotorOffsets = this.config.rotors.map((r) => r.position);
 
-    if (this.config.controllerType === "simple") {
-      const maxThrust = this.config.rotors.reduce(
-        (total, rotor) => total + rotor.maxThrust,
-        0,
+    // Build the appropriate flight mode
+    const mode = buildFlightMode(this.config, this.config.controllerType);
+    if (!mode) {
+      throw new Error(
+        `Unable to build flight mode "${this.config.controllerType}": missing PID config or unsupported controller type`,
       );
-      this.controller = new SimpleController({
-        maxThrust,
-        throttleRate: this.config.throttleRate,
-        ...this.config.simpleController,
-      });
-    } else {
-      // Build the appropriate flight mode
-      const mode = this.buildFlightMode(this.config.controllerType);
-
-      if (mode) {
-        // New modular FlightController path
-        this.controller = new FlightController(this.config, mode);
-      } else {
-        // Fallback to legacy AcroController
-        this.controller = new AcroController(this.rotorOffsets!, {
-          maxThrustPerRotor: this.config.rotors[0]?.maxThrust ?? 12,
-          throttleRate: this.config.throttleRate,
-          stickRate: this.config.stickRate,
-          rotorMode: this.config.rotorMode,
-          yawTorquePerNewton: this.config.yawTorquePerNewton,
-          pidRateConfig: this.config.pidRateConfig,
-        });
-      }
     }
+    this.controller = new FlightController(this.config, mode);
 
     this.droneTelemetry.localPosition = {
       x: startPosition.x,
       y: startPosition.y,
       z: startPosition.z + this.spawnHeight,
     };
-    this.droneColliders = [];
-    if (this.config.body.collisionShape === "ducts") {
-      // Central battery/canopy plus four short Z-axis cylinders. Duct interiors
-      // remain solid; this approximation avoids the old square outer corners.
-      const bodyCollider = ColliderDesc.cuboid(0.018, 0.012, halfExtents.z);
-      const shapes = [
-        bodyCollider,
-        ...this.config.rotors.map((r) =>
-          ColliderDesc.cylinder(
-            this.config.body.ductHeight / 2,
-            this.config.body.ductRadius,
-          )
-            .setRotation({ x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 })
-            .setTranslation(r.position.x, r.position.y, r.position.z),
-        ),
-      ];
-      for (const shape of shapes)
-        this.droneColliders.push(
-          this.world.createCollider(
-            shape
-              .setMass(0)
-              .setFriction(this.config.body.friction)
-              .setRestitution(this.config.body.restitution)
-              .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS),
-            this.body,
-          ),
-        );
-    } else
-      this.droneColliders.push(
-        this.world.createCollider(colliderDesc, this.body),
-      );
+    this.droneColliders = createDroneColliders(
+      this.world,
+      this.body,
+      this.config,
+    );
     this.droneCollider = this.droneColliders[0];
     this.body.recomputeMassPropertiesFromColliders();
-  }
-
-  /** Build a flight mode from the controller type string, or null if unsupported */
-  private buildFlightMode(type: string): IFlightMode | null {
-    const pidRateConfig = this.config.pidRateConfig;
-    if (!pidRateConfig) return null;
-
-    if (type === "acro") {
-      return new AcroMode(pidRateConfig, this.config.rates.expo);
-    }
-    if (type === "angle") {
-      const pidAngleConfig = this.config.pidAngleConfig;
-      if (!pidAngleConfig) return null;
-      return new AngleMode(
-        pidAngleConfig,
-        pidRateConfig,
-        this.config.rates.expo,
-      );
-    }
-    return null;
   }
 
   /** Switch the active flight mode at runtime (only works with FlightController) */
   public switchFlightMode(modeName: "acro" | "angle"): void {
     if (this.controller instanceof FlightController) {
-      const mode = this.buildFlightMode(modeName);
+      const mode = buildFlightMode(this.config, modeName);
       if (mode) {
         this.controller.switchMode(mode);
       }
@@ -371,19 +244,6 @@ export class RapierPhysics {
 
   public getSensor(): DroneTelemetry {
     return this.getTelemetryForController();
-  }
-
-  public togglePush(direction: number): void {
-    if (this.body) {
-      this.body.applyImpulse(
-        {
-          x: direction == 1 ? 0.01 : 0,
-          y: direction == 2 ? 0.01 : 0,
-          z: direction == 3 ? 0.05 : 0,
-        },
-        true,
-      );
-    }
   }
 
   public step(

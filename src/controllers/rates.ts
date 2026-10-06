@@ -1,4 +1,4 @@
-import { clamp } from "../utils/math";
+import { clamp } from "./math-utils";
 /** Simple cubic expo, deliberately not labeled as a Betaflight rate type. */
 export function rateTarget(
   stick: number,

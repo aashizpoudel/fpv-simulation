@@ -1,6 +1,6 @@
 import type { DroneConfig } from "../config/drone-config";
 import type { CameraAudioOrientation, CameraMode, DroneTelemetry, Vec3 } from "../types";
-import { clamp } from "../utils/math";
+import { clamp } from "../controllers/math-utils";
 
 const MOTOR_AUDIO_URL = `${import.meta.env.BASE_URL}audio/drone/motor-steady-loop.wav`;
 

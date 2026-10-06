@@ -4,11 +4,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 import type { CameraMode, DroneTelemetry, Vec3 } from "../../types";
 import type { DroneConfig } from "../../config/drone-config";
-import type { WorldConfig } from "../../config/dedust-world-config";
+import type { WorldConfig } from "../../config/world-config";
 import type { IRenderer } from "../renderer-interface";
 import { fetchSplatLodManifest } from "./splat-lod-loader";
 import { renderQuality } from "./render-quality";
 import { externalCameraRig, headingRotation } from "./external-camera";
+import { STORAGE_KEYS } from "../../app/storage-keys";
 
 /** One WebGL context and one camera per frame, with camera-driven Spark LOD. */
 export class ThreejsRenderer implements IRenderer {
@@ -170,7 +171,7 @@ export class ThreejsRenderer implements IRenderer {
     this.scene.add(map);
     this.onMapLoaded?.(map);
     // Inspect alignment without changing physical geometry.
-    if (new URLSearchParams(location.search).get("collision") === "1" || localStorage.getItem("drone_sim_collision") === "1") {
+    if (new URLSearchParams(location.search).get("collision") === "1" || localStorage.getItem(STORAGE_KEYS.collision) === "1") {
       map.visible = true;
       map.traverse((child) => {
         if (child instanceof THREE.Mesh) child.material = new THREE.MeshBasicMaterial({

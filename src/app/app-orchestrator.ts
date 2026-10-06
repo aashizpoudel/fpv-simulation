@@ -1,12 +1,13 @@
 import type { DroneConfig } from "../config/drone-config";
 import { defaultPreset, normalizePreset } from "../config/presets";
-import { downloadJson, takePendingReplay } from "./flight-settings";
+import { takePendingReplay } from "./flight-settings";
+import { downloadJson } from "./download";
 import {
   createRecording,
   MAX_RECORDING_STEPS,
   type FlightRecording,
 } from "../core/flight-recording";
-import type { WorldConfig } from "../config/dedust-world-config";
+import type { WorldConfig } from "../config/world-config";
 import {
   SimulationEngine,
   type SimulationEngineOptions,
@@ -18,8 +19,15 @@ import {
   type RendererType,
 } from "../renderers/renderer-factory";
 import type { IRenderer } from "../renderers/renderer-interface";
-import type { CameraMode, DroneTelemetry, Vec3 } from "../types";
-import { quaternionToEulerDeg } from "../utils/math";
+import type { CameraMode, Vec3 } from "../types";
+import {
+  getHudElements,
+  nextCameraMode,
+  requireElement,
+  updateHUD,
+} from "../ui/hud";
+import { setupHelpModal } from "../ui/help-modal";
+import { updateStickDots } from "../ui/stick-overlay";
 import { DroneAudioEngine } from "../audio/drone-audio-engine";
 import { subscribeAudioVolume } from "../audio/audio-preferences";
 import {
@@ -30,6 +38,7 @@ import {
   isStickOverlayEnabled,
   subscribeStickOverlay,
 } from "./crosshair-preferences";
+import { STORAGE_KEYS } from "./storage-keys";
 
 export type AppOrchestratorOptions = {
   rendererType: RendererType;
@@ -45,24 +54,6 @@ export type AppOrchestratorOptions = {
 
 export type AppSession = {
   play(control: "keyboard" | "gamepad"): Promise<boolean>;
-};
-
-type HudElements = {
-  flightMode: HTMLElement;
-  altitude: HTMLElement;
-  fps: HTMLElement;
-  speed: HTMLElement;
-  throttle: HTMLElement;
-  throttleBar: HTMLElement;
-  roll: HTMLElement;
-  pitch: HTMLElement;
-  gforce: HTMLElement;
-  armStatus: HTMLElement;
-  position: HTMLElement;
-  statusBanner: HTMLElement;
-  osd: HTMLElement;
-  horizonLine: HTMLElement;
-  crosshair: HTMLElement;
 };
 
 export async function startApp(options: AppOrchestratorOptions): Promise<AppSession> {
@@ -111,7 +102,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     cameraSelect.value = cameraMode;
     cameraSelect.addEventListener("change", () => {
       cameraMode = cameraSelect.value as CameraMode;
-      localStorage.setItem("drone_sim_camera", cameraMode);
+      localStorage.setItem(STORAGE_KEYS.camera, cameraMode);
       updateHudOverlay();
     });
   }
@@ -190,7 +181,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
         if (!flightStarted) return;
         cameraMode = nextCameraMode(cameraMode);
         if (cameraSelect) cameraSelect.value = cameraMode;
-        localStorage.setItem("drone_sim_camera", cameraMode);
+        localStorage.setItem(STORAGE_KEYS.camera, cameraMode);
         updateHudOverlay();
       },
       onSwitchFlightMode: () => {
@@ -276,28 +267,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   setRecordingIndicatorVisible(false);
 
   // Help modal setup
-  const helpModal = document.getElementById("helpModal");
-  const helpToggleBtn = document.getElementById("helpToggleBtn");
-  const closeHelpBtn = document.getElementById("closeHelpBtn");
-  const toggleHelp = () => {
-    if (!helpModal) return;
-    const isHidden =
-      helpModal.style.display === "none" || !helpModal.style.display;
-    helpModal.style.display = isHidden ? "flex" : "none";
-  };
-  const closeHelp = () => {
-    if (helpModal) helpModal.style.display = "none";
-  };
-  helpToggleBtn?.addEventListener("click", toggleHelp);
-  closeHelpBtn?.addEventListener("click", closeHelp);
-  helpModal?.addEventListener("click", (e) => {
-    if (e.target === helpModal) closeHelp();
-  });
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && helpModal?.style.display === "flex") {
-      closeHelp();
-    }
-  });
+  const { toggleHelp, closeHelp, dispose: disposeHelpModal } = setupHelpModal();
   handleToggleHelp = toggleHelp;
 
   const restartInput = () => {
@@ -501,28 +471,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       leftStickDot &&
       rightStickDot
     ) {
-      const thr =
-        controls.throttle != null && Number.isFinite(controls.throttle)
-          ? controls.throttle
-          : Number.isFinite(controls.thrust)
-            ? (controls.thrust + 1) / 2
-            : 0;
-      const yaw = Number.isFinite(controls.yaw) ? controls.yaw : 0;
-      const rol = Number.isFinite(controls.roll) ? controls.roll : 0;
-      const pit = Number.isFinite(controls.pitch) ? controls.pitch : 0;
-
-      const leftX = Math.max(0, Math.min(100, ((1 - yaw) / 2) * 100));
-      const leftY = Math.max(
-        0,
-        Math.min(100, (1 - Math.max(0, Math.min(1, thr))) * 100),
-      );
-      const rightX = Math.max(0, Math.min(100, ((rol + 1) / 2) * 100));
-      const rightY = Math.max(0, Math.min(100, ((1 - pit) / 2) * 100));
-
-      leftStickDot.style.left = `${leftX}%`;
-      leftStickDot.style.top = `${leftY}%`;
-      rightStickDot.style.left = `${rightX}%`;
-      rightStickDot.style.top = `${rightY}%`;
+      updateStickDots(controls, leftStickDot, rightStickDot);
     }
 
     ui.statusBanner.classList.toggle("show", telemetry.crashed);
@@ -561,8 +510,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     recordButton.removeEventListener("click", toggleRecording);
     exportButton.removeEventListener("click", exportRecording);
     stopReplayButton.removeEventListener("click", stopReplay);
-    helpToggleBtn?.removeEventListener("click", toggleHelp);
-    closeHelpBtn?.removeEventListener("click", closeHelp);
+    disposeHelpModal();
     document.removeEventListener("visibilitychange", onVisibilityChange);
     inputProvider.dispose();
     unsubscribeAudioVolume();
@@ -592,98 +540,4 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       return true;
     },
   };
-}
-
-function nextCameraMode(current: CameraMode): CameraMode {
-  if (current === "fpv") {
-    return "third";
-  }
-  if (current === "third") {
-    return "orbit";
-  }
-  return "fpv";
-}
-
-function getHudElements(): HudElements {
-  return {
-    flightMode: requireElement("flightMode"),
-    altitude: requireElement("altitude"),
-    fps: requireElement("fps"),
-    speed: requireElement("speed"),
-    throttle: requireElement("throttle"),
-    throttleBar: requireElement("throttleBar"),
-    roll: requireElement("roll"),
-    pitch: requireElement("pitch"),
-    gforce: requireElement("gforce"),
-    armStatus: requireElement("armStatus"),
-    position: requireElement("position"),
-    statusBanner: requireElement("statusBanner"),
-    osd: requireSelector<HTMLElement>(".osd"),
-    horizonLine: requireSelector<HTMLElement>(".osd-horizon-line"),
-    crosshair: requireSelector<HTMLElement>(".osd-crosshair"),
-  };
-}
-
-function requireElement(id: string): HTMLElement {
-  const element = document.getElementById(id);
-  if (!element) throw new Error(`Missing required element: ${id}`);
-  return element;
-}
-
-function requireSelector<T extends Element>(selector: string): T {
-  const element = document.querySelector<T>(selector);
-  if (!element) throw new Error(`Missing required element: ${selector}`);
-  return element;
-}
-
-function updateHUD(
-  ui: HudElements,
-  telemetry: DroneTelemetry,
-  cameraMode: CameraMode,
-  flightMode: "acro" | "angle" = "angle",
-  crosshairEnabled = false,
-  horizonLineEnabled = false,
-) {
-  const pos = telemetry.localPosition;
-  const vel = telemetry.localVelocity;
-  const { rollDeg, pitchDeg } = quaternionToEulerDeg(
-    telemetry.localOrientation,
-  );
-
-  const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2);
-  const modeLabel = flightMode.toUpperCase();
-  const throttlePct = Math.max(0, Math.min(100, telemetry.throttle));
-
-  // Top row
-  ui.flightMode.textContent = `${modeLabel} | ${cameraMode.toUpperCase()}`;
-  ui.altitude.textContent = `${pos.z.toFixed(1)}m`;
-  const battery = document.getElementById("battery");
-  if (battery)
-    battery.textContent = `${(telemetry.batteryVoltage ?? 0).toFixed(2)} V · ${((telemetry.batteryCharge ?? 0) * 100).toFixed(0)}%`;
-
-  // Left / Right center
-  ui.speed.textContent = speed.toFixed(1);
-  ui.throttle.textContent = `${throttlePct.toFixed(0)}%`;
-  ui.throttleBar.style.height = `${throttlePct}%`;
-
-  // Bottom
-  ui.roll.textContent = rollDeg.toFixed(1);
-  ui.pitch.textContent = pitchDeg.toFixed(1);
-  ui.gforce.textContent = `G:${telemetry.gforce.toFixed(1)}g`;
-  ui.position.textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
-
-  // Arm status
-  ui.armStatus.textContent = telemetry.crashed
-    ? "CRASHED"
-    : telemetry.armed
-      ? "ARMED"
-      : "DISARMED";
-  ui.osd.classList.toggle("osd--disarmed", !telemetry.armed);
-
-  // Attitude indicator: rotate horizon line with roll, shift with pitch
-  ui.horizonLine.style.transform = `rotate(${rollDeg}deg) translateY(${pitchDeg * 0.5}px)`;
-  ui.horizonLine.classList.toggle("show", horizonLineEnabled && cameraMode === "fpv");
-
-  // Center crosshair (visible only when enabled and in FPV camera mode)
-  ui.crosshair.classList.toggle("show", crosshairEnabled && cameraMode === "fpv");
 }
