@@ -1,8 +1,11 @@
 import { loadFlightConfig, setupFlightSettings } from "./app/flight-settings";
 import "./styles.css";
 import { setupPwa } from "./pwa";
-import { startApp } from "./app/app-orchestrator";
+import type { AppSession } from "./app/app-orchestrator";
 import { setupWelcomeScreen } from "./app/welcome-screen";
+import { setupVrButtons } from "./ui/vr-buttons";
+import { setupWelcomeGamepadStatus } from "./ui/welcome-gamepad-status";
+import { setupLoadingOverlay } from "./ui/loading-overlay";
 import { resolveWorldConfig } from "./config/world-config";
 import {
   resolveCameraMode,
@@ -32,15 +35,26 @@ setupConfigControls(rendererType, worldName);
 const droneConfig = loadFlightConfig();
 setupFlightSettings(droneConfig, isCesium ? "cesium" : worldConfig.name);
 
-const appReady = startApp({
-  droneConfig,
-  rendererType,
-  simulationStart,
-  rendererStart,
-  initialCameraMode,
-  worldConfig: isCesium ? undefined : worldConfig,
-});
-setupWelcomeScreen(worldName, rendererType, appReady);
+// Load the simulator (physics, three.js, renderer) as a separate chunk so the
+// welcome screen works as soon as this small entry file runs.
+const appReady: Promise<AppSession> = import("./app/app-orchestrator").then(({ startApp }) =>
+  startApp({
+    droneConfig,
+    rendererType,
+    simulationStart,
+    rendererStart,
+    initialCameraMode,
+    worldConfig: isCesium ? undefined : worldConfig,
+  }));
+const loadingOverlay = setupLoadingOverlay(appReady);
+setupWelcomeScreen(worldName, rendererType, appReady, loadingOverlay.show);
+setupWelcomeGamepadStatus();
+setupVrButtons(rendererType, appReady, () => ({
+  control: welcomeControl(),
+  mode: (document.getElementById("welcomeFlightModeSelect") as HTMLSelectElement | null)?.value === "acro"
+    ? "acro"
+    : "angle",
+}));
 setupPwa();
 void appReady.catch((error) => {
   console.error("Failed to start app", error);
@@ -50,3 +64,8 @@ void appReady.catch((error) => {
     status.dataset.state = "error";
   }
 });
+
+function welcomeControl(): "keyboard" | "gamepad" | "motion" {
+  const value = (document.getElementById("welcomeControlSelect") as HTMLSelectElement | null)?.value;
+  return value === "gamepad" || value === "motion" ? value : "keyboard";
+}

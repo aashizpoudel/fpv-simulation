@@ -285,7 +285,7 @@ body {
 }
 
 .welcome-card {
-    width: min(520px, 100%);
+    width: min(640px, 100%);
 }
 
 .welcome-kicker {
@@ -316,7 +316,7 @@ body {
 
 .welcome-choices {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
     margin-top: 32px;
 }
@@ -1718,4 +1718,115 @@ body {
     margin-top: 12px;
     padding-top: 4px;
     border-top: 1px solid var(--ui-divider);
+}
+
+/* WebXR goggle mode: buttons appear only when a headset is detected. */
+[data-vr-button][hidden] {
+    display: none !important;
+}
+
+.settings-note {
+    margin: 4px 0 0;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.welcome-gamepad {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-top: 14px;
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.welcome-gamepad[data-state="detected"] span {
+    color: #7ee08a;
+}
+
+.welcome-gamepad-btn {
+    padding: 4px 10px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    font: 600 12px system-ui, sans-serif;
+    cursor: pointer;
+}
+
+/* ── Map loading overlay ─────────────────────────── */
+
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(10, 13, 17, 0.88);
+    color: var(--ui-text);
+}
+
+.loading-overlay[hidden] {
+    display: none;
+}
+
+.loading-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: min(320px, 100%);
+    text-align: center;
+    font: 500 14px system-ui, sans-serif;
+}
+
+.loading-card p {
+    margin: 0;
+}
+
+.loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--ui-border);
+    border-top-color: var(--ui-text);
+    border-radius: 50%;
+    animation: loading-spin 0.9s linear infinite;
+}
+
+.loading-bar {
+    width: 100%;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--ui-border);
+}
+
+.loading-bar > div {
+    width: 0;
+    height: 100%;
+    background: var(--ui-text);
+    transition: width 0.2s ease-out;
+}
+
+.loading-bar.indeterminate > div {
+    width: 30%;
+    animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes loading-slide {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(340%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .loading-spinner,
+    .loading-bar.indeterminate > div {
+        animation: none;
+    }
 }

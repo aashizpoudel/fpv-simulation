@@ -126,4 +126,19 @@ describe("InputManager", () => {
     await expect(calibration).resolves.toBeUndefined();
     expect(document.querySelector(".cal-overlay")).toBeNull();
   });
+  it("switches to XR controllers and falls back to keyboard on leave", () => {
+    vi.stubGlobal("navigator", { getGamepads: () => [] });
+    const onInputSourceChanged = vi.fn();
+    const manager = new InputManager({
+      callbacks: { onReset: vi.fn(), onToggleCamera: vi.fn(), onInputSourceChanged },
+    });
+    manager.init();
+    manager.useXrControllers(() => []);
+    expect(onInputSourceChanged).toHaveBeenLastCalledWith("xr");
+    expect(manager.isUsingGamepad()).toBe(false);
+    expect(manager.read(0.016).arm).toBe(false);
+    manager.leaveXrControllers();
+    expect(onInputSourceChanged).toHaveBeenLastCalledWith("keyboard");
+    manager.dispose();
+  });
 });

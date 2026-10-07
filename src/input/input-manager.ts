@@ -10,6 +10,11 @@ import { KeyboardInputProvider, type KeyboardInputProviderOptions } from "./keyb
 import type { InputActionCallbacks, InputProvider } from "./input-provider";
 import type { InputMapperOptions } from "./input-mapper";
 import { createNeutralControls } from "./input-provider";
+import {
+  MotionControllerInputProvider,
+  type MotionControllerInputProviderOptions,
+} from "./motion-controller-input-provider";
+import { XrControllerInputProvider } from "./xr-controller-input-provider";
 
 export type InputManagerOptions = {
   callbacks: InputActionCallbacks;
@@ -22,6 +27,8 @@ export class InputManager implements InputProvider {
   private readonly callbacks: InputActionCallbacks;
   private readonly keyboardProvider: KeyboardInputProvider;
   private gamepadProvider?: GamepadInputProvider;
+  private xrProvider?: XrControllerInputProvider;
+  private motionProvider?: MotionControllerInputProvider;
   private activeProvider: InputProvider;
   private gamepadIndex: number;
   private readonly mapperOptions?: InputMapperOptions;
@@ -31,7 +38,7 @@ export class InputManager implements InputProvider {
 
   private readonly handleConnect = (event: GamepadEvent) => {
     this.callbacks.onGamepadAvailabilityChanged?.(true);
-    if (this.userPrefersKeyboard) return;
+    if (this.userPrefersKeyboard || this.isXrActive()) return;
     this.activateGamepad(event.gamepad.index, event.gamepad).catch(() => {
       this.switchToKeyboard();
     });
@@ -179,6 +186,64 @@ export class InputManager implements InputProvider {
     return this.activeProvider === this.gamepadProvider;
   }
 
+  private isXrActive(): boolean {
+    return (
+      (this.xrProvider !== undefined && this.activeProvider === this.xrProvider) ||
+      (this.motionProvider !== undefined && this.activeProvider === this.motionProvider)
+    );
+  }
+
+  public isUsingGamepad(): boolean {
+    return this.gamepadProvider !== undefined && this.activeProvider === this.gamepadProvider;
+  }
+
+  /**
+   * Switch to WebXR (Quest Touch) controllers. While active, a radio/gamepad
+   * connecting does not steal input; call useGamepad() to switch to it.
+   */
+  public useXrControllers(getInputSources: () => Iterable<XRInputSource> | null): void {
+    const provider = new XrControllerInputProvider({
+      callbacks: this.callbacks,
+      getInputSources,
+    });
+    const previousXr = this.xrProvider;
+    this.xrProvider = provider;
+    this.switchProvider(provider);
+    if (previousXr && previousXr !== provider) previousXr.dispose();
+    this.callbacks.onInputSourceChanged?.("xr");
+  }
+
+  /** Switch to DJI-style motion control (right Touch controller orientation). */
+  public useMotionController(
+    options: Pick<MotionControllerInputProviderOptions, "getPose" | "getTelemetry" | "config" | "assist">,
+  ): void {
+    const provider = new MotionControllerInputProvider({ callbacks: this.callbacks, ...options });
+    const previous = this.motionProvider;
+    this.motionProvider = provider;
+    this.switchProvider(provider);
+    if (previous && previous !== provider) previous.dispose();
+    this.callbacks.onInputSourceChanged?.("motion");
+  }
+
+  /** Leave XR/motion controllers: fall back to the connected gamepad if any, else keyboard. */
+  public leaveXrControllers(): void {
+    const xr = this.xrProvider;
+    const motion = this.motionProvider;
+    if (!xr && !motion) return;
+    if (this.isXrActive()) {
+      if (this.gamepadProvider && this.findConnectedGamepad()) {
+        this.switchProvider(this.gamepadProvider);
+        this.callbacks.onInputSourceChanged?.("gamepad");
+      } else {
+        this.switchToKeyboard();
+      }
+    }
+    xr?.dispose();
+    motion?.dispose();
+    this.xrProvider = undefined;
+    this.motionProvider = undefined;
+  }
+
   public detectGamepad(): boolean {
     const available = this.findConnectedGamepad() !== null;
     this.callbacks.onGamepadAvailabilityChanged?.(available);
@@ -204,7 +269,7 @@ export class InputManager implements InputProvider {
   }
 
   private tryAdoptExistingGamepad() {
-    if (this.userPrefersKeyboard) return;
+    if (this.userPrefersKeyboard || this.isXrActive()) return;
     const detected = this.findConnectedGamepad();
     if (detected) {
       this.activateGamepad(detected.index, detected.pad).catch(() => {

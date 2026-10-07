@@ -10,6 +10,10 @@ export const STORAGE_KEYS = {
   audioVolume: "drone_sim_audio_volume",
   hideSettings: "fpv_hide_settings",
   resumeAfterMapChange: "fpv_resume_after_map_change",
+  resumeFlightMode: "fpv_resume_flight_mode",
+  resumeAutoPlay: "fpv_resume_auto_play",
   physicsPreset: "fpv_physics_preset_v1",
   gamepadCalibrationPrefix: "fpv-sim-gamepad-calibration:",
+  gogglesModel: "drone_sim_goggles_model",
+  gogglesAspect: "drone_sim_goggles_aspect",
 } as const;

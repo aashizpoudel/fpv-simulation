@@ -13,7 +13,9 @@ import {
   type SimulationEngineOptions,
 } from "../core/simulation-engine";
 import { InputManager } from "../input/input-manager";
-import { createNeutralControls } from "../input/input-provider";
+import { createNeutralControls, type InputSourceKind } from "../input/input-provider";
+import { requestVrSession } from "../xr/xr-support";
+import { loadGogglesSettings } from "../xr/goggles-preferences";
 import {
   createRenderer,
   type RendererType,
@@ -52,8 +54,13 @@ export type AppOrchestratorOptions = {
   worldConfig?: WorldConfig;
 };
 
+export type FlightModeName = "acro" | "angle";
+
 export type AppSession = {
-  play(control: "keyboard" | "gamepad"): Promise<boolean>;
+  play(control: "keyboard" | "gamepad", mode?: FlightModeName): Promise<boolean>;
+  /** Start flying in WebXR goggle mode. Call directly from a click handler. */
+  /** "motion" flies DJI Avata-style by pointing the right Touch controller. */
+  enterVr(control: "keyboard" | "gamepad" | "motion", mode?: FlightModeName): Promise<void>;
 };
 
 export async function startApp(options: AppOrchestratorOptions): Promise<AppSession> {
@@ -106,7 +113,13 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       updateHudOverlay();
     });
   }
-  let flightMode: "acro" | "angle" = "angle";
+  let flightMode: FlightModeName = "angle";
+  // The pilot picks the starting mode on the welcome screen; replays keep their own.
+  const setStartingFlightMode = (mode: FlightModeName | undefined) => {
+    if (!mode || replay || flightStarted) return;
+    flightMode = mode;
+    simulationEngine.switchFlightMode(flightMode);
+  };
   let flightStarted = false;
   let lastTime = performance.now();
   let frameCount = 0;
@@ -127,7 +140,12 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   );
   const calibrateActions = document.getElementById("calibrateActions");
 
-  let activeInputSource: "keyboard" | "gamepad" = "keyboard";
+  let activeInputSource: InputSourceKind = "keyboard";
+  // WebXR goggle mode: FPV only; the previous camera returns when VR ends.
+  let vrActive = false;
+  let cameraModeBeforeVr: CameraMode = cameraMode;
+  let armedFlightTime = 0;
+  let lastFps = 0;
   let stickOverlayEnabled = isStickOverlayEnabled();
   const stickOverlay = document.getElementById("osdStickOverlay");
   const leftStickDot = document.getElementById("osdLeftStickDot");
@@ -135,7 +153,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
   const updateStickOverlayVisibility = () => {
     const shouldShow =
-      flightStarted && activeInputSource === "gamepad" && stickOverlayEnabled;
+      flightStarted && activeInputSource !== "keyboard" && stickOverlayEnabled;
     stickOverlay?.classList.toggle("show", shouldShow);
   };
   updateStickOverlayVisibility();
@@ -145,12 +163,15 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     updateStickOverlayVisibility();
   });
 
-  const updateInputSourceUI = (source: "keyboard" | "gamepad") => {
+  const updateInputSourceUI = (source: InputSourceKind) => {
     activeInputSource = source;
     updateStickOverlayVisibility();
     if (inputSourceBadge) {
       inputSourceBadge.textContent =
-        source === "gamepad" ? "RADIO / GAMEPAD" : "KEYBOARD";
+        source === "gamepad" ? "RADIO / GAMEPAD"
+          : source === "xr" ? "QUEST CONTROLLERS"
+            : source === "motion" ? "MOTION CONTROLLER"
+              : "KEYBOARD";
     }
     keyboardSourceButton?.setAttribute(
       "aria-pressed",
@@ -178,14 +199,15 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
         if (flightStarted && !replay) resetRequested = true;
       },
       onToggleCamera: () => {
-        if (!flightStarted) return;
+        if (!flightStarted || vrActive) return;
         cameraMode = nextCameraMode(cameraMode);
         if (cameraSelect) cameraSelect.value = cameraMode;
         localStorage.setItem(STORAGE_KEYS.camera, cameraMode);
         updateHudOverlay();
       },
       onSwitchFlightMode: () => {
-        if (!flightStarted || replay) return;
+        // The motion controller steers through angle mode only.
+        if (!flightStarted || replay || activeInputSource === "motion") return;
         flightMode = flightMode === "acro" ? "angle" : "acro";
         simulationEngine.switchFlightMode(flightMode);
       },
@@ -436,7 +458,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
   const onVisibilityChange = () => {
     lastTime = performance.now();
-    void audioEngine.setSuspended(document.hidden).catch(() => undefined);
+    void audioEngine.setSuspended(document.hidden && !vrActive).catch(() => undefined);
   };
   document.addEventListener("visibilitychange", onVisibilityChange);
   const animate = () => {
@@ -445,8 +467,9 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     const deltaTime = (now - lastTime) / 1000;
     lastTime = now;
     // A hidden tab is paused; do not turn time away into a catch-up burst.
-    if (document.hidden) {
-      animationId = requestAnimationFrame(animate);
+    // Some headsets report the page hidden while immersive; keep simulating.
+    if (document.hidden && !vrActive) {
+      scheduleFrame();
       return;
     }
 
@@ -459,14 +482,16 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       simulationEngine.switchFlightMode(flightMode);
       ui.statusBanner.classList.remove("show");
       resetRequested = false;
+      armedFlightTime = 0;
     }
 
     if (!replay) simulationEngine.setArmed(controls.arm);
     const telemetry = simulationEngine.step(controls, deltaTime);
+    if (telemetry.armed && Number.isFinite(deltaTime)) armedFlightTime += deltaTime;
 
     if (
       flightStarted &&
-      activeInputSource === "gamepad" &&
+      activeInputSource !== "keyboard" &&
       stickOverlayEnabled &&
       leftStickDot &&
       rightStickDot
@@ -480,6 +505,20 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     audioEngine.update(telemetry, cameraMode, renderer.getCameraPosition?.(), renderer.getCameraAudioOrientation?.());
     if (now - lastHudUpdate > 100) {
       updateHUD(ui, telemetry, cameraMode, flightMode, crosshairEnabled, horizonLineEnabled);
+      if (vrActive) {
+        renderer.updateVrOsd?.({
+          telemetry,
+          flightMode,
+          flightTimeSec: armedFlightTime,
+          recording: recordingActive,
+          recordingSec: recording ? recording.steps.length * recording.fixedTimeStep : 0,
+          crosshair: crosshairEnabled,
+          horizonLine: horizonLineEnabled,
+          sticks: stickOverlayEnabled && activeInputSource !== "keyboard" ? controls : null,
+          fps: lastFps,
+          latencyMs: 30,
+        });
+      }
       if (recordingActive && recording && recTime) {
         const totalSec = Math.floor(
           recording.steps.length * recording.fixedTimeStep,
@@ -494,18 +533,38 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     frameCount += 1;
     if (now - fpsTime >= 1000) {
       ui.fps.textContent = `${frameCount}fps`;
+      lastFps = frameCount;
       frameCount = 0;
       fpsTime = now;
     }
 
-    animationId = requestAnimationFrame(animate);
+    scheduleFrame();
   };
+  // Renderers that own the frame loop (three.js) keep it running inside WebXR,
+  // where window.requestAnimationFrame stops.
+  const scheduleFrame = renderer.setFrameLoop
+    ? () => {}
+    : () => { animationId = requestAnimationFrame(animate); };
+  if (renderer.setFrameLoop) renderer.setFrameLoop(animate);
+  else scheduleFrame();
 
-  animationId = requestAnimationFrame(animate);
+  renderer.onVrEnd = () => {
+    vrActive = false;
+    cameraMode = cameraModeBeforeVr;
+    if (cameraSelect) {
+      cameraSelect.disabled = false;
+      cameraSelect.value = cameraMode;
+    }
+    inputProvider.leaveXrControllers();
+    updateHudOverlay();
+    lastTime = performance.now();
+    if (loading) loading.textContent = "Left VR goggles.";
+  };
 
   window.addEventListener("beforeunload", () => {
     stopped = true;
     cancelAnimationFrame(animationId);
+    renderer.setFrameLoop?.(null);
     calibrate?.removeEventListener("click", onCalibrate);
     recordButton.removeEventListener("click", toggleRecording);
     exportButton.removeEventListener("click", exportRecording);
@@ -525,9 +584,10 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   });
 
   return {
-    async play(control) {
+    async play(control, mode) {
       // Create/resume Web Audio while this call still has the user's activation.
       void audioEngine.start();
+      setStartingFlightMode(mode);
       if (control === "gamepad") {
         if (!(await inputProvider.useGamepad())) return false;
       } else {
@@ -538,6 +598,41 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       updateStickOverlayVisibility();
       lastTime = performance.now();
       return true;
+    },
+    async enterVr(control, mode) {
+      if (!renderer.enterVr) throw new Error("VR goggles need the Three.js renderer.");
+      if (vrActive) return;
+      // Both calls need the click's user activation, so make them before any await.
+      const sessionRequest = requestVrSession();
+      void audioEngine.start();
+      const session = await sessionRequest;
+      await renderer.enterVr(session, loadGogglesSettings());
+      setStartingFlightMode(control === "motion" ? "angle" : mode);
+      vrActive = true;
+      cameraModeBeforeVr = cameraMode;
+      cameraMode = "fpv";
+      if (cameraSelect) {
+        cameraSelect.value = "fpv";
+        cameraSelect.disabled = true;
+      }
+      updateHudOverlay();
+      if (control === "motion") {
+        inputProvider.useMotionController({
+          getPose: () => renderer.getXrControllerPose?.("right") ?? null,
+          getTelemetry: () => simulationEngine.getTelemetry(),
+          config,
+        });
+      } else {
+        // A radio stays in charge if chosen; otherwise fly with Quest Touch controllers.
+        const useRadio = control === "gamepad" || inputProvider.isUsingGamepad();
+        if (!(useRadio && (await inputProvider.useGamepad()))) {
+          inputProvider.useXrControllers(() => renderer.getXrInputSources?.() ?? null);
+        }
+      }
+      inputProvider.setFlightInputEnabled(true);
+      flightStarted = true;
+      updateStickOverlayVisibility();
+      lastTime = performance.now();
     },
   };
 }

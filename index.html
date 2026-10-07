@@ -51,6 +51,13 @@
     <body class="welcome-active">
         <main>
         <div id="renderingContainer"></div>
+        <div class="loading-overlay" id="loadingOverlay" role="status" aria-live="polite" hidden>
+            <div class="loading-card">
+                <div class="loading-spinner" aria-hidden="true"></div>
+                <p id="loadingOverlayText">Loading map…</p>
+                <div class="loading-bar indeterminate"><div id="loadingOverlayBar"></div></div>
+            </div>
+        </div>
         <section class="welcome" id="welcomeScreen" aria-labelledby="sim-title">
             <div class="welcome-card">
                 <p class="welcome-kicker">Welcome to FPV Sim</p>
@@ -69,12 +76,24 @@
                         <select id="welcomeControlSelect">
                             <option value="keyboard">Keyboard</option>
                             <option value="gamepad">Radio / Gamepad</option>
+                            <option value="motion" data-vr-only hidden disabled>Motion controller (VR)</option>
                         </select>
                     </label>
+                    <label for="welcomeFlightModeSelect">Flight mode
+                        <select id="welcomeFlightModeSelect">
+                            <option value="angle" selected>Angle (self-levels)</option>
+                            <option value="acro">Acro (rate)</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="welcome-gamepad" id="welcomeGamepad" data-state="missing">
+                    <span id="welcomeGamepadStatus" role="status">Gamepad not detected</span>
+                    <button id="welcomeGamepadBtn" class="welcome-gamepad-btn" type="button">Detect gamepad</button>
                 </div>
                 <p class="welcome-status" id="welcomeStatus" role="status">Choose a map and control type, then play.</p>
                 <div class="welcome-actions">
                     <button id="welcomePlayBtn" class="welcome-play" type="button">Play</button>
+                    <button id="welcomeVrBtn" class="welcome-play welcome-vr" type="button" data-vr-button hidden>Play in VR</button>
                     <button id="welcomeSettingsBtn" class="welcome-settings" type="button">Settings</button>
                 </div>
             </div>
@@ -166,6 +185,11 @@
                     <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
             </button>
+            <button id="vrToggleBtn" class="top-bar-btn" type="button" data-vr-button hidden aria-label="Enter VR goggles" title="Fly in VR goggles (FPV)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-4l-2-3h-2l-2 3H5a2 2 0 0 1-2-2z"></path>
+                </svg>
+            </button>
             <button id="helpToggleBtn" class="top-bar-btn" type="button" aria-label="Toggle help" title="Flight Controls &amp; Help (H)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
@@ -245,6 +269,22 @@
                             <input type="checkbox" id="stickOverlayCheckbox" />
                             <span>Show stick overlay (Gamepad)</span>
                         </label>
+                    </div>
+                <div class="settings-group">
+                        <div class="settings-title">VR Goggles</div>
+                        <label>Goggles
+                            <select id="gogglesModelSelect">
+                                <option value="goggles2">DJI Goggles 2 (51°)</option>
+                                <option value="integra">DJI Goggles Integra (44°)</option>
+                            </select>
+                        </label>
+                        <label>O3 camera aspect
+                            <select id="gogglesAspectSelect">
+                                <option value="4:3">4:3 (155° wide)</option>
+                                <option value="16:9">16:9 (cropped)</option>
+                            </select>
+                        </label>
+                        <p class="settings-note">Applies the next time you enter VR. VR is FPV only.</p>
                     </div>
             </section>
             <section id="settings-panel-controls" class="settings-panel settings-panel-grid" role="tabpanel" aria-labelledby="settings-tab-controls" tabindex="0" hidden>

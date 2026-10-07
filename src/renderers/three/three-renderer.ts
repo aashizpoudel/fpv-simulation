@@ -5,11 +5,15 @@ import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 import type { CameraMode, DroneTelemetry, Vec3 } from "../../types";
 import type { DroneConfig } from "../../config/drone-config";
 import type { WorldConfig } from "../../config/world-config";
-import type { IRenderer } from "../renderer-interface";
+import type { IRenderer, XrControllerPose } from "../renderer-interface";
 import { fetchSplatLodManifest } from "./splat-lod-loader";
 import { renderQuality } from "./render-quality";
 import { externalCameraRig, headingRotation } from "./external-camera";
 import { STORAGE_KEYS } from "../../app/storage-keys";
+import { GogglesView } from "../../xr/goggles-view";
+import { reportLoading } from "../../ui/loading-overlay";
+import type { GogglesSettings } from "../../xr/goggles-config";
+import type { GogglesOsdState } from "../../xr/goggles-osd";
 
 /** One WebGL context and one camera per frame, with camera-driven Spark LOD. */
 export class ThreejsRenderer implements IRenderer {
@@ -33,9 +37,12 @@ export class ThreejsRenderer implements IRenderer {
     new THREE.Matrix4().lookAt(new THREE.Vector3(), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1)),
   );
   private disposed = false;
+  private goggles?: GogglesView;
+  private xrLocalSpace: XRReferenceSpace | null = null;
   private resizeHandler = () => this.resize();
   private qualityHandler = () => this.applyQuality();
   public onMapLoaded?: (map: object) => void;
+  public onVrEnd?: () => void;
   public mapScale?: number;
 
   setDroneConfig(config: DroneConfig): void {
@@ -55,6 +62,7 @@ export class ThreejsRenderer implements IRenderer {
     this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.xr.enabled = true;
     container.appendChild(this.renderer.domElement);
     this.camera.up.set(0, 0, 1);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -131,7 +139,7 @@ export class ThreejsRenderer implements IRenderer {
         url: new URL(level.file, url).href, lod: true, nonLod: true, raycastable: false,
         onProgress: (event) => this.status(event.total
           ? "Loading environment… " + Math.round(event.loaded / event.total * 100) + "%"
-          : "Preparing environment detail…"),
+          : "Preparing environment detail…", event.total ? event.loaded / event.total : undefined),
       });
       this.splats.rotation.set(config.visualRotationX ?? 0, 0, config.visualRotationZ ?? 0, "XYZ");
       this.splats.scale.setScalar(config.mapScale ?? 1);
@@ -139,7 +147,10 @@ export class ThreejsRenderer implements IRenderer {
       this.scene.add(this.splats);
       this.applyQuality();
     } else if (config.mapGlbPath) {
-      const map = (await loader.loadAsync(this.assetUrl(config.mapGlbPath))).scene;
+      this.status("Loading environment…");
+      const map = (await loader.loadAsync(this.assetUrl(config.mapGlbPath), (event) => {
+        if (event.total) this.status(`Loading environment… ${Math.round(event.loaded / event.total * 100)}%`, event.loaded / event.total);
+      })).scene;
       map.rotation.set(config.visualRotationX ?? Math.PI / 2, 0, config.visualRotationZ ?? 0, "XYZ");
       map.scale.setScalar(config.mapScale ?? 1);
       this.scene.add(map);
@@ -187,6 +198,7 @@ export class ThreejsRenderer implements IRenderer {
     this.drone.position.copy(this.position);
     const q = frame.localOrientation;
     this.drone.quaternion.set(q.x, q.y, q.z, q.w);
+    if (this.goggles) mode = "fpv";
     this.drone.visible = mode !== "fpv";
     this.controls.enabled = mode === "orbit";
     if (this.previousMode !== mode) {
@@ -212,11 +224,82 @@ export class ThreejsRenderer implements IRenderer {
       this.controls.update();
     }
     this.previousMode = mode;
+    if (this.goggles) {
+      this.goggles.render(this.camera.position, this.camera.quaternion);
+      return;
+    }
     this.renderer.render(this.scene, this.camera);
   }
 
+  /** Drive the frame loop from three.js so it keeps running inside an XR session. */
+  setFrameLoop(callback: (() => void) | null): void {
+    this.renderer.setAnimationLoop(callback);
+  }
+
+  isVrActive(): boolean {
+    return this.goggles !== undefined;
+  }
+
+  /** Show the FPV feed on a head-locked O3 goggle screen in `session`. */
+  async enterVr(session: XRSession, settings: GogglesSettings): Promise<void> {
+    if (this.goggles) return;
+    const quality = renderQuality("performance", 1);
+    const goggles = new GogglesView(this.renderer, this.scene, settings, this.spark
+      ? { lodSplatCount: Math.min(this.spark.lodSplatCount ?? quality.splats, 500_000), minSortIntervalMs: quality.minSortIntervalMs }
+      : null);
+    session.addEventListener("end", () => {
+      goggles.dispose();
+      if (this.goggles === goggles) this.goggles = undefined;
+      this.previousMode = undefined;
+      this.xrLocalSpace = null;
+      this.resize();
+      this.onVrEnd?.();
+    }, { once: true });
+    this.renderer.xr.setReferenceSpaceType("viewer");
+    try {
+      await this.renderer.xr.setSession(session);
+    } catch (error) {
+      goggles.dispose();
+      await session.end().catch(() => undefined);
+      throw error;
+    }
+    this.goggles = goggles;
+    // Head-locked "viewer" is used for rendering; controller poses need a world-fixed space.
+    this.xrLocalSpace = await session.requestReferenceSpace("local")
+      .catch(() => session.requestReferenceSpace("viewer"))
+      .catch(() => null);
+  }
+
+  /** Controller orientation in a world-fixed space. Only valid inside the XR animation-loop callback. */
+  getXrControllerPose(hand: "left" | "right"): XrControllerPose | null {
+    const space = this.xrLocalSpace;
+    const frame = this.renderer.xr.getFrame();
+    const sources = this.renderer.xr.getSession()?.inputSources;
+    if (!space || !frame || !sources) return null;
+    for (const source of sources) {
+      if (source.handedness !== hand) continue;
+      const pose = frame.getPose(source.gripSpace ?? source.targetRaySpace, space);
+      if (!pose) return null;
+      const q = pose.transform.orientation;
+      return { quaternion: { x: q.x, y: q.y, z: q.z, w: q.w }, gamepad: source.gamepad ?? null };
+    }
+    return null;
+  }
+
+  exitVr(): void {
+    void this.renderer.xr.getSession()?.end().catch(() => undefined);
+  }
+
+  updateVrOsd(state: GogglesOsdState): void {
+    this.goggles?.updateOsd(state);
+  }
+
+  getXrInputSources(): Iterable<XRInputSource> | null {
+    return this.renderer.xr.getSession()?.inputSources ?? null;
+  }
+
   resize(): void {
-    if (!this.renderer) return;
+    if (!this.renderer || this.renderer.xr.isPresenting) return;
     const width = Math.max(1, this.container.clientWidth);
     const height = Math.max(1, this.container.clientHeight);
     this.camera.aspect = width / height;
@@ -255,6 +338,8 @@ export class ThreejsRenderer implements IRenderer {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.renderer?.setAnimationLoop(null);
+    this.exitVr();
     window.removeEventListener("resize", this.resizeHandler);
     document.getElementById("quality")?.removeEventListener("change", this.qualityHandler);
     this.controls?.dispose();
@@ -277,8 +362,9 @@ export class ThreejsRenderer implements IRenderer {
   private assetUrl(path: string): string {
     return new URL(path, new URL(import.meta.env.BASE_URL, location.origin)).href;
   }
-  private status(message: string): void {
+  private status(message: string, progress?: number): void {
     const element = document.getElementById("lodStatus");
     if (element) element.textContent = message;
+    reportLoading(message, progress);
   }
 }

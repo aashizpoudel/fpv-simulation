@@ -1,5 +1,7 @@
 import type { Controls } from "../types";
 
+export type InputSourceKind = "keyboard" | "gamepad" | "xr" | "motion";
+
 export type InputActionCallbacks = {
   onReset: () => void;
   onToggleCamera: () => void;
@@ -8,7 +10,7 @@ export type InputActionCallbacks = {
   onSwitchFlightMode?: () => void;
   onToggleRecording?: () => void;
   onToggleHelp?: () => void;
-  onInputSourceChanged?: (source: "keyboard" | "gamepad") => void;
+  onInputSourceChanged?: (source: InputSourceKind) => void;
   onGamepadAvailabilityChanged?: (available: boolean) => void;
 };
 

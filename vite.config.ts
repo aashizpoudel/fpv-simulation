@@ -19,6 +19,14 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "build",
     },
+    server: {
+      host: "127.0.0.1",
+      allowedHosts: [".ts.net"],
+    },
+    preview: {
+      host: "127.0.0.1",
+      allowedHosts: [".ts.net"],
+    },
     test: {
       environment: "jsdom",
       setupFiles: ["tests/setup.ts"],
