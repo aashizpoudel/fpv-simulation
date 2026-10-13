@@ -2,6 +2,7 @@ export const STORAGE_KEYS = {
   world: "drone_sim_world",
   renderer: "drone_sim_renderer",
   camera: "drone_sim_camera",
+  raceProps: "drone_sim_race_props",
   collision: "drone_sim_collision",
   quality: "drone_sim_quality",
   crosshair: "drone_sim_crosshair",

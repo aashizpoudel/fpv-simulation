@@ -10,6 +10,7 @@ export type XrControllerPose = {
 };
 
 export interface IRenderer {
+  setRaceProps?(props: import("../race/race-props").RaceProp[]): object;
   init(container: HTMLElement, startPosition?: Vec3): Promise<void> | void;
   render(frame: DroneTelemetry, cameraMode: CameraMode): void;
   resize(): void;

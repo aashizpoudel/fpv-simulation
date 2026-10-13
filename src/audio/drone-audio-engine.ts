@@ -64,6 +64,24 @@ export class DroneAudioEngine {
     }
   }
 
+  playPropCompletion(): void {
+    const context = this.context;
+    if (!context || !this.outputGain || context.state !== "running" || this.disposed) return;
+    const tone = context.createOscillator();
+    const envelope = context.createGain();
+    const now = context.currentTime;
+    tone.type = "sine";
+    tone.frequency.setValueAtTime(880, now);
+    tone.frequency.setValueAtTime(1320, now + 0.09);
+    envelope.gain.setValueAtTime(0, now);
+    envelope.gain.linearRampToValueAtTime(0.22, now + 0.01);
+    envelope.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    tone.connect(envelope).connect(this.outputGain);
+    tone.onended = () => { tone.disconnect(); envelope.disconnect(); };
+    tone.start(now);
+    tone.stop(now + 0.31);
+  }
+
   preload(): void {
     if (this.prepared) return;
     this.prepared = fetch(MOTOR_AUDIO_URL).then(response => {

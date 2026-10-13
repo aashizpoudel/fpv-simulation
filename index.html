@@ -70,6 +70,7 @@
                             <option value="factory-splat">Factory</option>
                             <option value="ekotori">Ekotori</option>
                             <option value="dedust">Dust2 (De Dust 2)</option>
+                            <option value="forest">Forest</option>
                         </select>
                     </label>
                     <label for="welcomeControlSelect">Control type
@@ -234,6 +235,7 @@
                                 <option value="factory-splat">Factory (Gaussian Splats)</option>
                                 <option value="ekotori">Ekotori (Gaussian Splats)</option>
                                 <option value="dedust">Dedust 2 (GLB Mesh)</option>
+                                <option value="forest">Forest (Procedural)</option>
                             </select>
                         </label>
                     </div>
@@ -253,6 +255,11 @@
                                 <option value="detail">Detail (full splats, high resolution)</option>
                             </select>
                         </label>
+                        <label class="settings-checkbox">
+                            <input type="checkbox" id="racePropsCheckbox" checked aria-describedby="racePropsHint" />
+                            <span>Race props</span>
+                        </label>
+                        <p id="racePropsHint" class="settings-hint">Random gates and hoops. Follow the green arrows to hear a completion chime. Changing this reloads the simulator.</p>
                         <label class="settings-checkbox">
                             <input type="checkbox" id="collisionCheckbox" />
                             <span>Show collision wireframe</span>
@@ -330,7 +337,7 @@
     <div class="settings-title">Game audio</div>
     <label for="audioVolume">Master volume <output id="audioVolumeValue" for="audioVolume">100%</output></label>
     <input id="audioVolume" class="settings-volume" type="range" min="0" max="100" step="1" value="100" aria-describedby="audioVolumeHint" />
-    <p id="audioVolumeHint" class="settings-hint">Controls motor and wind sounds. Set to 0% to mute. Changes apply immediately and are saved automatically.</p>
+    <p id="audioVolumeHint" class="settings-hint">Controls motor, wind, and race prop chimes. Set to 0% to mute. Changes apply immediately and are saved automatically.</p>
 </div>
             </section>
             <section id="settings-panel-recordings" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-recordings" tabindex="0" hidden>
@@ -357,6 +364,11 @@
                     </div>
             </section>
             <section id="settings-panel-credits" class="settings-panel settings-panel-grid settings-credits" role="tabpanel" aria-labelledby="settings-tab-credits" tabindex="0" hidden>
+                <div class="settings-group">
+                    <h2 class="settings-title">Forest</h2>
+                    <p><a href="https://threejseval.com/gallery?eval=realistic-forest&amp;prompt=prompt_realistic_forest&amp;g=gen_rf_39" target="_blank" rel="noopener noreferrer">Morning Light in a Mixed Grove</a> by threejseval, generated with Claude Opus 5.5 High.</p>
+                    <p><a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC 4.0</a>. Adapted for procedural rendering and drone collisions.</p>
+                </div>
                 <div class="settings-group">
                     <h2 class="settings-title">Dust2 map</h2>
                     <p><a href="https://sketchfab.com/3d-models/de-dust-2-with-real-light-4ce74cd95c584ce9b12b5ed9dc418db5" target="_blank" rel="noopener noreferrer">De_Dust 2 with real light</a> by Neo_minigan, via Sketchfab.</p>

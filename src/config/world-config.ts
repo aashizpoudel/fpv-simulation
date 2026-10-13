@@ -11,6 +11,8 @@ import type { Vec3 } from "../types";
  */
 export interface WorldConfig {
   name: string;
+  /** Environment generated at runtime instead of loading a mesh or splats. */
+  proceduralWorld?: "forest";
   /** Regular mesh world. Mutually exclusive with splatLodManifestPath. */
   mapGlbPath?: string;
   /** Repacked coarse-to-fine splat manifest consumed by the Three.js renderer. */

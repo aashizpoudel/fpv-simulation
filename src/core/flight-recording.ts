@@ -5,6 +5,7 @@ export const MAX_RECORDING_STEPS = 480 * 120;
 export type RecordedStep = { controls: Controls; mode: "acro" | "angle" };
 export type FlightRecording = {
   version: 1;
+  raceProps?: import("../race/race-props").RaceProp[];
   physicsVersion: string;
   fixedTimeStep: number;
   config: DroneConfig;
@@ -35,6 +36,12 @@ export function parseRecording(text: string): FlightRecording {
     throw new Error("Unsupported recording or physics version");
   if (r.fixedTimeStep !== 1 / 480)
     throw new Error("Browser recordings require 480 Hz");
+  if (r.raceProps !== undefined) {
+    if (!Array.isArray(r.raceProps) || r.raceProps.length > 100 || r.raceProps.some(p =>
+      !p || !["gate", "hoop"].includes(p.kind) || !p.position ||
+      ![p.position.x, p.position.y, p.position.z, p.yaw, p.radius].every(Number.isFinite) ||
+      p.radius < 0.3 || p.radius > 10)) throw new Error("Invalid race props");
+  }
   r.config = normalizePreset(r.config);
   if (typeof r.world !== "string" || r.world.length > 100)
     throw new Error("Invalid recording world");

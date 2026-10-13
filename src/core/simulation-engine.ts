@@ -17,6 +17,10 @@ export type SimulationEngineOptions = {
 };
 
 export class SimulationEngine {
+  public raceProps?: import("../race/race-props").RacePropTracker;
+  public onPropCompleted?: () => void;
+  isPropSpaceClear(position: Vec3, radius: number): boolean { return this.physics.isPropSpaceClear(position, radius); }
+  createPropCollider(mesh: THREE.Object3D): void { this.physics.createPropCollider(mesh); }
   private physics: RapierPhysics;
   public beforeFixedStep?: (input: Controls) => Controls | null;
   public afterFixedStep?: (input: Controls, telemetry: DroneTelemetry) => void;
@@ -25,6 +29,7 @@ export class SimulationEngine {
   }
   public resetBody(): void {
     this.physics.reset();
+    this.raceProps?.reset();
     this.lastTelemetry = this.physics.getTelemetry();
   }
   private accumulator = 0;
@@ -84,6 +89,9 @@ export class SimulationEngine {
         this.fixedTimeStep,
         this.clampZ,
       );
+      if (this.lastTelemetry.armed && !this.lastTelemetry.crashed) {
+        for (const _ of this.raceProps?.update(this.lastTelemetry.localPosition, this.simulationTime) ?? []) this.onPropCompleted?.();
+      } else this.raceProps?.reset();
       this.afterFixedStep?.(command, this.lastTelemetry);
       this.accumulator = Math.max(0, this.accumulator - this.fixedTimeStep);
       this.simulationTime += this.fixedTimeStep;
@@ -101,6 +109,7 @@ export class SimulationEngine {
     this.simulationTime = 0;
     this.droppedTime = 0;
     this.physics.reset();
+    this.raceProps?.reset();
     this.lastTelemetry = this.physics.getTelemetry();
   }
 

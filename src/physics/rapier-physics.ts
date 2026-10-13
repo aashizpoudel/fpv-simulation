@@ -28,6 +28,8 @@ export class RapierPhysics {
   private droneTelemetry: DroneTelemetry;
   private startPosition: Vec3;
   private mapMesh?: THREE.Object3D;
+  private propMesh?: THREE.Object3D;
+  private propBody?: RAPIER.RigidBody;
   private roofHeight: number = Infinity;
   private droneCollider?: RAPIER.Collider;
   private mapBody?: RAPIER.RigidBody;
@@ -91,9 +93,30 @@ export class RapierPhysics {
     );
 
     this.world.createCollider(colliderDesc, rigidBody);
+    this.world.updateSceneQueries();
     console.log(
       `Created trimesh collider with ${vertices.length / 3} vertices and ${indices.length / 3} triangles`,
     );
+  }
+
+  public isPropSpaceClear(position: Vec3, radius: number): boolean {
+    if (!this.world) return false;
+    let clear = true;
+    this.world.intersectionsWithShape(position, { x: 0, y: 0, z: 0, w: 1 }, new RAPIER.Ball(radius), () => {
+      clear = false;
+      return false;
+    }, undefined, undefined, undefined, this.body);
+    return clear;
+  }
+
+  public createPropCollider(mesh: THREE.Object3D): void {
+    if (!this.world) return;
+    this.propMesh = mesh;
+    if (this.propBody) this.world.removeRigidBody(this.propBody);
+    this.propBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const { vertices, indices } = meshToTrimesh(mesh);
+    this.world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(vertices), new Uint32Array(indices)), this.propBody);
+    this.world.updateSceneQueries();
   }
 
   private setupDrone(startPosition: Vec3) {
@@ -164,7 +187,9 @@ export class RapierPhysics {
     this.events?.free();
     this.events = new RAPIER.EventQueue(true);
     this.mapBody = undefined;
+    this.propBody = undefined;
     this.setupDrone(this.startPosition);
+    if (this.propMesh) this.createPropCollider(this.propMesh);
     // Create ceiling collider if roofHeight is finite
     this.createCeilingCollider();
     // Re-create the map collider if one was previously registered

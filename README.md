@@ -33,7 +33,9 @@ Configure a USB radio or gamepad under **Settings > Flight Controls**.
 
 ## Environments
 
-Choose Factory, DeDust, or Ekotori in Settings, or use `?world=factory-splat`, `?world=dedust`, or `?world=ekotori`.
+Choose Factory, DeDust, Ekotori, or Forest in Settings, or use `?world=factory-splat`, `?world=dedust`, `?world=ekotori`, or `?world=forest`.
+
+
 
 ## Build
 
@@ -47,4 +49,5 @@ Deploy the `build/` directory. The base path defaults to `/fpv-simulation/`; set
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
 

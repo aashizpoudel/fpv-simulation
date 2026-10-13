@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createRacePropMeshes } from "./race-prop-meshes";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
@@ -14,6 +15,7 @@ import { GogglesView } from "../../xr/goggles-view";
 import { reportLoading } from "../../ui/loading-overlay";
 import type { GogglesSettings } from "../../xr/goggles-config";
 import type { GogglesOsdState } from "../../xr/goggles-osd";
+import type { ForestEnvironment } from "./forest/forest";
 
 /** One WebGL context and one camera per frame, with camera-driven Spark LOD. */
 export class ThreejsRenderer implements IRenderer {
@@ -23,6 +25,7 @@ export class ThreejsRenderer implements IRenderer {
   private renderer!: THREE.WebGLRenderer;
   private spark?: SparkRenderer;
   private splats?: SplatMesh;
+  private forest?: ForestEnvironment;
   private controls!: OrbitControls;
   private container!: HTMLElement;
   private droneConfig?: DroneConfig;
@@ -56,6 +59,18 @@ export class ThreejsRenderer implements IRenderer {
       new THREE.Matrix4().lookAt(new THREE.Vector3(), lookTarget, upTarget),
     );
   }
+  setRaceProps(props: import("../../race/race-props").RaceProp[]): THREE.Group {
+    const meshes = createRacePropMeshes(props);
+    this.scene.add(meshes);
+    for (const prop of props) {
+      const direction = new THREE.Vector3(Math.cos(prop.yaw), Math.sin(prop.yaw), 0);
+      const origin = new THREE.Vector3(prop.position.x, prop.position.y, prop.position.z + prop.radius + 0.5)
+        .addScaledVector(direction, -1);
+      this.scene.add(new THREE.ArrowHelper(direction, origin, 2, 0x66ff66, 0.5, 0.35));
+    }
+    return meshes;
+  }
+
   setWorldConfig(config: WorldConfig): void { this.worldConfig = config; }
 
   async init(container: HTMLElement, start?: Vec3): Promise<void> {
@@ -72,10 +87,13 @@ export class ThreejsRenderer implements IRenderer {
     this.controls.maxPolarAngle = Math.PI / 2;
     this.controls.maxDistance = 100;
     this.scene.background = new THREE.Color(0x161c23);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2));
-    const light = new THREE.DirectionalLight(0xffffff, 2);
-    light.position.set(10, -10, 20);
-    this.scene.add(light, this.drone);
+    if (!this.worldConfig?.proceduralWorld) {
+      this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2));
+      const light = new THREE.DirectionalLight(0xffffff, 2);
+      light.position.set(10, -10, 20);
+      this.scene.add(light);
+    }
+    this.scene.add(this.drone);
     if (start) this.drone.position.set(start.x, start.y, start.z);
     this.resize();
     window.addEventListener("resize", this.resizeHandler);
@@ -117,7 +135,38 @@ export class ThreejsRenderer implements IRenderer {
   }
 
   private async loadVisual(loader: GLTFLoader, config: WorldConfig): Promise<void> {
-    if (config.splatLodManifestPath) {
+    if (config.proceduralWorld === "forest") {
+      this.status("Growing forest…");
+      // Give the loading overlay a chance to paint before procedural generation.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      const { createForest } = await import("./forest/forest");
+      this.forest = createForest(this.renderer);
+      const scale = config.mapScale ?? 1;
+      this.forest.root.scale.setScalar(scale);
+      this.forest.collision.scale.setScalar(scale);
+      this.scene.background = this.forest.background;
+      this.scene.fog = this.forest.fog;
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.08;
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      this.scene.add(this.forest.root, this.forest.collision);
+      this.applyQuality();
+      this.onMapLoaded?.(this.forest.collision);
+      if (new URLSearchParams(location.search).get("collision") === "1" || localStorage.getItem(STORAGE_KEYS.collision) === "1") {
+        this.forest.collision.visible = true;
+        this.forest.collision.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            const material = child.material as THREE.MeshBasicMaterial;
+            material.color.set(0x00ffcc);
+            material.wireframe = true;
+            material.transparent = true;
+            material.opacity = 0.25;
+            material.depthWrite = false;
+          }
+        });
+      }
+      this.status("Forest ready", 1);
+    } else if (config.splatLodManifestPath) {
       this.status("Loading environment…");
       const url = new URL(this.assetUrl(config.splatLodManifestPath));
       const manifest = await fetchSplatLodManifest(url);
@@ -224,6 +273,7 @@ export class ThreejsRenderer implements IRenderer {
       this.controls.update();
     }
     this.previousMode = mode;
+    this.forest?.update(this.camera);
     if (this.goggles) {
       this.goggles.render(this.camera.position, this.camera.quaternion);
       return;
@@ -332,6 +382,7 @@ export class ThreejsRenderer implements IRenderer {
       this.spark.blurAmount = 0.0;
     }
     if (this.splats) this.splats.enableLod = settings.enableLod;
+    this.forest?.setQuality(quality);
     this.resize();
   }
 
@@ -343,12 +394,14 @@ export class ThreejsRenderer implements IRenderer {
     window.removeEventListener("resize", this.resizeHandler);
     document.getElementById("quality")?.removeEventListener("change", this.qualityHandler);
     this.controls?.dispose();
+    this.forest?.dispose();
+    this.forest = undefined;
     this.splats?.removeFromParent();
     this.splats?.dispose();
     this.spark?.removeFromParent();
     this.spark?.dispose();
     this.scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
+      if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.Line)) return;
       object.geometry.dispose();
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
         for (const value of Object.values(material)) if (value instanceof THREE.Texture) value.dispose();

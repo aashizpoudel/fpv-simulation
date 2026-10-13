@@ -7,6 +7,16 @@ export function setupConfigControls(currentRenderer: RendererType, currentWorld:
   const collisionCheckbox = document.getElementById("collisionCheckbox") as HTMLInputElement | null;
   const qualitySelect = document.getElementById("quality") as HTMLSelectElement | null;
 
+  const racePropsCheckbox = document.getElementById("racePropsCheckbox") as HTMLInputElement | null;
+  if (racePropsCheckbox) {
+    racePropsCheckbox.checked = localStorage.getItem(STORAGE_KEYS.raceProps) !== "0";
+    racePropsCheckbox.disabled = currentRenderer === "cesium";
+    racePropsCheckbox.addEventListener("change", () => {
+      localStorage.setItem(STORAGE_KEYS.raceProps, racePropsCheckbox.checked ? "1" : "0");
+      window.location.reload();
+    });
+  }
+
   if (worldSelect) {
     worldSelect.value = currentWorld;
     if (currentRenderer === "cesium") {

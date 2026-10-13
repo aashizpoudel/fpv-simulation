@@ -1,3 +1,5 @@
+import { Box3 } from "three";
+import { generateRaceProps, RacePropTracker, type RaceProp } from "../race/race-props";
 import type { DroneConfig } from "../config/drone-config";
 import { defaultPreset, normalizePreset } from "../config/presets";
 import { takePendingReplay } from "./flight-settings";
@@ -72,6 +74,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   );
   let replayIndex = 0;
   let recording: FlightRecording | undefined;
+  let raceProps: RaceProp[] = [];
   let recordingActive = false;
   let pendingRecordedReset = false;
   const renderer: IRenderer = await createRenderer(options.rendererType);
@@ -253,6 +256,23 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     physicsReady = true;
     if (pendingMapCollider)
       simulationEngine.createMapCollider(pendingMapCollider);
+    if (options.worldConfig && renderer.setRaceProps) {
+      // Mesh bounds reflect the loaded coordinate conversion (especially DeDust).
+      const bounds = pendingMapCollider ? new Box3().setFromObject(pendingMapCollider) : undefined;
+      const world = options.worldConfig;
+      const placementWorld = bounds && !bounds.isEmpty() && !world.proceduralWorld
+        ? { ...world, bounds: { min: { ...world.bounds.min, x: bounds.min.x, y: bounds.min.y },
+            max: { ...world.bounds.max, x: bounds.max.x, y: bounds.max.y } } }
+        : world;
+      raceProps = replay ? replay.raceProps ?? [] : localStorage.getItem(STORAGE_KEYS.raceProps) === "0" ? [] : generateRaceProps(placementWorld,
+        (position, radius) => simulationEngine.isPropSpaceClear(position, radius));
+      if (raceProps.length) {
+        const mesh = renderer.setRaceProps(raceProps) as import("three").Object3D;
+        simulationEngine.createPropCollider(mesh);
+        simulationEngine.raceProps = new RacePropTracker(raceProps, Math.hypot(config.length, config.width, config.height) / 2);
+        simulationEngine.onPropCompleted = () => audioEngine.playPropCompletion();
+      }
+    }
   } catch (error) {
     unsubscribeAudioVolume();
     audioEngine.dispose();
@@ -309,6 +329,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       simulationStart,
       simulationEngine.timestep,
     );
+    recording.raceProps = raceProps;
     pendingRecordedReset = false;
     recordingActive = true;
     setRecordingIndicatorVisible(true);
