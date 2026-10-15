@@ -1,8 +1,8 @@
 import * as THREE from "three";
 
 export function meshToTrimesh(mesh: THREE.Object3D): {
-  vertices: number[];
-  indices: number[];
+  vertices: Float32Array;
+  indices: Uint32Array;
 } {
   const vertices: number[] = [];
   const indices: number[] = [];
@@ -48,5 +48,5 @@ export function meshToTrimesh(mesh: THREE.Object3D): {
     }
   });
 
-  return { vertices, indices };
+  return { vertices: new Float32Array(vertices), indices: new Uint32Array(indices) };
 }

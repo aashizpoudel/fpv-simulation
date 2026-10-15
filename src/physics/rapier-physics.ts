@@ -2,12 +2,11 @@ import { BatteryModel } from "./battery-model";
 import { aerodynamicForces } from "./aerodynamics";
 import { normalizePreset } from "../config/presets";
 import RAPIER from "@dimforge/rapier3d-compat";
-import * as THREE from "three";
+import type { CollisionData } from "../core/simulation-messages";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
 import { FlightController } from "../controllers/flight-controller";
 import { buildFlightMode } from "../controllers/flight-mode-factory";
 import { createDroneColliders } from "./drone-colliders";
-import { meshToTrimesh } from "./map-collider";
 import { DroneConfig, Tinyhawk3Config } from "../config/tinyhawk-config";
 import type {
   IController,
@@ -27,8 +26,8 @@ export class RapierPhysics {
   private rotorOffsets?: Vec3[];
   private droneTelemetry: DroneTelemetry;
   private startPosition: Vec3;
-  private mapMesh?: THREE.Object3D;
-  private propMesh?: THREE.Object3D;
+  private mapCollision?: CollisionData;
+  private propCollision?: CollisionData;
   private propBody?: RAPIER.RigidBody;
   private roofHeight: number = Infinity;
   private droneCollider?: RAPIER.Collider;
@@ -67,20 +66,19 @@ export class RapierPhysics {
     };
   }
 
-  public createCollider(mesh: THREE.Object3D): void {
+  public createCollider(data: CollisionData): void {
     if (!this.world) {
       console.log("No world defined yet");
       return;
     }
 
-    // Store the mesh so the collider can be re-created after world reset
-    this.mapMesh = mesh;
-
-    const { vertices, indices } = meshToTrimesh(mesh);
+    // Retain worker-owned arrays so a rebuilt world can restore its colliders.
+    const { vertices, indices } = data;
 
     if (vertices.length === 0 || indices.length === 0) {
       throw new Error("The environment collision mesh contains no triangles.");
     }
+    this.mapCollision = data;
 
     const rigidBodyDesc = RAPIER.RigidBodyDesc.fixed();
     if (this.mapBody) this.world.removeRigidBody(this.mapBody);
@@ -88,8 +86,8 @@ export class RapierPhysics {
     this.mapBody = rigidBody;
 
     const colliderDesc = RAPIER.ColliderDesc.trimesh(
-      new Float32Array(vertices),
-      new Uint32Array(indices),
+      vertices,
+      indices,
     );
 
     this.world.createCollider(colliderDesc, rigidBody);
@@ -109,13 +107,14 @@ export class RapierPhysics {
     return clear;
   }
 
-  public createPropCollider(mesh: THREE.Object3D): void {
+  public createPropCollider(data: CollisionData): void {
     if (!this.world) return;
-    this.propMesh = mesh;
+    this.propCollision = data;
     if (this.propBody) this.world.removeRigidBody(this.propBody);
     this.propBody = this.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    const { vertices, indices } = meshToTrimesh(mesh);
-    this.world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(vertices), new Uint32Array(indices)), this.propBody);
+    const { vertices, indices } = data;
+    const collider = RAPIER.ColliderDesc.trimesh(vertices, indices);
+    this.world.createCollider(collider, this.propBody);
     this.world.updateSceneQueries();
   }
 
@@ -189,12 +188,12 @@ export class RapierPhysics {
     this.mapBody = undefined;
     this.propBody = undefined;
     this.setupDrone(this.startPosition);
-    if (this.propMesh) this.createPropCollider(this.propMesh);
+    if (this.propCollision) this.createPropCollider(this.propCollision);
     // Create ceiling collider if roofHeight is finite
     this.createCeilingCollider();
     // Re-create the map collider if one was previously registered
-    if (this.mapMesh) {
-      this.createCollider(this.mapMesh);
+    if (this.mapCollision) {
+      this.createCollider(this.mapCollision);
     }
   }
 

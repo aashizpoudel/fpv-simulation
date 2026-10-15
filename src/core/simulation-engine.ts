@@ -1,7 +1,7 @@
 import type { DroneConfig } from "../config/drone-config";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
 import { RapierPhysics } from "../physics/rapier-physics";
-import type * as THREE from "three";
+import type { CollisionData } from "./simulation-messages";
 
 const DEFAULT_FIXED_TIME_STEP = 1 / 480;
 // Keep real-time physics through ordinary rendering dips down to 15 FPS.
@@ -19,8 +19,12 @@ export type SimulationEngineOptions = {
 export class SimulationEngine {
   public raceProps?: import("../race/race-props").RacePropTracker;
   public onPropCompleted?: () => void;
-  isPropSpaceClear(position: Vec3, radius: number): boolean { return this.physics.isPropSpaceClear(position, radius); }
-  createPropCollider(mesh: THREE.Object3D): void { this.physics.createPropCollider(mesh); }
+  isPropSpaceClear(position: Vec3, radius: number): boolean {
+    return this.physics.isPropSpaceClear(position, radius);
+  }
+  createPropCollider(data: CollisionData): void {
+    this.physics.createPropCollider(data);
+  }
   private physics: RapierPhysics;
   public beforeFixedStep?: (input: Controls) => Controls | null;
   public afterFixedStep?: (input: Controls, telemetry: DroneTelemetry) => void;
@@ -125,7 +129,7 @@ export class SimulationEngine {
     this.physics.dispose();
   }
 
-  createMapCollider(mapObject: THREE.Object3D): void {
-    this.physics.createCollider(mapObject);
+  createMapCollider(data: CollisionData): void {
+    this.physics.createCollider(data);
   }
 }

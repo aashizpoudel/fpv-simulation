@@ -32,7 +32,7 @@ describe("procedural forest", () => {
     const physics = new RapierPhysics();
     try {
       await physics.init(ForestWorldConfig.spawnPosition);
-      physics.createCollider(forest.collision);
+      physics.createCollider(meshToTrimesh(forest.collision));
       let seed = 42;
       const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
       const props = generateRaceProps(ForestWorldConfig, (p, r) => physics.isPropSpaceClear(p, r), random);
@@ -144,7 +144,7 @@ describe("procedural forest", () => {
     const neutral: Controls = { thrust: 0, pitch: 0, roll: 0, yaw: 0, speedMultiplier: 1, arm: false, reset: false };
     try {
       await physics.init(spawn);
-      physics.createCollider(forest.collision);
+      physics.createCollider(meshToTrimesh(forest.collision));
       for (let i = 0; i < 240; i++) physics.step(neutral, 1 / 480, -Infinity);
       const settled = physics.getTelemetry();
       expect(settled.localPosition.z).toBeGreaterThan(groundH(spawn.x, -spawn.y));

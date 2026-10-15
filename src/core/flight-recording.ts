@@ -81,3 +81,9 @@ export function parseRecording(text: string): FlightRecording {
   }
   return r;
 }
+
+/** Capture exactly one applied physics command without exceeding the format limit. */
+export function appendRecordingStep(recording: FlightRecording, controls: Controls, mode: RecordedStep["mode"]): boolean {
+  if (recording.steps.length < MAX_RECORDING_STEPS) recording.steps.push({ controls: { ...controls }, mode });
+  return recording.steps.length < MAX_RECORDING_STEPS;
+}

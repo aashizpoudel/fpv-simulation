@@ -1,3 +1,4 @@
+import { meshToTrimesh } from "../src/physics/map-collider";
 // @vitest-environment node
 import { afterEach, describe, expect, it } from "vitest";
 import * as THREE from "three";
@@ -21,7 +22,7 @@ async function setup(z: number) {
   await physics.init({ x: 0, y: 0, z });
   const floor = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 0.2));
   floor.position.z = -0.1;
-  physics.createCollider(floor);
+  physics.createCollider(meshToTrimesh(floor));
   return physics;
 }
 function advance(physics: RapierPhysics, seconds: number, controls = neutral) {
@@ -63,7 +64,7 @@ describe("Rapier flight and contacts", () => {
     const physics = new RapierPhysics(Tinyhawk3Config);
     instances.push(physics);
     await physics.init(spawn);
-    physics.createCollider(map);
+    physics.createCollider(meshToTrimesh(map));
     const landed = advance(physics, 5);
     expect(landed.localPosition.z).toBeGreaterThan(config.groundLevel);
     expect(landed.localPosition.z).toBeLessThan(config.groundLevel + 0.1);
@@ -91,7 +92,7 @@ describe("Rapier flight and contacts", () => {
     const physics = new RapierPhysics(config); instances.push(physics);
     await physics.init({x:0,y:0,z:2});
     const floor = new THREE.Mesh(new THREE.BoxGeometry(20,20,0.2)); floor.position.z=-0.1;
-    physics.createCollider(floor);
+    physics.createCollider(meshToTrimesh(floor));
     let maximumImpact = 0;
     for(let i=0;i<480;i++) maximumImpact = Math.max(maximumImpact,physics.step(neutral,1/480,-Infinity).impactDeltaVelocity ?? 0);
     expect(maximumImpact).toBeGreaterThan(3);
@@ -102,7 +103,7 @@ describe("Rapier flight and contacts", () => {
   it("handles a glancing duct contact without declaring a hard crash", async () => {
     const physics = await setup(1);
     const wall = new THREE.Mesh(new THREE.BoxGeometry(0.02,10,10)); wall.position.set(0.3,0,1);
-    physics.createCollider(wall);
+    physics.createCollider(meshToTrimesh(wall));
     const body = (physics as unknown as {body:RAPIER.RigidBody}).body;
     body.setLinvel({x:0.8,y:2,z:0},true);
     const result=advance(physics,0.5);
@@ -151,7 +152,7 @@ describe("Rapier flight and contacts", () => {
     const physics = await setup(1);
     const wall = new THREE.Mesh(new THREE.BoxGeometry(0.02, 10, 10));
     wall.position.set(0.3, 0, 1);
-    physics.createCollider(wall);
+    physics.createCollider(meshToTrimesh(wall));
     // Seed a high-speed impact without depending on controller tuning.
     const body = (physics as unknown as { body: RAPIER.RigidBody }).body;
     body.setLinvel({ x: 80, y: 0, z: 0 }, true);
@@ -179,7 +180,7 @@ describe("Rapier flight and contacts", () => {
       const physics = new RapierPhysics(Tinyhawk3Config);
       instances.push(physics);
       await physics.init(spawn);
-      physics.createCollider(map);
+      physics.createCollider(meshToTrimesh(map));
       const result = advance(physics, 1);
       expect(result.localPosition.z).toBeGreaterThan(-0.7);
       expect(result.localPosition.z).toBeLessThan(-0.6);

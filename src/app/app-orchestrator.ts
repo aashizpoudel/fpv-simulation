@@ -1,19 +1,17 @@
 import { Box3 } from "three";
-import { generateRaceProps, RacePropTracker, type RaceProp } from "../race/race-props";
+import type { RaceProp } from "../race/race-props";
 import type { DroneConfig } from "../config/drone-config";
 import { defaultPreset, normalizePreset } from "../config/presets";
 import { takePendingReplay } from "./flight-settings";
 import { downloadJson } from "./download";
 import {
   createRecording,
-  MAX_RECORDING_STEPS,
   type FlightRecording,
 } from "../core/flight-recording";
 import type { WorldConfig } from "../config/world-config";
-import {
-  SimulationEngine,
-  type SimulationEngineOptions,
-} from "../core/simulation-engine";
+import { SimulationClient, type ExecutionMode } from "../core/simulation-client";
+import type { SimulationOptions } from "../core/simulation-messages";
+import { meshToTrimesh } from "../physics/map-collider";
 import { InputManager } from "../input/input-manager";
 import { createNeutralControls, type InputSourceKind } from "../input/input-provider";
 import { requestVrSession } from "../xr/xr-support";
@@ -52,7 +50,8 @@ export type AppOrchestratorOptions = {
   simulationStart?: Vec3;
   rendererStart?: Vec3;
   initialCameraMode?: CameraMode;
-  simulationOptions?: Omit<SimulationEngineOptions, "config">;
+  simulationOptions?: Omit<SimulationOptions, "config">;
+  simulationExecution?: ExecutionMode;
   worldConfig?: WorldConfig;
 };
 
@@ -72,17 +71,15 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   const config = normalizePreset(
     replay?.config ?? options.droneConfig ?? defaultPreset(),
   );
-  let replayIndex = 0;
   let recording: FlightRecording | undefined;
   let raceProps: RaceProp[] = [];
   let recordingActive = false;
-  let pendingRecordedReset = false;
   const renderer: IRenderer = await createRenderer(options.rendererType);
-  const simulationEngine = new SimulationEngine({
+  const simulationClient = new SimulationClient({
     config: config,
     roofHeight: options.worldConfig?.roofHeight,
     ...options.simulationOptions,
-  });
+  }, options.simulationExecution);
   const audioEngine = new DroneAudioEngine(config);
   const unsubscribeAudioVolume = subscribeAudioVolume(volume => audioEngine.setVolume(volume));
   audioEngine.preload();
@@ -121,7 +118,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   const setStartingFlightMode = (mode: FlightModeName | undefined) => {
     if (!mode || replay || flightStarted) return;
     flightMode = mode;
-    simulationEngine.switchFlightMode(flightMode);
+    simulationClient.switchFlightMode(flightMode);
   };
   let flightStarted = false;
   let lastTime = performance.now();
@@ -212,7 +209,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
         // The motion controller steers through angle mode only.
         if (!flightStarted || replay || activeInputSource === "motion") return;
         flightMode = flightMode === "acro" ? "angle" : "acro";
-        simulationEngine.switchFlightMode(flightMode);
+        simulationClient.switchFlightMode(flightMode);
       },
       onToggleRecording: () => {
         if (!flightStarted || replay) return;
@@ -241,21 +238,24 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     renderer.mapScale = options.worldConfig.mapScale;
   }
 
-  // Asset loading and Rapier WASM initialization happen concurrently. Keep a
-  // completed collision asset until the physics world is ready to avoid a race.
+  // Retain collision geometry until physics is ready, then await installation.
   let physicsReady = false;
   let pendingMapCollider: import("three").Object3D | undefined;
+  let collisionInstallation = Promise.resolve();
   renderer.onMapLoaded = (mapObject) => {
     pendingMapCollider = mapObject as import("three").Object3D;
-    if (physicsReady) simulationEngine.createMapCollider(pendingMapCollider);
+    if (physicsReady) {
+      collisionInstallation = simulationClient.installCollision("map", meshToTrimesh(pendingMapCollider));
+      void collisionInstallation.catch(error => simulationClient.onError?.(error));
+    }
   };
 
   try {
     await Promise.resolve(renderer.init(container, rendererStart));
-    await simulationEngine.init(simulationStart);
+    await simulationClient.init(simulationStart);
     physicsReady = true;
     if (pendingMapCollider)
-      simulationEngine.createMapCollider(pendingMapCollider);
+      await simulationClient.installCollision("map", meshToTrimesh(pendingMapCollider));
     if (options.worldConfig && renderer.setRaceProps) {
       // Mesh bounds reflect the loaded coordinate conversion (especially DeDust).
       const bounds = pendingMapCollider ? new Box3().setFromObject(pendingMapCollider) : undefined;
@@ -264,24 +264,31 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
         ? { ...world, bounds: { min: { ...world.bounds.min, x: bounds.min.x, y: bounds.min.y },
             max: { ...world.bounds.max, x: bounds.max.x, y: bounds.max.y } } }
         : world;
-      raceProps = replay ? replay.raceProps ?? [] : localStorage.getItem(STORAGE_KEYS.raceProps) === "0" ? [] : generateRaceProps(placementWorld,
-        (position, radius) => simulationEngine.isPropSpaceClear(position, radius));
+      if (replay) {
+        raceProps = replay.raceProps ?? [];
+      } else if (localStorage.getItem(STORAGE_KEYS.raceProps) !== "0") {
+        raceProps = await simulationClient.placeProps(placementWorld);
+      }
       if (raceProps.length) {
         const mesh = renderer.setRaceProps(raceProps) as import("three").Object3D;
-        simulationEngine.createPropCollider(mesh);
-        simulationEngine.raceProps = new RacePropTracker(raceProps, Math.hypot(config.length, config.width, config.height) / 2);
-        simulationEngine.onPropCompleted = () => audioEngine.playPropCompletion();
+        await simulationClient.installCollision("props", meshToTrimesh(mesh));
+        await simulationClient.command({
+          type: "props",
+          props: raceProps,
+          margin: Math.hypot(config.length, config.width, config.height) / 2,
+        });
+        simulationClient.onPropCompleted = () => audioEngine.playPropCompletion();
       }
     }
   } catch (error) {
     unsubscribeAudioVolume();
     audioEngine.dispose();
     renderer.dispose();
-    simulationEngine.dispose();
+    simulationClient.dispose();
     throw error;
   }
 
-  simulationEngine.switchFlightMode(flightMode);
+  simulationClient.switchFlightMode(flightMode);
   inputProvider.setFlightInputEnabled(false);
   inputProvider.useKeyboard();
   inputProvider.init();
@@ -316,62 +323,73 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     inputProvider.dispose();
     inputProvider.init();
   };
-  const startRecording = () => {
-    replay = undefined;
-    replayIndex = 0;
-    stopReplayButton.hidden = true;
-    restartInput();
-    simulationEngine.reset();
-    simulationEngine.switchFlightMode(flightMode);
-    recording = createRecording(
-      config,
-      worldName,
-      simulationStart,
-      simulationEngine.timestep,
-    );
-    recording.raceProps = raceProps;
-    pendingRecordedReset = false;
-    recordingActive = true;
-    setRecordingIndicatorVisible(true);
-    exportButton.disabled = false;
-    recordingStatus.textContent = "Recording active. Arm to fly. Press G to stop.";
-    recordButton.blur();
-  };
-  const stopRecording = () => {
-    if (!recordingActive) return;
-    recordingActive = false;
-    setRecordingIndicatorVisible(false);
-    if (recording?.steps.length) {
-      recordingStatus.textContent = `Recorded ${(recording.steps.length * recording.fixedTimeStep).toFixed(1)}s. Export to save, or press G to record.`;
+  let recordingBusy = false;
+  let recordedSteps = 0;
+  const startRecording = async () => {
+    if (recordingBusy) return;
+    recordingBusy = true;
+    try {
+      replay = undefined;
+      stopReplayButton.hidden = true;
+      restartInput();
+      simulationClient.reset();
+      simulationClient.switchFlightMode(flightMode);
+      recording = createRecording(
+        config,
+        worldName,
+        simulationStart,
+        options.simulationOptions?.fixedTimeStep ?? 1 / 480,
+      );
+      recording.raceProps = raceProps;
+      await simulationClient.startRecording(recording);
+      recordedSteps = 0;
+      recordingActive = true;
+      setRecordingIndicatorVisible(true);
       exportButton.disabled = false;
-    } else {
-      recordingStatus.textContent = "Recording stopped. Press G to record.";
+      recordingStatus.textContent = "Recording active. Arm to fly. Press G to stop.";
+      recordButton.blur();
+    } finally {
+      recordingBusy = false;
     }
+  };
+  const stopRecording = async () => {
+    if (recordingBusy) throw new Error("Recording command is still pending");
+    recordingBusy = true;
+    try {
+      recording = await simulationClient.stopRecording();
+      recordingActive = false;
+      setRecordingIndicatorVisible(false);
+      exportButton.disabled = !recording?.steps.length;
+      recordingStatus.textContent = recording?.steps.length
+        ? `Recorded ${(recording.steps.length * recording.fixedTimeStep).toFixed(1)}s. Export to save, or press G to record.`
+        : "Recording stopped. Press G to record.";
+    } finally {
+      recordingBusy = false;
+    }
+  };
+  const reportCommandError = (error: unknown) => {
+    recordingStatus.textContent = `Simulation error: ${String(error)}. Reload to restart.`;
   };
   const toggleRecording = () => {
-    if (recordingActive) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
+    const command = recordingActive ? stopRecording() : startRecording();
+    void command.catch(reportCommandError);
   };
   handleToggleRecording = toggleRecording;
-
   const exportRecording = () => {
-    if (!recording?.steps.length) return;
-    recordingActive = false;
-    setRecordingIndicatorVisible(false);
-    downloadJson("whoop-flight.json", JSON.stringify(recording));
-    recordingStatus.textContent = `Exported ${(recording.steps.length * recording.fixedTimeStep).toFixed(1)} seconds.`;
-    exportButton.blur();
+    void (async () => {
+      await stopRecording();
+      if (!recording?.steps.length) return;
+      downloadJson("whoop-flight.json", JSON.stringify(recording));
+      recordingStatus.textContent = `Exported ${(recording.steps.length * recording.fixedTimeStep).toFixed(1)} seconds.`;
+      exportButton.blur();
+    })().catch(reportCommandError);
   };
   const stopReplay = () => {
     replay = undefined;
-    replayIndex = 0;
     stopReplayButton.hidden = true;
     restartInput();
-    simulationEngine.reset();
-    simulationEngine.switchFlightMode(flightMode);
+    simulationClient.send({ type: "replay" });
+    simulationClient.switchFlightMode(flightMode);
     recordingStatus.textContent = "Replay stopped. Flight reset.";
     stopReplayButton.blur();
   };
@@ -382,37 +400,26 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     stopReplayButton.hidden = false;
     recordingStatus.textContent = "Replaying recorded inputs…";
   }
-  simulationEngine.beforeFixedStep = (input) => {
-    if (replay) {
-      const step = replay.steps[replayIndex++];
-      if (!step) {
-        recordingStatus.textContent =
-          "Replay complete. Stop replay to return to live controls.";
-        return null;
-      }
-      if (step.controls.reset) simulationEngine.resetBody();
-      if (step.mode !== flightMode || step.controls.reset) {
-        flightMode = step.mode;
-        simulationEngine.switchFlightMode(flightMode);
-      }
-      simulationEngine.setArmed(step.controls.arm);
-      return step.controls;
+  simulationClient.onSnapshot = snapshot => {
+    flightMode = snapshot.mode;
+    recordedSteps = snapshot.recordingSteps;
+    armedFlightTime = snapshot.armedFlightTime;
+    if (recordingActive && !snapshot.recordingActive && !recordingBusy) {
+      recordingActive = false;
+      setRecordingIndicatorVisible(false);
+      recordingStatus.textContent = "Recording limit reached. Export to save.";
     }
-    if (recordingActive && recording) {
-      recording.steps.push({
-        controls: { ...input, reset: pendingRecordedReset },
-        mode: flightMode,
-      });
-      pendingRecordedReset = false;
-      if (recording.steps.length >= MAX_RECORDING_STEPS) {
-        recordingActive = false;
-        setRecordingIndicatorVisible(false);
-        recordingStatus.textContent =
-          "Two-minute recording limit reached. Export to save.";
-      }
-    }
-    return input;
+    if (replay && snapshot.replayComplete)
+      recordingStatus.textContent = "Replay complete. Stop replay to return to live controls.";
   };
+  simulationClient.onError = error => {
+    reportCommandError(error);
+    ui.statusBanner.classList.add("show");
+    ui.statusBanner.textContent = "Simulation paused. Reload to restart.";
+  };
+  if (replay) await simulationClient.command({ type: "replay", recording: replay });
+  await collisionInstallation;
+  await simulationClient.command({ type: "pause", paused: document.hidden && !vrActive });
   const hoverHint = document.getElementById("hoverHint");
   if (hoverHint)
     hoverHint.textContent = `Estimated hover: ${(config.hoverThrottle * 100).toFixed(0)}% at ${config.propulsion.referenceVoltage} V; varies with battery. Angle mode self-levels; press F for acro mode.`;
@@ -479,11 +486,16 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
   const onVisibilityChange = () => {
     lastTime = performance.now();
+    simulationClient.pause(document.hidden && !vrActive);
     void audioEngine.setSuspended(document.hidden && !vrActive).catch(() => undefined);
   };
   document.addEventListener("visibilitychange", onVisibilityChange);
   const animate = () => {
     if (stopped) return;
+    if (!simulationClient.ready) {
+      scheduleFrame();
+      return;
+    }
     const now = performance.now();
     const deltaTime = (now - lastTime) / 1000;
     lastTime = now;
@@ -498,17 +510,19 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       ? inputProvider.read(deltaTime)
       : createNeutralControls();
     if (!replay && (controls.reset || resetRequested)) {
-      pendingRecordedReset = true;
-      simulationEngine.reset();
-      simulationEngine.switchFlightMode(flightMode);
+      simulationClient.reset();
+      simulationClient.switchFlightMode(flightMode);
       ui.statusBanner.classList.remove("show");
       resetRequested = false;
       armedFlightTime = 0;
     }
 
-    if (!replay) simulationEngine.setArmed(controls.arm);
-    const telemetry = simulationEngine.step(controls, deltaTime);
-    if (telemetry.armed && Number.isFinite(deltaTime)) armedFlightTime += deltaTime;
+    simulationClient.update(controls, now);
+    if (!simulationClient.snapshot) {
+      scheduleFrame();
+      return;
+    }
+    const telemetry = simulationClient.getTelemetry();
 
     if (
       flightStarted &&
@@ -522,7 +536,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
     ui.statusBanner.classList.toggle("show", telemetry.crashed);
 
-    renderer.render(telemetry, cameraMode);
+    renderer.render(simulationClient.interpolation.sample(now) ?? telemetry, cameraMode);
     audioEngine.update(telemetry, cameraMode, renderer.getCameraPosition?.(), renderer.getCameraAudioOrientation?.());
     if (now - lastHudUpdate > 100) {
       updateHUD(ui, telemetry, cameraMode, flightMode, crosshairEnabled, horizonLineEnabled);
@@ -532,7 +546,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
           flightMode,
           flightTimeSec: armedFlightTime,
           recording: recordingActive,
-          recordingSec: recording ? recording.steps.length * recording.fixedTimeStep : 0,
+          recordingSec: recording ? recordedSteps * recording.fixedTimeStep : 0,
           crosshair: crosshairEnabled,
           horizonLine: horizonLineEnabled,
           sticks: stickOverlayEnabled && activeInputSource !== "keyboard" ? controls : null,
@@ -542,7 +556,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       }
       if (recordingActive && recording && recTime) {
         const totalSec = Math.floor(
-          recording.steps.length * recording.fixedTimeStep,
+          recordedSteps * recording.fixedTimeStep,
         );
         const mins = Math.floor(totalSec / 60);
         const secs = totalSec % 60;
@@ -571,6 +585,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
   renderer.onVrEnd = () => {
     vrActive = false;
+    simulationClient.pause(document.hidden);
     cameraMode = cameraModeBeforeVr;
     if (cameraSelect) {
       cameraSelect.disabled = false;
@@ -601,8 +616,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     // Navigation releases the document's WebGL context and workers. Calling
     // Spark.dispose here races its pending GPU readbacks/worker replies.
     // Explicit renderer disposal remains in the initialization failure path.
-    simulationEngine.dispose();
-  });
+    simulationClient.dispose();
+  }, { once: true });
 
   return {
     async play(control, mode) {
@@ -630,6 +645,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       await renderer.enterVr(session, loadGogglesSettings());
       setStartingFlightMode(control === "motion" ? "angle" : mode);
       vrActive = true;
+      simulationClient.pause(false);
       cameraModeBeforeVr = cameraMode;
       cameraMode = "fpv";
       if (cameraSelect) {
@@ -640,7 +656,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       if (control === "motion") {
         inputProvider.useMotionController({
           getPose: () => renderer.getXrControllerPose?.("right") ?? null,
-          getTelemetry: () => simulationEngine.getTelemetry(),
+          getTelemetry: () => simulationClient.getTelemetry(),
           config,
         });
       } else {

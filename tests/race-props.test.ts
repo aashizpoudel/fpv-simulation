@@ -1,3 +1,4 @@
+import { meshToTrimesh } from "../src/physics/map-collider";
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { Box3, Mesh, BoxGeometry, MeshBasicMaterial } from "three";
@@ -52,7 +53,7 @@ describe("freestyle race props", () => {
       try {
         physics.setRoofHeight(config.roofHeight);
         await physics.init(config.spawnPosition);
-        physics.createCollider(mesh);
+        physics.createCollider(meshToTrimesh(mesh));
         for (const seed of [1, 25, 9876]) {
           const props = generateRaceProps(world, (pos, radius) => physics.isPropSpaceClear(pos, radius), seeded(seed));
           expect(props).toHaveLength(12);
@@ -68,11 +69,11 @@ describe("freestyle race props", () => {
       await physics.init(ForestWorldConfig.spawnPosition);
       const floor = new Mesh(new BoxGeometry(300, 300, 0.2));
       floor.position.z = -0.1;
-      physics.createCollider(floor);
+      physics.createCollider(meshToTrimesh(floor));
       const props = generateRaceProps(ForestWorldConfig, (p, r) => physics.isPropSpaceClear(p, r), seeded(5));
       expect(props).toHaveLength(12);
       const meshes = createRacePropMeshes(props);
-      physics.createPropCollider(meshes);
+      physics.createPropCollider(meshToTrimesh(meshes));
       expect(physics.isPropSpaceClear(p(10, 10, 0), 0.2)).toBe(false);
       for (const prop of props) expect(physics.isPropSpaceClear(prop.position, 0.1)).toBe(true);
       physics.reset();

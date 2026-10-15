@@ -335,7 +335,8 @@ try {
             "Headless replay supports empty, Factory, and DeDust worlds",
           );
         const map = await loadCollider(resolve("public", world.collisionGlbPath ?? world.mapGlbPath), world);
-        physics.createCollider(map);
+        const { meshToTrimesh } = await server.ssrLoadModule("/src/physics/map-collider.ts");
+        physics.createCollider(meshToTrimesh(map));
         if (Number.isFinite(world.roofHeight)) {
           physics.setRoofHeight(world.roofHeight);
           physics.dispose();
