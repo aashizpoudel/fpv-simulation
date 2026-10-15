@@ -3,6 +3,7 @@ import { setupSettingsTabs } from "./settings-tabs";
 import type { DroneConfig } from "../config/drone-config";
 import {
   defaultPreset,
+  normalizePreset,
   parsePreset,
   exportPreset,
   PRESET_STORAGE_KEY,
@@ -10,10 +11,11 @@ import {
 import { downloadJson } from "./download";
 import { parseRecording, type FlightRecording } from "../core/flight-recording";
 import { STORAGE_KEYS } from "./storage-keys";
+import { loadSelectedDrone } from "./drone-selection";
 
 export function loadFlightConfig(): DroneConfig {
   const saved = localStorage.getItem(PRESET_STORAGE_KEY);
-  if (!saved) return defaultPreset();
+  if (!saved) return normalizePreset(loadSelectedDrone().config);
   try {
     return parsePreset(saved);
   } catch (error) {

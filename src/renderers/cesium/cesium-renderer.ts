@@ -2,6 +2,8 @@ import * as Cesium from "cesium";
 import { IRenderer } from "../renderer-interface";
 import type { CameraMode, DroneTelemetry, Vec3, Quaternion } from "../../types";
 import type { DroneConfig } from "../../config/drone-config";
+import { RotorAnimation } from "../rotor-animation";
+import { rotorNodeTransformations } from "./rotor-node-animation";
 
 type PoseState = {
   position: Cesium.Cartesian3;
@@ -21,6 +23,7 @@ export class CesiumRenderer implements IRenderer {
   private feedViewer?: Cesium.Viewer;
   private feedMode: "auto" | "fpv" | "third" = "auto";
   private droneConfig?: DroneConfig;
+  private rotorAnimation?: RotorAnimation;
   private scratchCarto = new Cesium.Cartographic();
   private clampZ = 0;
   private lastClampUpdate = 0;
@@ -104,7 +107,7 @@ export class CesiumRenderer implements IRenderer {
 
     const modelUri =
       this.droneConfig?.modelUrl ??
-      `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`;
+      `${import.meta.env.BASE_URL}drone_models/tinyhawk-iii-plus.glb`;
 
     this.droneEntity = this.viewer.entities.add({
       position: new Cesium.CallbackPositionProperty(
@@ -123,6 +126,7 @@ export class CesiumRenderer implements IRenderer {
       // },
       model: {
         uri: modelUri,
+        nodeTransformations: this.rotorAnimation ? rotorNodeTransformations(this.rotorAnimation) : undefined,
         minimumPixelSize: 64,
         maximumScale: 20,
       },
@@ -255,6 +259,7 @@ export class CesiumRenderer implements IRenderer {
 
   public setDroneConfig(config: DroneConfig): void {
     this.droneConfig = config;
+    this.rotorAnimation = new RotorAnimation(config);
   }
 
   public resize(): void {
@@ -288,6 +293,7 @@ export class CesiumRenderer implements IRenderer {
   }
 
   public render(frame: DroneTelemetry, cameraMode: CameraMode): void {
+    this.rotorAnimation?.update(frame);
     const worldPosition = this.toCesiumPosition(frame.localPosition);
     const worldOrientation = this.toCesiumOrientation(frame.localOrientation);
     Cesium.Cartesian3.clone(worldPosition, this.poseState.position);

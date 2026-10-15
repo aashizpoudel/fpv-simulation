@@ -51,7 +51,7 @@ export const Tinyhawk3Config: DroneConfig = {
   width: 0.105,
   length: 0.105,
   height: 0.045,
-  modelUrl: `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`,
+  modelUrl: `${import.meta.env.BASE_URL}drone_models/tinyhawk-iii-plus.glb`,
 
   // Mass: 44g AUW (32g dry + 12.5g battery)
   mass: 0.044,

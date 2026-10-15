@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "collision:ekotori": "node scripts/build-ekotori-collision.mjs",
     "splat:repack": "node scripts/repack-splat-lod.mjs",
-    "physics:benchmark": "node scripts/physics-benchmark.mjs"
+    "physics:benchmark": "node scripts/physics-benchmark.mjs",
+    "drone:build": "node scripts/build-tinyhawk-model.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.12.0",

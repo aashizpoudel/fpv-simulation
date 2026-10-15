@@ -2,6 +2,27 @@ import { readFile, stat } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { inspectCollisionGlb } from "./lib/collision-glb.mjs";
 
+try {
+  const bytes = await readFile("public/drone_models/tinyhawk-iii-plus.glb");
+  if (bytes.toString("ascii", 0, 4) !== "glTF" || bytes.readUInt32LE(4) !== 2 ||
+      bytes.readUInt32LE(8) !== bytes.length) throw new Error("Invalid GLB header");
+  const json = JSON.parse(bytes.toString("utf8", 20, 20 + bytes.readUInt32LE(12)));
+  for (const rotor of ["frontRight", "frontLeft", "rearLeft", "rearRight"]) {
+    for (const part of ["motor", "blades", "blur"]) {
+      if (!json.nodes.some((node) => node.name === `${part}-${rotor}`)) {
+        throw new Error(`Missing animated rotor node: ${part}-${rotor}`);
+      }
+    }
+  }
+  if (!json.meshes?.length || !json.images?.length ||
+      json.images.some((image) => image.bufferView === undefined) ||
+      json.buffers.some((buffer) => buffer.uri)) throw new Error("Expected embedded geometry and textures");
+  console.log("Tinyhawk III Plus model and embedded textures verified.");
+} catch (error) {
+  console.error(`Missing or invalid drone model: ${error.message}\nRun npm run drone:build before building.`);
+  process.exitCode = 1;
+}
+
 const manifestPath = resolve("public/maps/factory-splat/manifest.json");
 try {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));

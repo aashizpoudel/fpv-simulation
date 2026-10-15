@@ -191,8 +191,12 @@ export function validateDroneConfig(c: DroneConfig): void {
     range(c.cameraConfig[key], 0, 10, key);
 }
 export function normalizePreset(config: DroneConfig): DroneConfig {
-  validateDroneConfig(config);
   const copy = structuredClone(config);
+  // Upgrade the original built-in asset without resetting saved flight tuning.
+  if (copy?.modelUrl === `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`) {
+    copy.modelUrl = Tinyhawk3Config.modelUrl;
+  }
+  validateDroneConfig(copy);
   const hover = hoverCommand(
     copy.mass,
     copy.rotors.reduce((s, r) => s + r.maxThrust, 0),

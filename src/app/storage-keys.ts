@@ -1,4 +1,5 @@
 export const STORAGE_KEYS = {
+  drone: "drone_sim_drone",
   world: "drone_sim_world",
   renderer: "drone_sim_renderer",
   camera: "drone_sim_camera",

@@ -17,7 +17,7 @@ describe("welcome screen", () => {
     expect(welcome.hidden).toBe(false);
     expect(welcome.querySelectorAll("h1")).toHaveLength(1);
     expect(welcome.textContent).toContain("Factory and Ekotori");
-    expect(welcome.querySelectorAll("select")).toHaveLength(3);
+    expect(welcome.querySelectorAll("select")).toHaveLength(4);
     expect(welcome.querySelectorAll("button:not([hidden])")).toHaveLength(3);
     // VR is offered only after a headset is detected.
     expect((document.getElementById("welcomeVrBtn") as HTMLButtonElement).hidden).toBe(true);

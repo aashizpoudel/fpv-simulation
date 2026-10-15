@@ -14,6 +14,7 @@ import {
   resolveWorldName,
 } from "./app/url-options";
 import { setupConfigControls } from "./app/config-controls";
+import { setupDroneSelection } from "./app/drone-selection";
 import type { Vec3 } from "./types";
 
 const rendererType = resolveRendererType();
@@ -31,6 +32,7 @@ const rendererStart: Vec3 = isCesium
 const initialCameraMode = resolveCameraMode(isCesium);
 
 setupConfigControls(rendererType, worldName);
+setupDroneSelection();
 
 const droneConfig = loadFlightConfig();
 setupFlightSettings(droneConfig, isCesium ? "cesium" : worldConfig.name);

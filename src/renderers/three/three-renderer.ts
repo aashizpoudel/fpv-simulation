@@ -16,6 +16,8 @@ import { reportLoading } from "../../ui/loading-overlay";
 import type { GogglesSettings } from "../../xr/goggles-config";
 import type { GogglesOsdState } from "../../xr/goggles-osd";
 import type { ForestEnvironment } from "./forest/forest";
+import { RotorAnimation } from "../rotor-animation";
+import { RotorMeshAnimation } from "./rotor-mesh-animation";
 
 /** One WebGL context and one camera per frame, with camera-driven Spark LOD. */
 export class ThreejsRenderer implements IRenderer {
@@ -29,6 +31,8 @@ export class ThreejsRenderer implements IRenderer {
   private controls!: OrbitControls;
   private container!: HTMLElement;
   private droneConfig?: DroneConfig;
+  private rotorAnimation?: RotorAnimation;
+  private rotorMeshes?: RotorMeshAnimation;
   private worldConfig?: WorldConfig;
   private previousMode?: CameraMode;
   private cameraRig = externalCameraRig(0.105);
@@ -50,6 +54,7 @@ export class ThreejsRenderer implements IRenderer {
 
   setDroneConfig(config: DroneConfig): void {
     this.droneConfig = config;
+    this.rotorAnimation = new RotorAnimation(config);
     this.cameraRig = externalCameraRig(Math.max(config.length, config.width));
     const tiltDeg = config.cameraConfig?.fpvTiltDeg ?? 20;
     const tiltRad = (tiltDeg * Math.PI) / 180;
@@ -110,12 +115,11 @@ export class ThreejsRenderer implements IRenderer {
     try {
       const model = (await loader.loadAsync(this.droneConfig!.modelUrl)).scene;
       model.rotation.x = Math.PI / 2;
-      model.updateMatrixWorld(true);
-      const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
-      const config = this.droneConfig!;
-      model.scale.multiplyScalar(Math.max(config.length, config.width) / Math.max(size.x, size.y));
-      model.updateMatrixWorld(true);
-      model.position.sub(new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3()));
+      model.rotateY(Math.PI / 2);
+      if (this.rotorAnimation) this.rotorMeshes = new RotorMeshAnimation(model, this.rotorAnimation);
+      // The glTF asset is authored in metres, Y up, +Z forward. Convert to the
+      // simulator's Z up, +X forward, retaining its rotor plane at
+      // the body origin. Bounding-box centring would shift it toward the antenna.
       this.drone.add(model);
     } catch {
       this.drone.add(new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.105, 0.045),
@@ -243,6 +247,8 @@ export class ThreejsRenderer implements IRenderer {
 
   render(frame: DroneTelemetry, mode: CameraMode): void {
     if (this.disposed) return;
+    this.rotorAnimation?.update(frame);
+    this.rotorMeshes?.update();
     this.position.set(frame.localPosition.x, frame.localPosition.y, frame.localPosition.z);
     this.drone.position.copy(this.position);
     const q = frame.localOrientation;
