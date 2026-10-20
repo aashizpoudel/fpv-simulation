@@ -53,12 +53,16 @@ describe("drone selection", () => {
     const config = defaultPreset();
     config.modelUrl = `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`;
     config.rates.expo = 0.6;
+    delete (config.rates as Partial<typeof config.rates>).rcRate;
+    delete (config.rates as Partial<typeof config.rates>).superRate;
     config.battery.initialCharge = 0.45;
     const text = JSON.stringify({ version: 1, config });
     localStorage.setItem(STORAGE_KEYS.physicsPreset, text);
     const loaded = loadFlightConfig();
     expect(loaded.modelUrl).toBe(DEFAULT_DRONE.config.modelUrl);
     expect(loaded.rates.expo).toBe(0.6);
+    expect(loaded.rates.rcRate).toBe(1);
+    expect(loaded.rates.superRate).toBe(0.7);
     expect(loaded.battery.initialCharge).toBe(0.45);
     expect(parsePreset(exportPreset(loaded))).toEqual(loaded);
     expect(config.modelUrl).toContain("tinyhawk.gltf");

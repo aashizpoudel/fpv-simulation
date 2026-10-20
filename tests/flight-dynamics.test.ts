@@ -62,7 +62,7 @@ describe("closed-loop flight", () => {
       const p = await setup(c),
         rates: number[] = [];
       const target =
-        (rateTarget(0.1, c.pidRateConfig!.maxRate[axis], c.rates.expo) * 180) /
+        (rateTarget(0.1, c.rates.rcRate, c.rates.superRate, c.rates.expo, c.pidRateConfig!.maxRate[axis]) * 180) /
         Math.PI;
       for (let i = 0; i < 960; i++) {
         const t = p.step(
@@ -152,6 +152,24 @@ describe("closed-loop flight", () => {
     }
     expect(states[0]).toEqual(states[1]);
     expect(states[1]).toEqual(states[2]);
+  });
+});
+
+describe("Betaflight rate curve", () => {
+  it("matches the legacy RC Rate 1.00, Super Rate 0.70, Expo 0 curve", () => {
+    const degrees = (stick: number) => rateTarget(stick, 1, 0.7, 0) * 180 / Math.PI;
+    expect(degrees(0)).toBe(0);
+    expect(degrees(0.1)).toBeCloseTo(20 / 0.93, 8);
+    expect(degrees(0.5)).toBeCloseTo(100 / 0.65, 8);
+    expect(degrees(1)).toBeCloseTo(200 / 0.3, 8);
+    expect(degrees(-0.5)).toBeCloseTo(-degrees(0.5), 8);
+    expect(rateTarget(1, 1, 0.7, 0, 400) * 180 / Math.PI).toBeCloseTo(400);
+  });
+
+  it("uses absolute stick deflection for the super factor and supports expo", () => {
+    const expected = 200 * (0.75 * 0.5 + 0.25 * 0.5 ** 3) / (1 - 0.5 * 0.7);
+    expect(rateTarget(0.5, 1, 0.7, 0.25) * 180 / Math.PI).toBeCloseTo(expected);
+    expect(rateTarget(1, 1, 0.7, 0.25)).toBeCloseTo(rateTarget(1, 1, 0.7, 0));
   });
 });
 

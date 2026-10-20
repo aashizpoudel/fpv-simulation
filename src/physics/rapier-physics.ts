@@ -7,6 +7,7 @@ import type { Controls, DroneTelemetry, Vec3 } from "../types";
 import { FlightController } from "../controllers/flight-controller";
 import { buildFlightMode } from "../controllers/flight-mode-factory";
 import { createDroneColliders } from "./drone-colliders";
+import { partitionCollision, type CollisionPart } from "./partition-collision";
 import { DroneConfig, Tinyhawk3Config } from "../config/tinyhawk-config";
 import type {
   IController,
@@ -27,18 +28,26 @@ export class RapierPhysics {
   private droneTelemetry: DroneTelemetry;
   private startPosition: Vec3;
   private mapCollision?: CollisionData;
+  private mapCollisionParts: CollisionPart[] = [];
   private propCollision?: CollisionData;
   private propBody?: RAPIER.RigidBody;
   private roofHeight: number = Infinity;
   private droneCollider?: RAPIER.Collider;
-  private mapBody?: RAPIER.RigidBody;
+  private mapColliders: RAPIER.Collider[] = [];
+  private mapEnabled: boolean[] = [];
   private events?: RAPIER.EventQueue;
   private droneColliders: RAPIER.Collider[] = [];
   private battery: BatteryModel;
   private touchingLastStep = false;
+  private readonly collisionRadius: number;
 
   constructor(private config: DroneConfig = Tinyhawk3Config) {
     this.config = normalizePreset(config);
+    this.collisionRadius = Math.max(
+      Math.hypot(this.config.length, this.config.width, this.config.height),
+      ...this.config.rotors.map(rotor => Math.hypot(rotor.position.x, rotor.position.y, rotor.position.z)
+        + Math.hypot(this.config.body.ductRadius, this.config.body.ductHeight / 2)),
+    ) + 2 * Math.hypot(this.config.body.centerOfMass.x, this.config.body.centerOfMass.y, this.config.body.centerOfMass.z);
     this.battery = new BatteryModel(this.config.battery);
     this.crashed = false;
     this.armed = false;
@@ -78,33 +87,55 @@ export class RapierPhysics {
     if (vertices.length === 0 || indices.length === 0) {
       throw new Error("The environment collision mesh contains no triangles.");
     }
-    this.mapCollision = data;
+    if (data !== this.mapCollision) {
+      this.mapCollisionParts = partitionCollision(data);
+      this.mapCollision = data;
+    }
 
-    const rigidBodyDesc = RAPIER.RigidBodyDesc.fixed();
-    if (this.mapBody) this.world.removeRigidBody(this.mapBody);
-    const rigidBody = this.world.createRigidBody(rigidBodyDesc);
-    this.mapBody = rigidBody;
-
-    const colliderDesc = RAPIER.ColliderDesc.trimesh(
-      vertices,
-      indices,
-    );
-
-    this.world.createCollider(colliderDesc, rigidBody);
+    for (const collider of this.mapColliders) this.world.removeCollider(collider, true);
+    this.mapColliders = [];
+    this.mapEnabled = [];
+    for (const part of this.mapCollisionParts) {
+      // Unparented colliders are static: no per-chunk rigid bodies to simulate.
+      const origin = part.origin ?? { x: 0, y: 0, z: 0 };
+      this.mapColliders.push(this.world.createCollider(RAPIER.ColliderDesc.trimesh(part.vertices, part.indices)
+        .setTranslation(origin.x, origin.y, origin.z)));
+      this.mapEnabled.push(true);
+    }
     this.world.updateSceneQueries();
     console.log(
-      `Created trimesh collider with ${vertices.length / 3} vertices and ${indices.length / 3} triangles`,
+      `Created ${this.mapCollisionParts.length} map colliders with ${indices.length / 3} triangles`,
     );
   }
 
   public isPropSpaceClear(position: Vec3, radius: number): boolean {
     if (!this.world) return false;
+    // Placement queries can occur anywhere, including outside the flight area.
+    if (this.updateMapRegion(position, radius)) this.world.updateSceneQueries();
     let clear = true;
     this.world.intersectionsWithShape(position, { x: 0, y: 0, z: 0, w: 1 }, new RAPIER.Ball(radius), () => {
       clear = false;
       return false;
     }, undefined, undefined, undefined, this.body);
     return clear;
+  }
+
+  /** Enable every chunk whose real bounds intersect the entire swept region. */
+  private updateMapRegion(position: Vec3, radius: number): boolean {
+    let changed = false;
+    this.mapCollisionParts.forEach((part, i) => {
+      if (!part.bounds) return;
+      const { min, max } = part.bounds;
+      const enabled = min.x <= position.x + radius && max.x >= position.x - radius
+        && min.y <= position.y + radius && max.y >= position.y - radius
+        && min.z <= position.z + radius && max.z >= position.z - radius;
+      if (enabled !== this.mapEnabled[i]) {
+        this.mapColliders[i].setEnabled(enabled);
+        this.mapEnabled[i] = enabled;
+        changed = true;
+      }
+    });
+    return changed;
   }
 
   public createPropCollider(data: CollisionData): void {
@@ -185,7 +216,7 @@ export class RapierPhysics {
     this.world = new RAPIER.World({ x: 0, y: 0, z: -GRAVITY });
     this.events?.free();
     this.events = new RAPIER.EventQueue(true);
-    this.mapBody = undefined;
+    this.mapColliders = [];
     this.propBody = undefined;
     this.setupDrone(this.startPosition);
     if (this.propCollision) this.createPropCollider(this.propCollision);
@@ -250,7 +281,7 @@ export class RapierPhysics {
     this.body = undefined;
     this.droneCollider = undefined;
     this.droneColliders = [];
-    this.mapBody = undefined;
+    this.mapColliders = [];
   }
 
   public setArmed(armed: boolean): void {
@@ -289,6 +320,7 @@ export class RapierPhysics {
         : [],
       deltaTime,
     );
+    let forceMagnitude = 0;
     if (
       this.controller instanceof FlightController ||
       (this.armed && !this.crashed)
@@ -300,6 +332,7 @@ export class RapierPhysics {
         deltaTime,
       );
       this.applyPhysicsCommand(command);
+      forceMagnitude = Math.hypot(command.force.x, command.force.y, command.force.z);
     } else {
       this.body.resetForces(true);
       this.body.resetTorques(true);
@@ -313,6 +346,15 @@ export class RapierPhysics {
     this.body.addForce(aero.force, true);
     this.body.addTorque(aero.torque, true);
     const velocityBeforeStep = this.body.linvel();
+    // A conservative sphere covers translation, acceleration, rotation and
+    // rebound during this whole step. Nearby triangles remain exact and CCD
+    // stays enabled; distant chunks need not participate in Rapier's pipeline.
+    const sweepAcceleration = GRAVITY + (forceMagnitude + Math.hypot(aero.force.x, aero.force.y, aero.force.z)) / this.config.mass;
+    const spin = this.body.angvel();
+    this.updateMapRegion(this.body.translation(), 2 + this.collisionRadius
+      + Math.hypot(velocityBeforeStep.x, velocityBeforeStep.y, velocityBeforeStep.z) * deltaTime
+      + Math.hypot(spin.x, spin.y, spin.z) * this.collisionRadius * deltaTime
+      + sweepAcceleration * deltaTime * deltaTime);
     this.world.timestep = deltaTime;
     this.world.step(this.events);
     const translation = this.body.translation();

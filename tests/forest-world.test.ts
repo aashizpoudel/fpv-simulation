@@ -5,6 +5,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { createForest, groundH, type ForestEnvironment } from "../src/renderers/three/forest/forest";
 import { ForestWorldConfig } from "../src/config/forest-world-config";
 import { meshToTrimesh } from "../src/physics/map-collider";
+import { partitionCollision } from "../src/physics/partition-collision";
 import { resolveWorld, resolveWorldName } from "../src/app/url-options";
 import { RapierPhysics } from "../src/physics/rapier-physics";
 import { Tinyhawk3Config } from "../src/config/tinyhawk-config";
@@ -117,14 +118,17 @@ describe("procedural forest", () => {
       const { vertices, indices } = meshToTrimesh(branches);
       const world = new RAPIER.World({ x: 0, y: 0, z: 0 });
       try {
-        world.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(vertices), new Uint32Array(indices)));
+        for (const part of partitionCollision({ vertices, indices, cellSize: forest.collision.userData.collisionCellSize })) {
+          const p = part.origin!;
+          world.createCollider(RAPIER.ColliderDesc.trimesh(part.vertices, part.indices).setTranslation(p.x, p.y, p.z));
+        }
         world.step();
         const ray = world.castRay(new RAPIER.Ray(origin, direction.clone().negate()), 1.2, true);
         expect(ray).not.toBeNull();
         const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic()
           .setTranslation(origin.x, origin.y, origin.z).setCcdEnabled(true));
         world.createCollider(RAPIER.ColliderDesc.ball(0.03), body);
-        body.setLinvel(direction.clone().multiplyScalar(-5), true);
+        body.setLinvel(direction.clone().multiplyScalar(-80), true);
         world.timestep = 1 / 120;
         for (let i = 0; i < 24; i++) world.step();
         const offset = new THREE.Vector3().copy(body.translation()).sub(center).dot(direction);

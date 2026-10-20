@@ -14,6 +14,7 @@ import type {
   ModeOutput,
 } from "./flight-mode-interface";
 import type { PidRateConfig } from "./acro-mode";
+import type { DroneConfig } from "../../config/drone-config";
 
 export type PidAngleConfig = {
   roll: { kP: number; kI: number; kD: number };
@@ -42,7 +43,7 @@ export class AngleMode implements IFlightMode {
   constructor(
     angleConfig: PidAngleConfig,
     rateConfig: PidRateConfig,
-    private expo = 0,
+    private rates: DroneConfig["rates"],
   ) {
     // Outer angle PIDs (no D filter needed for angle loop typically, but reuse iLimit)
     this.outerPidRoll = new PIDController(
@@ -98,9 +99,9 @@ export class AngleMode implements IFlightMode {
 
     // Target angles from stick inputs
     const targetRollAngle =
-      shapeStick(controls.roll, this.expo) * this.maxAngleRoll;
+      shapeStick(controls.roll, this.rates.expo) * this.maxAngleRoll;
     const targetPitchAngle =
-      shapeStick(controls.pitch, this.expo) * this.maxAnglePitch;
+      shapeStick(controls.pitch, this.rates.expo) * this.maxAnglePitch;
 
     // Outer PID: angle -> rate target
     const rollRateTarget = this.outerPidRoll.update(
@@ -119,8 +120,10 @@ export class AngleMode implements IFlightMode {
     // Yaw: direct rate control (no outer angle PID)
     const yawRateTarget = rateTarget(
       controls.yaw,
+      this.rates.rcRate,
+      this.rates.superRate,
+      this.rates.expo,
       this.maxRateYaw / DEG2RAD,
-      this.expo,
     );
 
     // Inner PID: rate -> correction

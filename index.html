@@ -329,10 +329,13 @@
                 <div class="settings-group">
                         <div class="settings-title">Drone &amp; Flight Feel</div>
                         <p id="presetName"></p>
-                        <label>Roll rate (°/s)<input id="rateRoll" type="number" min="10" max="1200" /></label>
-                        <label>Pitch rate (°/s)<input id="ratePitch" type="number" min="10" max="1200" /></label>
-                        <label>Yaw rate (°/s)<input id="rateYaw" type="number" min="10" max="1200" /></label>
-                        <label>Stick expo<input id="rateExpo" type="number" min="0" max="0.8" step="0.05" /></label>
+                        <p class="settings-hint">Betaflight rates (legacy curve). RC Rate sets center response; Super Rate increases response near full stick.</p>
+                        <label>RC Rate<input id="rateRc" type="number" min="0.01" max="2.55" step="0.01" /></label>
+                        <label>Super Rate<input id="rateSuper" type="number" min="0" max="0.99" step="0.01" /></label>
+                        <label>Expo<input id="rateExpo" type="number" min="0" max="0.8" step="0.05" /></label>
+                        <label>Roll limit (°/s)<input id="rateRoll" type="number" min="10" max="1200" /></label>
+                        <label>Pitch limit (°/s)<input id="ratePitch" type="number" min="10" max="1200" /></label>
+                        <label>Yaw limit (°/s)<input id="rateYaw" type="number" min="10" max="1200" /></label>
                         <label>Camera tilt (°)<input id="cameraTilt" type="number" min="0" max="60" /></label>
                         <label>Starting battery (%)<input id="batteryCharge" type="number" min="0" max="100" /></label>
                         <label class="settings-checkbox"><input id="airmode" type="checkbox" /> Airmode</label>

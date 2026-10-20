@@ -141,6 +141,7 @@ export class SimulationClient {
           command = {
             ...command,
             data: {
+              ...command.data,
               vertices: command.data.vertices.slice(),
               indices: command.data.indices.slice(),
             },

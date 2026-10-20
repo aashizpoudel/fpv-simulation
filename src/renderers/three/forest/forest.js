@@ -1078,6 +1078,8 @@ function foliageMaterial(map, shared, amp, trans) {
 export function createForest(renderer) {
   const collision = new THREE.Group()
   collision.name = 'Forest collision'
+  // Partition in simulation coordinates, including vertically through canopy.
+  collision.userData.collisionCellSize = 16
   const collisionMaterial = new THREE.MeshBasicMaterial()
   const scene = new THREE.Group()
   scene.name = 'Morning Light in a Mixed Grove'

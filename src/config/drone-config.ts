@@ -16,7 +16,7 @@ export interface DroneConfig {
   propulsion: PropulsionConfig;
   aerodynamics: AeroConfig;
   battery: BatteryConfig;
-  rates: { expo: number };
+  rates: { expo: number; rcRate: number; superRate: number };
   // Physical dimensions (full extents)
   width: number; // meters
   length: number; // meters

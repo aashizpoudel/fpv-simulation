@@ -1,9 +1,7 @@
 import * as THREE from "three";
+import type { CollisionData } from "../core/simulation-messages";
 
-export function meshToTrimesh(mesh: THREE.Object3D): {
-  vertices: Float32Array;
-  indices: Uint32Array;
-} {
+export function meshToTrimesh(mesh: THREE.Object3D): CollisionData {
   const vertices: number[] = [];
   const indices: number[] = [];
   let vertexOffset = 0;
@@ -48,5 +46,8 @@ export function meshToTrimesh(mesh: THREE.Object3D): {
     }
   });
 
-  return { vertices: new Float32Array(vertices), indices: new Uint32Array(indices) };
+  return {
+    vertices: new Float32Array(vertices), indices: new Uint32Array(indices),
+    ...(mesh.userData.collisionCellSize !== undefined ? { cellSize: mesh.userData.collisionCellSize } : {}),
+  };
 }

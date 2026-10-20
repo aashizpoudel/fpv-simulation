@@ -102,6 +102,8 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
     input("ratePitch").value = String(c.pidRateConfig!.maxRate.pitch);
     input("rateYaw").value = String(c.pidRateConfig!.maxRate.yaw);
     input("rateExpo").value = String(c.rates.expo);
+    input("rateRc").value = String(c.rates.rcRate);
+    input("rateSuper").value = String(c.rates.superRate);
     input("cameraTilt").value = String(c.cameraConfig!.fpvTiltDeg);
     input("batteryCharge").value = String(c.battery.initialCharge * 100);
     input("airmode").checked = c.propulsion.airmode;
@@ -132,6 +134,8 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
     ] as const)
       c.pidRateConfig!.maxRate[axis] = Number(input(id).value);
     c.rates.expo = Number(input("rateExpo").value);
+    c.rates.rcRate = Number(input("rateRc").value);
+    c.rates.superRate = Number(input("rateSuper").value);
     c.cameraConfig!.fpvTiltDeg = Number(input("cameraTilt").value);
     c.battery.initialCharge = Number(input("batteryCharge").value) / 100;
     c.propulsion.airmode = input("airmode").checked;

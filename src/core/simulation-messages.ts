@@ -8,6 +8,8 @@ import type { WorldConfig } from "../config/world-config";
 export type CollisionData = {
   vertices: Float32Array;
   indices: Uint32Array;
+  /** Optional world-space cell size for static map collision broadphase. */
+  cellSize?: number;
 };
 
 // A class instance cannot cross the worker boundary. Tests can still inject

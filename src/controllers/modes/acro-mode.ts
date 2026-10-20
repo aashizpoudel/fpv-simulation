@@ -6,6 +6,7 @@ import { rateTarget } from "../rates";
 
 import { PIDController } from "../pid";
 import type { IFlightMode, ModeInput, ModeOutput } from "./flight-mode-interface";
+import type { DroneConfig } from "../../config/drone-config";
 
 export type PidRateConfig = {
   roll: { kP: number; kI: number; kD: number };
@@ -28,7 +29,7 @@ export class AcroMode implements IFlightMode {
   private readonly maxRatePitch: number; // rad/s
   private readonly maxRateYaw: number; // rad/s
 
-  constructor(config: PidRateConfig, private expo = 0) {
+  constructor(config: PidRateConfig, private rates: DroneConfig["rates"]) {
     this.pidRoll = new PIDController(config.roll.kP, config.roll.kI, config.roll.kD, config.iLimit, config.dFilterHz);
     this.pidPitch = new PIDController(config.pitch.kP, config.pitch.kI, config.pitch.kD, config.iLimit, config.dFilterHz);
     this.pidYaw = new PIDController(config.yaw.kP, config.yaw.kI, config.yaw.kD, config.iLimit, config.dFilterHz);
@@ -41,9 +42,9 @@ export class AcroMode implements IFlightMode {
     const { controls, bodyAngularVelocity, throttle, dt } = input;
 
     // Target rates from stick inputs (rad/s)
-    const targetRoll = rateTarget(controls.roll, this.maxRateRoll / DEG2RAD, this.expo);
-    const targetPitch = rateTarget(controls.pitch, this.maxRatePitch / DEG2RAD, this.expo);
-    const targetYaw = rateTarget(controls.yaw, this.maxRateYaw / DEG2RAD, this.expo);
+    const targetRoll = rateTarget(controls.roll, this.rates.rcRate, this.rates.superRate, this.rates.expo, this.maxRateRoll / DEG2RAD);
+    const targetPitch = rateTarget(controls.pitch, this.rates.rcRate, this.rates.superRate, this.rates.expo, this.maxRatePitch / DEG2RAD);
+    const targetYaw = rateTarget(controls.yaw, this.rates.rcRate, this.rates.superRate, this.rates.expo, this.maxRateYaw / DEG2RAD);
 
     // Run PID controllers
     const roll = this.pidRoll.update(targetRoll, bodyAngularVelocity.x, dt, input.saturation?.roll);

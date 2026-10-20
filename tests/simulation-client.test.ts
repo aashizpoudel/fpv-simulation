@@ -53,9 +53,10 @@ describe("simulation client", () => {
     const worker = new FakeWorker(); const c = client({}, "worker", () => worker as unknown as Worker);
     await c.init(position); expect(c.executionMode).toBe("worker"); expect(c.snapshot).toBeDefined();
     const vertices = new Float32Array([0,0,0, 1,0,0, 0,1,0]);
-    await c.command({ type: "collision", kind: "map", data: { vertices, indices: new Uint32Array([0,1,2]) } });
+    await c.command({ type: "collision", kind: "map", data: { vertices, indices: new Uint32Array([0,1,2]), cellSize: 8 } });
     expect(vertices.length).toBe(9);
     expect(worker.requests[1].command.type).toBe("collision");
+    expect(worker.requests[1].command).toMatchObject({ data: { cellSize: 8 } });
     const onError = vi.fn(); c.onError = onError;
     worker.onerror?.({ message: "runtime crash", preventDefault() {} });
     expect(c.ready).toBe(false); expect(onError).toHaveBeenCalledOnce(); expect(worker.terminate).toHaveBeenCalledOnce();

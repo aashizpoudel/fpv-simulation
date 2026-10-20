@@ -4,7 +4,7 @@ import type { Snapshot } from "./simulation-messages";
 
 type TimedSnapshot = { time: number; snapshot: Snapshot };
 const MAX_BUFFERED_SNAPSHOTS = 8;
-const DEFAULT_RENDER_DELAY_MS = 1000 / 60;
+const DEFAULT_RENDER_DELAY_MS = 1000 / 120;
 
 /** Smooths the rendered pose; discrete telemetry stays authoritative. */
 export class TelemetryInterpolation {

@@ -46,7 +46,8 @@ export const Tinyhawk3Config: DroneConfig = {
     maxMotorCurrent: 2.5,
     fixedVoltage: null,
   },
-  rates: { expo: 0.25 },
+  // Legacy Betaflight rates: RC Rate 1.00, Super Rate 0.70, Expo 0.
+  rates: { expo: 0, rcRate: 1, superRate: 0.7 },
   // Outer shell size (collision box)
   width: 0.105,
   length: 0.105,
@@ -115,7 +116,7 @@ export const Tinyhawk3Config: DroneConfig = {
     yaw: { kP: 0.18, kI: 0.15, kD: 0.0 },
     iLimit: 0.3,
     dFilterHz: 40,
-    maxRate: { roll: 670, pitch: 670, yaw: 400 },
+    maxRate: { roll: 670, pitch: 670, yaw: 670 },
   },
 
   pidAngleConfig: {

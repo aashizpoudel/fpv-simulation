@@ -12,12 +12,12 @@ export function buildFlightMode(
   if (!pidRateConfig) return null;
 
   if (type === "acro") {
-    return new AcroMode(pidRateConfig, config.rates.expo);
+    return new AcroMode(pidRateConfig, config.rates);
   }
   if (type === "angle") {
     const pidAngleConfig = config.pidAngleConfig;
     if (!pidAngleConfig) return null;
-    return new AngleMode(pidAngleConfig, pidRateConfig, config.rates.expo);
+    return new AngleMode(pidAngleConfig, pidRateConfig, config.rates);
   }
   return null;
 }

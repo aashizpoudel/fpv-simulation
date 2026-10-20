@@ -12,7 +12,7 @@ const workerScope = self as unknown as {
   onmessage: ((event: MessageEvent<SimulationRequest>) => void) | null;
 };
 
-const SNAPSHOT_INTERVAL_MS = 1000 / 60;
+const SNAPSHOT_INTERVAL_MS = 1000 / 120;
 let sessionId = 0;
 let timer: ReturnType<typeof setInterval> | undefined;
 

@@ -151,6 +151,8 @@ export function validateDroneConfig(c: DroneConfig): void {
   range(b.maxMotorCurrent, 0.1, 10, "Motor current");
   if (b.fixedVoltage !== null) range(b.fixedVoltage, 0, 4.5, "Fixed voltage");
   range(c.rates.expo, 0, 0.8, "Expo");
+  range(c.rates.rcRate, 0.01, 2.55, "RC Rate");
+  range(c.rates.superRate, 0, 0.99, "Super Rate");
   range(c.yawTorquePerNewton, 0.0001, 0.02, "Yaw torque coefficient");
   check(
     c.controllerType === "acro" || c.controllerType === "angle",
@@ -195,6 +197,13 @@ export function normalizePreset(config: DroneConfig): DroneConfig {
   // Upgrade the original built-in asset without resetting saved flight tuning.
   if (copy?.modelUrl === `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`) {
     copy.modelUrl = Tinyhawk3Config.modelUrl;
+  }
+  // Presets from the earlier cubic curve had only expo. Supply the new
+  // Betaflight controls without discarding the other saved flight settings.
+  if (copy?.rates && !Object.prototype.hasOwnProperty.call(copy.rates, "rcRate")
+    && !Object.prototype.hasOwnProperty.call(copy.rates, "superRate")) {
+    copy.rates.rcRate = Tinyhawk3Config.rates.rcRate;
+    copy.rates.superRate = Tinyhawk3Config.rates.superRate;
   }
   validateDroneConfig(copy);
   const hover = hoverCommand(
