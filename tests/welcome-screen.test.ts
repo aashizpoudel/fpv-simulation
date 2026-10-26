@@ -3,110 +3,57 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupWelcomeScreen } from "../src/app/welcome-screen";
 
 const html = readFileSync("index.html", "utf8");
-
 beforeEach(() => {
+  localStorage.clear();
   sessionStorage.clear();
-  const page = new DOMParser().parseFromString(html, "text/html");
-  document.body.innerHTML = page.body.innerHTML;
-  document.body.className = "welcome-active";
+  window.history.replaceState(null, "", "/fpv/");
+  document.body.innerHTML = new DOMParser().parseFromString(html, "text/html").body.innerHTML;
 });
+const select = (id: string, value: string) => {
+  const element = document.getElementById(id) as HTMLSelectElement;
+  element.value = value;
+  element.dispatchEvent(new Event("change"));
+};
 
-describe("welcome screen", () => {
-  it("has visible SEO text and only the requested starting controls", () => {
-    const welcome = document.getElementById("welcomeScreen")!;
-    expect(welcome.hidden).toBe(false);
-    expect(welcome.querySelectorAll("h1")).toHaveLength(1);
-    expect(welcome.textContent).toContain("Factory and Ekotori");
-    expect(welcome.querySelectorAll("select")).toHaveLength(4);
-    expect(welcome.querySelectorAll("button:not([hidden])")).toHaveLength(3);
-    // VR is offered only after a headset is detected.
-    expect((document.getElementById("welcomeVrBtn") as HTMLButtonElement).hidden).toBe(true);
-    expect((document.getElementById("welcomeFlightModeSelect") as HTMLSelectElement).value).toBe("angle");
-    expect(document.querySelector(".flight-help")?.hasAttribute("open")).toBe(false);
+describe("navigation-only landing", () => {
+  it("keeps welcome content without simulator HUD or runtime entry", () => {
+    expect(document.querySelectorAll("h1")).toHaveLength(1);
+    expect(document.getElementById("welcomeScreen")!.textContent).toContain("Factory and Ekotori");
+    expect(document.getElementById("renderingContainer")).toBeNull();
+    expect(html).toContain('/src/app/welcome-screen.ts');
+    expect(html).not.toContain('/src/main.ts');
+    expect(document.getElementById("welcomeVrBtn")!.hidden).toBe(true);
   });
-
-  it("starts the selected controls and reveals the simulator on Play", async () => {
-    const play = vi.fn(async () => true);
-    setupWelcomeScreen("ekotori", "threejs", Promise.resolve({ play }));
-    expect((document.getElementById("welcomeWorldSelect") as HTMLSelectElement).value).toBe("ekotori");
-    (document.getElementById("welcomeControlSelect") as HTMLSelectElement).value = "gamepad";
-    document.getElementById("welcomePlayBtn")!.click();
-
-    await vi.waitFor(() => expect(play).toHaveBeenCalledWith("gamepad", "angle"));
-    await vi.waitFor(() => expect(document.getElementById("welcomeScreen")!.hidden).toBe(true));
-    expect(document.body.classList.contains("welcome-active")).toBe(false);
-  });
-
-  it("starts in the flight mode chosen on the welcome screen", async () => {
-    const play = vi.fn(async () => true);
-    setupWelcomeScreen("ekotori", "threejs", Promise.resolve({ play }));
-    (document.getElementById("welcomeFlightModeSelect") as HTMLSelectElement).value = "acro";
-    document.getElementById("welcomePlayBtn")!.click();
-
-    await vi.waitFor(() => expect(play).toHaveBeenCalledWith("keyboard", "acro"));
-  });
-
-  it("keeps the welcome screen open when gamepad activation fails", async () => {
-    const play = vi.fn(async () => false);
-    setupWelcomeScreen("factory-splat", "threejs", Promise.resolve({ play }));
-    (document.getElementById("welcomeControlSelect") as HTMLSelectElement).value = "gamepad";
-    document.getElementById("welcomePlayBtn")!.click();
-
-    await vi.waitFor(() => expect(play).toHaveBeenCalledWith("gamepad", "angle"));
-    await vi.waitFor(() => expect(document.getElementById("welcomeStatus")?.textContent).toContain("Connect a radio"));
-    expect(document.getElementById("welcomeScreen")!.hidden).toBe(false);
-  });
-
-  it("reloads with a newly chosen map right away, keeping choices but not starting play", () => {
+  it("does not navigate or load maps on selection; Play saves choices and navigates", () => {
     const navigate = vi.fn();
-    const play = vi.fn(async () => true);
-    setupWelcomeScreen("factory-splat", "threejs", Promise.resolve({ play }), () => {}, navigate);
-    (document.getElementById("welcomeControlSelect") as HTMLSelectElement).value = "gamepad";
-    (document.getElementById("welcomeFlightModeSelect") as HTMLSelectElement).value = "acro";
-    const world = document.getElementById("welcomeWorldSelect") as HTMLSelectElement;
-    world.value = "ekotori";
-    world.dispatchEvent(new Event("change"));
-
-    expect(navigate).toHaveBeenCalledOnce();
-    expect(new URL(navigate.mock.calls[0][0]).searchParams.get("world")).toBe("ekotori");
-    expect(play).not.toHaveBeenCalled();
-
-    // After the reload the choices come back and the pilot still presses Play.
-    document.body.innerHTML = new DOMParser().parseFromString(html, "text/html").body.innerHTML;
-    setupWelcomeScreen("ekotori", "threejs", Promise.resolve({ play }), () => {}, navigate);
-    expect((document.getElementById("welcomeControlSelect") as HTMLSelectElement).value).toBe("gamepad");
-    expect((document.getElementById("welcomeFlightModeSelect") as HTMLSelectElement).value).toBe("acro");
-    expect(play).not.toHaveBeenCalled();
-  });
-
-  it("resumes play after a reload that Play started", async () => {
-    sessionStorage.setItem("fpv_resume_after_map_change", "keyboard");
-    sessionStorage.setItem("fpv_resume_auto_play", "1");
-    const play = vi.fn(async () => true);
-    setupWelcomeScreen("ekotori", "threejs", Promise.resolve({ play }));
-    await vi.waitFor(() => expect(play).toHaveBeenCalledWith("keyboard", "angle"));
-  });
-
-  it("keeps normal Play from starting with the VR-only motion controller", async () => {
-    const play = vi.fn(async () => true);
-    setupWelcomeScreen("factory-splat", "threejs", Promise.resolve({ play }));
-    const control = document.getElementById("welcomeControlSelect") as HTMLSelectElement;
-    const motion = control.querySelector<HTMLOptionElement>('option[value="motion"]')!;
-    motion.hidden = false;
-    motion.disabled = false;
-    control.value = "motion";
+    setupWelcomeScreen(navigate);
+    select("welcomeWorldSelect", "ekotori");
+    select("welcomeControlSelect", "gamepad");
+    select("welcomeFlightModeSelect", "acro");
+    expect(navigate).not.toHaveBeenCalled();
     document.getElementById("welcomePlayBtn")!.click();
-    await Promise.resolve();
-    expect(play).not.toHaveBeenCalled();
-    expect(document.getElementById("welcomeStatus")!.textContent).toContain("VR only");
+    const target = new URL(navigate.mock.calls[0][0]);
+    expect(target.pathname).toBe("/fpv/play.html");
+    expect(localStorage.getItem("drone_sim_world")).toBe("ekotori");
+    expect(localStorage.getItem("drone_sim_control")).toBe("gamepad");
+    expect(localStorage.getItem("drone_sim_flight_mode")).toBe("acro");
   });
-
-  it("opens Settings from the welcome screen", () => {
-    const settings = document.getElementById("settingsToggleBtn")!;
-    const onSettings = vi.fn();
-    settings.addEventListener("click", onSettings);
-    setupWelcomeScreen("factory-splat", "threejs", Promise.resolve({ play: async () => true }));
-    document.getElementById("welcomeSettingsBtn")!.click();
-    expect(onSettings).toHaveBeenCalledOnce();
+  it("forwards VR intent without starting a session", () => {
+    const navigate = vi.fn();
+    setupWelcomeScreen(navigate);
+    select("welcomeControlSelect", "motion");
+    document.getElementById("welcomePlayBtn")!.click();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(document.getElementById("welcomeStatus")!.textContent).toContain("VR only");
+    document.getElementById("welcomeVrBtn")!.click();
+    expect(localStorage.getItem("drone_sim_vr_intent")).toBe("1");
+  });
+  it("restores the saved map but never consumes old autoplay flags", () => {
+    localStorage.setItem("drone_sim_world", "forest");
+    sessionStorage.setItem("fpv_resume_auto_play", "1");
+    const navigate = vi.fn();
+    setupWelcomeScreen(navigate);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("fpv_resume_auto_play")).toBe("1");
   });
 });

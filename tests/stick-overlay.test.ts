@@ -6,7 +6,7 @@ import {
   subscribeStickOverlay,
 } from "../src/app/crosshair-preferences";
 
-const html = readFileSync("index.html", "utf8");
+const html = readFileSync("play.html", "utf8");
 
 describe("Gamepad stick overlay", () => {
   let overlayEl: HTMLElement;

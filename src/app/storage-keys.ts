@@ -18,4 +18,7 @@ export const STORAGE_KEYS = {
   gamepadCalibrationPrefix: "fpv-sim-gamepad-calibration:",
   gogglesModel: "drone_sim_goggles_model",
   gogglesAspect: "drone_sim_goggles_aspect",
+  control: "drone_sim_control",
+  flightMode: "drone_sim_flight_mode",
+  vrIntent: "drone_sim_vr_intent",
 } as const;

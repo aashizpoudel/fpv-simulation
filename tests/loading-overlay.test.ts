@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { reportLoading, setupLoadingOverlay } from "../src/ui/loading-overlay";
 
-const html = readFileSync("index.html", "utf8");
+const html = readFileSync("play.html", "utf8");
 const overlay = () => document.getElementById("loadingOverlay")!;
 
 beforeEach(() => {

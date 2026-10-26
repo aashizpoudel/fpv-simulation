@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupVrButtons } from "../src/ui/vr-buttons";
 import { reportLoading } from "../src/ui/loading-overlay";
 
-const html = readFileSync("index.html", "utf8");
-const vrButton = () => document.getElementById("welcomeVrBtn") as HTMLButtonElement;
+const html = readFileSync("play.html", "utf8");
+const vrButton = () => document.getElementById("vrToggleBtn") as HTMLButtonElement;
 const choice = () => ({ control: "keyboard" as const, mode: "angle" as const });
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 
@@ -48,35 +48,37 @@ describe("VR buttons", () => {
   });
 
   it("shows map loading progress on the welcome button until it can be used", async () => {
+    document.body.innerHTML += '<button id="testVrTextBtn" type="button" data-vr-button hidden>Play in VR</button>';
+    const textBtn = () => document.getElementById("testVrTextBtn") as HTMLButtonElement;
     stubXr(true);
     let ready!: (value: never) => void;
     setupVrButtons("threejs", new Promise((r) => { ready = r; }), choice);
     await flush();
-    expect(vrButton().textContent).toBe("Play in VR · loading…");
+    expect(textBtn().textContent).toBe("Play in VR · loading…");
 
     reportLoading("Loading environment… 45%", 0.45);
-    expect(vrButton().textContent).toBe("Play in VR · loading 45%");
+    expect(textBtn().textContent).toBe("Play in VR · loading 45%");
     reportLoading("Loading environment… 100%", 1);
     reportLoading("Preparing environment detail…");
-    expect(vrButton().textContent).toBe("Play in VR · preparing…");
+    expect(textBtn().textContent).toBe("Play in VR · preparing…");
 
     ready({ enterVr: vi.fn() } as never);
     await flush();
-    expect(vrButton().textContent).toBe("Play in VR");
-    expect(vrButton().disabled).toBe(false);
-    // The top-bar icon button keeps its icon.
-    expect(document.getElementById("vrToggleBtn")!.querySelector("svg")).not.toBeNull();
+    expect(textBtn().textContent).toBe("Play in VR");
+    expect(textBtn().disabled).toBe(false);
+    expect(vrButton().querySelector("svg")).not.toBeNull();
   });
 
   it("says when the map failed to load", async () => {
     stubXr(true);
     setupVrButtons("threejs", Promise.reject(new Error("no map")), choice);
     await flush();
-    expect(vrButton().textContent).toBe("Play in VR · map failed to load");
+    expect(vrButton().title).toBe("Play in VR · map failed to load");
     expect(vrButton().disabled).toBe(true);
   });
 
   it("offers the motion controller only when a headset is detected", async () => {
+    document.body.innerHTML += '<select id="welcomeControlSelect"><option value="motion" data-vr-only hidden disabled>Motion</option></select>';
     const motion = () => document.querySelector<HTMLOptionElement>('#welcomeControlSelect option[value="motion"]')!;
     expect(motion().hidden).toBe(true);
     stubXr(true);

@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "build",
+      rollupOptions: { input: { index: "index.html", play: "play.html" } },
     },
     server: {
       host: "127.0.0.1",

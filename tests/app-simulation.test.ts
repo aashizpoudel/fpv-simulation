@@ -24,7 +24,7 @@ vi.mock("../src/audio/drone-audio-engine", () => ({
     dispose() {}
   },
 }));
-const html = readFileSync("index.html", "utf8");
+const html = readFileSync("play.html", "utf8");
 beforeEach(() => {
   document.body.innerHTML = new DOMParser().parseFromString(html, "text/html").body.innerHTML;
   vi.spyOn(document, "hidden", "get").mockReturnValue(false);

@@ -125,7 +125,7 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
         status.textContent = (error as Error).message;
       }
     });
-  action("applyFlightSettings", () => {
+  const applyCurrentFlightSettings = () => {
     const c = structuredClone(config);
     for (const [axis, id] of [
       ["roll", "rateRoll"],
@@ -140,7 +140,14 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
     c.battery.initialCharge = Number(input("batteryCharge").value) / 100;
     c.propulsion.airmode = input("airmode").checked;
     apply(c);
-  });
+  };
+  action("applyFlightSettings", applyCurrentFlightSettings);
+  if (document.getElementById("applyRestartFooterBtn")) {
+    action("applyRestartFooterBtn", () => {
+      applyCurrentFlightSettings();
+      closeSettings();
+    });
+  }
   action("restoreFlightSettings", () => apply(defaultPreset()));
   action("exportFlightPreset", () =>
     downloadJson("whoop-preset.json", exportPreset(config)),

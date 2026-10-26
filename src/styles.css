@@ -287,6 +287,7 @@ body {
 .welcome-card {
     width: min(640px, 100%);
 }
+.top-right-bar a { width: auto; padding: 0 8px; font: 13px system-ui, sans-serif; }
 
 .welcome-kicker {
     margin: 0 0 8px;
@@ -444,7 +445,7 @@ body {
 
 .osd-top-right {
     top: 20px;
-    right: 106px;
+    right: 180px;
 }
 
 .osd-controls-hint {
@@ -1454,13 +1455,16 @@ body {
 
 .top-bar-btn,
 .settings-toggle-btn {
-    background: var(--ui-surface);
+    background: rgba(27, 33, 35, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
 }
 
 .top-bar-btn:hover,
 .settings-toggle-btn:hover {
-    background: var(--ui-hover);
-    border-color: var(--ui-border);
+    background: rgba(40, 47, 49, 0.55);
+    border-color: rgba(242, 242, 240, 0.4);
     color: var(--ui-text);
 }
 

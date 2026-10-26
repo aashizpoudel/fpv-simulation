@@ -9,7 +9,7 @@ import {
   subscribeHorizonLine,
 } from "../src/app/crosshair-preferences";
 
-const html = readFileSync("index.html", "utf8");
+const html = readFileSync("play.html", "utf8");
 
 describe("HUD crosshair and horizon line visibility", () => {
   let crosshairEl: HTMLElement;

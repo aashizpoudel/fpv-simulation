@@ -1,9 +1,11 @@
 // FPV Sim Service Worker
-const CACHE_NAME = 'fpv-sim-v1';
+const CACHE_NAME = 'fpv-sim-multipage-v2';
 
 // Core shell assets to precache immediately on install
 const PRECACHE_ASSETS = [
   './',
+  'index.html',
+  'play.html',
   'manifest.webmanifest',
   'favicon.svg',
   'icons/icon-192.png',
@@ -58,7 +60,8 @@ self.addEventListener('fetch', (event) => {
         .catch(async () => {
           const cached = await caches.match(request);
           if (cached) return cached;
-          return caches.match('./');
+          const page = url.pathname.endsWith('/play.html') ? 'play.html' : 'index.html';
+          return caches.match(new URL(page, self.registration.scope).href);
         })
     );
     return;
