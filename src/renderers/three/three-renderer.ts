@@ -91,12 +91,36 @@ export class ThreejsRenderer implements IRenderer {
     this.controls.enablePan = false;
     this.controls.maxPolarAngle = Math.PI / 2;
     this.controls.maxDistance = 100;
-    this.scene.background = new THREE.Color(0x161c23);
+    const skyColor = this.worldConfig?.skyColor ?? 0x161c23;
+    this.scene.background = new THREE.Color(skyColor);
+    if (this.worldConfig?.fogColor !== undefined && this.worldConfig?.fogDensity !== undefined) {
+      this.scene.fog = new THREE.FogExp2(this.worldConfig.fogColor, this.worldConfig.fogDensity);
+    }
+    if (this.worldConfig?.toneMapping !== undefined) {
+      this.renderer.toneMapping = this.worldConfig.toneMapping;
+      if (this.worldConfig.toneMappingExposure !== undefined) {
+        this.renderer.toneMappingExposure = this.worldConfig.toneMappingExposure;
+      }
+    }
     if (!this.worldConfig?.proceduralWorld) {
-      this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2));
-      const light = new THREE.DirectionalLight(0xffffff, 2);
-      light.position.set(10, -10, 20);
-      this.scene.add(light);
+      const hemiSky = this.worldConfig?.skyColor ?? 0xffffff;
+      const hemiGround = this.worldConfig?.ambientGroundColor ?? 0x444444;
+      const hemiIntensity = this.worldConfig?.ambientIntensity ?? 2;
+      this.scene.add(new THREE.HemisphereLight(hemiSky, hemiGround, hemiIntensity));
+
+      const sunColor = this.worldConfig?.sunColor ?? 0xffffff;
+      const sunIntensity = this.worldConfig?.sunIntensity ?? 2;
+      const sunLight = new THREE.DirectionalLight(sunColor, sunIntensity);
+      if (this.worldConfig?.sunDirection) {
+        sunLight.position.set(
+          this.worldConfig.sunDirection.x,
+          this.worldConfig.sunDirection.y,
+          this.worldConfig.sunDirection.z,
+        );
+      } else {
+        sunLight.position.set(10, -10, 20);
+      }
+      this.scene.add(sunLight);
     }
     this.scene.add(this.drone);
     if (start) this.drone.position.set(start.x, start.y, start.z);
@@ -206,6 +230,18 @@ export class ThreejsRenderer implements IRenderer {
       })).scene;
       map.rotation.set(config.visualRotationX ?? Math.PI / 2, 0, config.visualRotationZ ?? 0, "XYZ");
       map.scale.setScalar(config.mapScale ?? 1);
+      if (config.collisionCellSize) {
+        map.userData.collisionCellSize = config.collisionCellSize;
+      }
+      map.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          if (child.name === "Water" && child.material) {
+            child.material.transparent = true;
+            child.material.opacity = 0.85;
+            child.material.depthWrite = true;
+          }
+        }
+      });
       this.scene.add(map);
       if (!config.collisionGlbPath) this.onMapLoaded?.(map);
     } else throw new Error("This world has no renderable asset.");
@@ -231,6 +267,9 @@ export class ThreejsRenderer implements IRenderer {
     if (config.collisionPosition) map.position.set(
       config.collisionPosition.x, config.collisionPosition.y, config.collisionPosition.z,
     ).multiplyScalar(config.mapScale ?? 1);
+    if (config.collisionCellSize) {
+      map.userData.collisionCellSize = config.collisionCellSize;
+    }
     map.visible = false;
     this.scene.add(map);
     this.onMapLoaded?.(map);

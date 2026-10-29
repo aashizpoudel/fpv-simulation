@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import { generateRaceProps, RacePropTracker, type RaceProp } from "../src/race/race-props";
 import { RapierPhysics } from "../src/physics/rapier-physics";
+import { IslandWorldConfig } from "../src/config/island-world-config";
 import { ForestWorldConfig } from "../src/config/forest-world-config";
 import { DedustWorldConfig } from "../src/config/dedust-world-config";
 import { FactorySplatWorldConfig } from "../src/config/factory-splat-world-config";
@@ -39,7 +40,7 @@ describe("freestyle race props", () => {
     hoop.update(p(0, -3), 0);
     expect(hoop.update(p(0, 3), 1)).toEqual([0]);
   });
-  for (const config of [DedustWorldConfig, FactorySplatWorldConfig, EkotoriWorldConfig]) {
+  for (const config of [IslandWorldConfig, DedustWorldConfig, FactorySplatWorldConfig, EkotoriWorldConfig]) {
     it(`places six gates and six hoops clear of ${config.name}'s actual collider`, async () => {
       let bytes = await readFile(`public/${config.collisionGlbPath ?? config.mapGlbPath}`);
       if (config.collisionGlbPath?.endsWith(".gz")) bytes = gunzipSync(bytes);

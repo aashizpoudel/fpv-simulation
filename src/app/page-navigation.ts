@@ -31,7 +31,7 @@ export function savePlayChoices(choices: PlayChoices): void {
 
 export function landingWorld(search: string): string {
   const value = new URLSearchParams(search).get("world") || localStorage.getItem(STORAGE_KEYS.world);
-  return value === "forest" || value === "ekotori" || value === "dedust" ? value : "factory-splat";
+  return value === "island" || value === "forest" || value === "dedust" || value === "factory-splat" || value === "ekotori" ? value : "island";
 }
 
 /** A sibling URL retains the deployment directory, including GitHub Pages bases. */

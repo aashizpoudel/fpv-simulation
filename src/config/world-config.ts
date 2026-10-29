@@ -29,6 +29,8 @@ export interface WorldConfig {
   collisionRotationX?: number;
   /** Collision asset's placement in simulation coordinates, before mapScale. */
   collisionPosition?: Vec3;
+  /** Spatial partition cell size in metres. Highly recommended for meshes >10k triangles. */
+  collisionCellSize?: number;
   /** Spawn position at scale=1. Scaled automatically by mapScale. */
   spawnPosition: Vec3;
   bounds: { min: Vec3; max: Vec3 };
@@ -39,6 +41,16 @@ export interface WorldConfig {
   /** Scale factor applied to map AND all spatial values. Defaults to 1. */
   mapScale?: number;
   gravity?: number;
+  skyColor?: number;
+  sunColor?: number;
+  sunIntensity?: number;
+  sunDirection?: Vec3;
+  ambientIntensity?: number;
+  ambientGroundColor?: number;
+  fogColor?: number;
+  fogDensity?: number;
+  toneMapping?: import("three").ToneMapping;
+  toneMappingExposure?: number;
 }
 
 /** Returns a copy of the config with all spatial values multiplied by mapScale. */

@@ -14,6 +14,7 @@ export const FactorySplatWorldConfig: WorldConfig = {
   collisionGlbPath: "maps/factory-splat/factory-collider.glb",
   visualRotationX: 0,
   collisionRotationX: Math.PI / 2,
+  collisionCellSize: 16,
   // Original Factory entity is translated (-4.695, 0.438, 11.397) in Y-up.
   // The GLB alone does not include that scene placement.
   collisionPosition: { x: -4.695, y: -11.397, z: 0.438 },

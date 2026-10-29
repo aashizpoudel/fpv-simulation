@@ -14,6 +14,7 @@ export const DedustWorldConfig: WorldConfig = {
   mapGlbPath: "maps/de_dust_2_with_real_light.glb",
 
   mapScale: 1,
+  collisionCellSize: 16,
 
   // Values below are at scale=1. resolveWorldConfig() scales them.
   spawnPosition: { x: 5, y: 0, z: 0.1 },

@@ -33,7 +33,7 @@ Configure a USB radio or gamepad under **Settings > Flight Controls**.
 
 ## Environments
 
-Choose Factory, DeDust, Ekotori, or Forest in Settings, or use `?world=factory-splat`, `?world=dedust`, `?world=ekotori`, or `?world=forest`.
+Choose Island, Forest, DeDust, Factory, or Ekotori in Settings, or use `?world=island`, `?world=forest`, `?world=dedust`, `?world=factory-splat`, or `?world=ekotori`.
 
 
 

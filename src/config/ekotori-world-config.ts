@@ -10,6 +10,7 @@ export const EkotoriWorldConfig: WorldConfig = {
   visualRotationX: Math.PI / 2,
   visualRotationZ: Math.PI,
   collisionRotationX: Math.PI / 2,
+  collisionCellSize: 16,
   mapScale: 1,
   spawnPosition: manifest.collision.spawnPosition,
   bounds: manifest.collision.bounds,

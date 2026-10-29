@@ -1,7 +1,8 @@
+import { IslandWorldConfig } from "../config/island-world-config";
+import { ForestWorldConfig } from "../config/forest-world-config";
 import { DedustWorldConfig } from "../config/dedust-world-config";
 import { FactorySplatWorldConfig } from "../config/factory-splat-world-config";
 import { EkotoriWorldConfig } from "../config/ekotori-world-config";
-import { ForestWorldConfig } from "../config/forest-world-config";
 import type { RendererType } from "../renderers/renderer-factory";
 import type { CameraMode } from "../types";
 import { STORAGE_KEYS } from "./storage-keys";
@@ -18,13 +19,18 @@ export function resolveRendererType(): RendererType {
 export function resolveWorldName(): string {
   const params = new URLSearchParams(window.location.search);
   const param = params.get("world") || localStorage.getItem(STORAGE_KEYS.world);
-  return param === "forest" || param === "ekotori" || param === "dedust" ? param : "factory-splat";
+  if (param === "island" || param === "forest" || param === "dedust" || param === "factory-splat" || param === "ekotori") {
+    return param;
+  }
+  return "island";
 }
 
 export function resolveWorld(name: string) {
+  if (name === "island") return IslandWorldConfig;
   if (name === "forest") return ForestWorldConfig;
+  if (name === "dedust") return DedustWorldConfig;
   if (name === "ekotori") return EkotoriWorldConfig;
-  return name === "dedust" ? DedustWorldConfig : FactorySplatWorldConfig;
+  return FactorySplatWorldConfig;
 }
 
 export function resolveCameraMode(cesium: boolean): CameraMode {
