@@ -46,7 +46,15 @@ export interface WorldConfig {
   sunIntensity?: number;
   sunDirection?: Vec3;
   ambientIntensity?: number;
+  /** Hemisphere light sky colour. Defaults to skyColor. */
+  ambientSkyColor?: number;
   ambientGroundColor?: number;
+  /** Gradient sky dome drawn behind the world; its horizon should match fogColor. Uses sunDirection for the glow. */
+  skyDome?: { zenith: number; horizon: number; glow: number; sun: number };
+  /** Camera far plane in metres. Defaults to 1000; larger values switch to a logarithmic depth buffer. */
+  viewDistance?: number;
+  /** Sun shadows following the drone. Disabled at Performance quality. */
+  shadows?: boolean;
   fogColor?: number;
   fogDensity?: number;
   toneMapping?: import("three").ToneMapping;

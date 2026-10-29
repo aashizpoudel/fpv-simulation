@@ -16,6 +16,7 @@ import { reportLoading } from "../../ui/loading-overlay";
 import type { GogglesSettings } from "../../xr/goggles-config";
 import type { GogglesOsdState } from "../../xr/goggles-osd";
 import type { ForestEnvironment } from "./forest/forest";
+import { installIslandWater, type IslandWater } from "./island-water";
 import { RotorAnimation } from "../rotor-animation";
 import { RotorMeshAnimation } from "./rotor-mesh-animation";
 
@@ -28,6 +29,11 @@ export class ThreejsRenderer implements IRenderer {
   private spark?: SparkRenderer;
   private splats?: SplatMesh;
   private forest?: ForestEnvironment;
+  private water?: IslandWater;
+  /** Shadow-casting sun for worlds with `shadows`; its frustum follows the drone. */
+  private sun?: THREE.DirectionalLight;
+  private sunDirection = new THREE.Vector3();
+  private shadowFocus = new THREE.Vector3();
   private controls!: OrbitControls;
   private container!: HTMLElement;
   private droneConfig?: DroneConfig;
@@ -80,7 +86,15 @@ export class ThreejsRenderer implements IRenderer {
 
   async init(container: HTMLElement, start?: Vec3): Promise<void> {
     this.container = container;
-    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    const viewDistance = this.worldConfig?.viewDistance;
+    this.renderer = new THREE.WebGLRenderer({
+      // MSAA only helps polygon edges; splat worlds don't need it.
+      antialias: Boolean(this.worldConfig?.mapGlbPath),
+      // The 15 mm FPV near plane needs log depth to reach kilometre-scale far planes without z-fighting.
+      logarithmicDepthBuffer: viewDistance !== undefined && viewDistance > 1000,
+      powerPreference: "high-performance",
+    });
+    if (viewDistance !== undefined) this.camera.far = viewDistance;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.xr.enabled = true;
     container.appendChild(this.renderer.domElement);
@@ -102,11 +116,17 @@ export class ThreejsRenderer implements IRenderer {
         this.renderer.toneMappingExposure = this.worldConfig.toneMappingExposure;
       }
     }
+    if (this.worldConfig?.skyDome && this.worldConfig.sunDirection) {
+      this.scene.add(createSkyDome(this.worldConfig.skyDome, this.worldConfig.sunDirection));
+    }
     if (!this.worldConfig?.proceduralWorld) {
-      const hemiSky = this.worldConfig?.skyColor ?? 0xffffff;
+      const hemiSky = this.worldConfig?.ambientSkyColor ?? this.worldConfig?.skyColor ?? 0xffffff;
       const hemiGround = this.worldConfig?.ambientGroundColor ?? 0x444444;
       const hemiIntensity = this.worldConfig?.ambientIntensity ?? 2;
-      this.scene.add(new THREE.HemisphereLight(hemiSky, hemiGround, hemiIntensity));
+      const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, hemiIntensity);
+      // HemisphereLight defaults to Y up; the simulator is Z up.
+      hemi.position.set(0, 0, 1);
+      this.scene.add(hemi);
 
       const sunColor = this.worldConfig?.sunColor ?? 0xffffff;
       const sunIntensity = this.worldConfig?.sunIntensity ?? 2;
@@ -121,6 +141,16 @@ export class ThreejsRenderer implements IRenderer {
         sunLight.position.set(10, -10, 20);
       }
       this.scene.add(sunLight);
+      if (this.worldConfig?.shadows) {
+        sunLight.shadow.mapSize.set(2048, 2048);
+        sunLight.shadow.camera.near = 1;
+        sunLight.shadow.camera.far = 1900;
+        sunLight.shadow.bias = -0.0004;
+        this.renderer.shadowMap.type = THREE.PCFShadowMap;
+        this.scene.add(sunLight.target);
+        this.sunDirection.copy(sunLight.position).normalize();
+        this.sun = sunLight;
+      }
     }
     this.scene.add(this.drone);
     if (start) this.drone.position.set(start.x, start.y, start.z);
@@ -225,9 +255,10 @@ export class ThreejsRenderer implements IRenderer {
       this.applyQuality();
     } else if (config.mapGlbPath) {
       this.status("Loading environment…");
-      const map = (await loader.loadAsync(this.assetUrl(config.mapGlbPath), (event) => {
+      const gltf = await loader.loadAsync(this.assetUrl(config.mapGlbPath), (event) => {
         if (event.total) this.status(`Loading environment… ${Math.round(event.loaded / event.total * 100)}%`, event.loaded / event.total);
-      })).scene;
+      });
+      const map = gltf.scene;
       map.rotation.set(config.visualRotationX ?? Math.PI / 2, 0, config.visualRotationZ ?? 0, "XYZ");
       map.scale.setScalar(config.mapScale ?? 1);
       if (config.collisionCellSize) {
@@ -235,14 +266,22 @@ export class ThreejsRenderer implements IRenderer {
       }
       map.traverse((child) => {
         if (child instanceof THREE.Mesh) {
-          if (child.name === "Water" && child.material) {
+          // Island Forge names the material "Water"; the meshes are "Sea" and "Rivers".
+          if (child.material?.name === "Water") {
             child.material.transparent = true;
             child.material.opacity = 0.85;
             child.material.depthWrite = true;
           }
+          if (config.shadows) {
+            child.castShadow = !child.material?.transparent;
+            child.receiveShadow = true;
+          }
         }
       });
       this.scene.add(map);
+      if (gltf.asset.generator === "Island Forge") {
+        this.water = installIslandWater(map, config.sunDirection ?? { x: 10, y: -10, z: 20 });
+      }
       if (!config.collisionGlbPath) this.onMapLoaded?.(map);
     } else throw new Error("This world has no renderable asset.");
   }
@@ -319,11 +358,44 @@ export class ThreejsRenderer implements IRenderer {
     }
     this.previousMode = mode;
     this.forest?.update(this.camera);
+    this.water?.update(performance.now() / 1000, this.camera.position);
+    this.updateShadowFrustum();
     if (this.goggles) {
       this.goggles.render(this.camera.position, this.camera.quaternion);
       return;
     }
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Centre the shadow map just ahead of the view and size it to the drone's height and camera
+   * distance, snapped to whole texels so shadows don't shimmer (after Island Forge).
+   */
+  private updateShadowFrustum(): void {
+    const sun = this.sun;
+    if (!sun?.castShadow) return;
+    const altitude = Math.max(0, this.position.z - (this.worldConfig?.groundLevel ?? 0));
+    const size = THREE.MathUtils.clamp(
+      30 + altitude * 1.3 + this.camera.position.distanceTo(this.position) * 0.75, 30, 400);
+    const texel = (size * 2) / sun.shadow.mapSize.x;
+    this.camera.getWorldDirection(this.shadowFocus).setZ(0);
+    if (this.shadowFocus.lengthSq() > 1e-6) this.shadowFocus.normalize();
+    this.shadowFocus.multiplyScalar(size * 0.4).add(this.position);
+    sun.target.position.set(
+      Math.round(this.shadowFocus.x / texel) * texel,
+      Math.round(this.shadowFocus.y / texel) * texel,
+      this.shadowFocus.z,
+    );
+    sun.position.copy(sun.target.position).addScaledVector(this.sunDirection, 950);
+    const camera = sun.shadow.camera;
+    if (Math.abs(camera.right - size) > size * 0.04) {
+      camera.left = -size;
+      camera.right = size;
+      camera.top = size;
+      camera.bottom = -size;
+      camera.updateProjectionMatrix();
+      sun.shadow.normalBias = texel * 0.8;
+    }
   }
 
   /** Drive the frame loop from three.js so it keeps running inside an XR session. */
@@ -427,6 +499,11 @@ export class ThreejsRenderer implements IRenderer {
       this.spark.blurAmount = 0.0;
     }
     if (this.splats) this.splats.enableLod = settings.enableLod;
+    if (this.sun) {
+      const shadows = quality !== "performance";
+      this.renderer.shadowMap.enabled = shadows;
+      this.sun.castShadow = shadows;
+    }
     this.forest?.setQuality(quality);
     this.resize();
   }
@@ -441,6 +518,8 @@ export class ThreejsRenderer implements IRenderer {
     this.controls?.dispose();
     this.forest?.dispose();
     this.forest = undefined;
+    this.water?.dispose();
+    this.water = undefined;
     this.splats?.removeFromParent();
     this.splats?.dispose();
     this.spark?.removeFromParent();
@@ -465,4 +544,49 @@ export class ThreejsRenderer implements IRenderer {
     if (element) element.textContent = message;
     reportLoading(message, progress);
   }
+}
+
+/**
+ * Gradient sky with a warm glow on the sun side, ported from Island Forge with Z up. Its horizon
+ * should equal the fog colour so land, sea and sky blend. Drawn first, without depth, and
+ * rotation-only so it stays centred on the camera whatever the far plane.
+ */
+function createSkyDome(colors: NonNullable<WorldConfig["skyDome"]>, sunDirection: Vec3): THREE.Mesh {
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    depthTest: false,
+    toneMapped: false,
+    uniforms: {
+      zenith: { value: new THREE.Color(colors.zenith) },
+      horizon: { value: new THREE.Color(colors.horizon) },
+      glow: { value: new THREE.Color(colors.glow) },
+      sunColor: { value: new THREE.Color(colors.sun) },
+      sunDir: { value: new THREE.Vector3(sunDirection.x, sunDirection.y, sunDirection.z).normalize() },
+    },
+    vertexShader: `
+      varying vec3 vDir;
+      void main() {
+        vDir = position;
+        gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * position, 1.0);
+      }`,
+    fragmentShader: `
+      uniform vec3 zenith, horizon, glow, sunColor, sunDir;
+      varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        float up = max(d.z, 0.0);
+        float t = smoothstep(0.0, 0.6, up);
+        vec3 c = mix(horizon, zenith, pow(t, 0.75));
+        float s = max(dot(d, sunDir), 0.0);
+        c = mix(c, glow, pow(s, 5.0) * (1.0 - t) * 0.8 * smoothstep(0.0, 0.05, up));
+        c += sunColor * (smoothstep(0.9993, 0.9997, s) * 1.2 + pow(s, 90.0) * 0.35);
+        gl_FragColor = vec4(c, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), material);
+  sky.renderOrder = -10;
+  sky.frustumCulled = false;
+  return sky;
 }

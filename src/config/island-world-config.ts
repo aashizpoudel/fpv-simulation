@@ -11,7 +11,8 @@ import type { WorldConfig } from "./world-config";
 // - Ambient: HemisphereLight, sky #d2e6ff, ground #b3a07e, intensity 1.45
 // - Tone mapping: THREE.NeutralToneMapping, exposure 1.0, sRGB output
 // - Fog: Exponential squared, colour #d3e4e6, density 0.0006
-// - Sky: #d3e4e6 matching horizon/fog
+// - Sky: gradient dome, zenith #4a86c8, horizon #d3e4e6 (= fog), sun-side glow #ffd9ab, sun disc #fff1d6
+// - Camera: far plane 9000 with a logarithmic depth buffer; 2048 sun shadows following the camera
 
 export const IslandWorldConfig: WorldConfig = {
   name: "island",
@@ -35,8 +36,12 @@ export const IslandWorldConfig: WorldConfig = {
 
   // Exact reproduction of island-forge-export/main.js:
   skyColor: 0xd3e4e6,
+  skyDome: { zenith: 0x4a86c8, horizon: 0xd3e4e6, glow: 0xffd9ab, sun: 0xfff1d6 },
+  ambientSkyColor: 0xd2e6ff,
   ambientGroundColor: 0xb3a07e,
   ambientIntensity: 1.45,
+  viewDistance: 9000,
+  shadows: true,
 
   sunColor: 0xffe1b8,
   sunIntensity: 3.1,
