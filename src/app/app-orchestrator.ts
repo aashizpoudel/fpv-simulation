@@ -124,6 +124,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   let lastTime = performance.now();
   let frameCount = 0;
   let fpsTime = performance.now();
+  const renderIntervalMs = 1000 / 60;
+  let nextRenderTime = 0;
   let lastHudUpdate = 0;
   let resetRequested = false;
   let handleToggleRecording = () => {};
@@ -536,7 +538,14 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
 
     ui.statusBanner.classList.toggle("show", telemetry.crashed);
 
-    renderer.render(simulationClient.interpolation.sample(now) ?? telemetry, cameraMode);
+    // Temporarily cap desktop view rendering while input and physics keep updating.
+    if (vrActive || now >= nextRenderTime) {
+      renderer.render(simulationClient.interpolation.sample(now) ?? telemetry, cameraMode);
+      frameCount += 1;
+      nextRenderTime = nextRenderTime === 0 || now - nextRenderTime > renderIntervalMs
+        ? now + renderIntervalMs
+        : nextRenderTime + renderIntervalMs;
+    }
     audioEngine.update(telemetry, cameraMode, renderer.getCameraPosition?.(), renderer.getCameraAudioOrientation?.());
     if (now - lastHudUpdate > 100) {
       updateHUD(ui, telemetry, cameraMode, flightMode, crosshairEnabled, horizonLineEnabled);
@@ -565,7 +574,6 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       lastHudUpdate = now;
     }
 
-    frameCount += 1;
     if (now - fpsTime >= 1000) {
       ui.fps.textContent = `${frameCount}fps`;
       lastFps = frameCount;

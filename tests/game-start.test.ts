@@ -20,6 +20,21 @@ it("reports error when gamepad is unavailable", async () => {
   await vi.waitFor(() => expect(document.getElementById("lodStatus")!.textContent).toContain("Gamepad unavailable"));
   expect(document.getElementById("lodStatus")!.dataset.state).toBe("error");
 });
+it("starts gamepad flight when the controller connects after the first attempt", async () => {
+  let available = false;
+  const play = vi.fn(async () => available);
+  setupGameStart(Promise.resolve({ play, enterVr: vi.fn() }), parsePlayChoices("?input=gamepad&mode=acro"));
+  await vi.waitFor(() => expect(document.getElementById("lodStatus")!.dataset.state).toBe("error"));
+
+  available = true;
+  window.dispatchEvent(new Event("gamepadconnected"));
+  await vi.waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+  expect(play).toHaveBeenLastCalledWith("gamepad", "acro");
+  await vi.waitFor(() => expect(document.getElementById("lodStatus")!.dataset.state).toBeUndefined());
+
+  window.dispatchEvent(new Event("gamepadconnected"));
+  expect(play).toHaveBeenCalledTimes(2);
+});
 it("does not auto-play when motion controller is selected", async () => {
   const play = vi.fn(async () => true);
   const enterVr = vi.fn();
