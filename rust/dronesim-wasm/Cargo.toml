@@ -1,0 +1,11 @@
+[package]
+name = "dronesim-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "WebAssembly drone motor controls and Betaflight firmware bridge"
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]

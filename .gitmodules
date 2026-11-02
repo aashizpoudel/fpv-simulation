@@ -1,0 +1,3 @@
+[submodule "rust/dronesim-wasm/betaflight"]
+	path = rust/dronesim-wasm/betaflight
+	url = https://github.com/betaflight/betaflight.git
