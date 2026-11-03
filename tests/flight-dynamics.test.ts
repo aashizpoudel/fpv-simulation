@@ -307,6 +307,22 @@ describe("mixer and battery", () => {
 });
 
 describe("configuration and recordings", () => {
+  it("validates and preserves each drone's RC channel order", () => {
+    const custom = defaultPreset();
+    custom.rcChannelOrder = [2, 3, 4, 1, 5, 6, 7, 8];
+    expect(parsePreset(exportPreset(custom)).rcChannelOrder).toEqual([2, 3, 4, 1, 5, 6, 7, 8]);
+
+    custom.rcChannelOrder = [1, 2, 4, 4, 5, 6, 7, 8];
+    expect(() => exportPreset(custom)).toThrow(/RC channel order/);
+  });
+  it("validates and preserves Betaflight PID gains", () => {
+    const custom = defaultPreset();
+    custom.betaflightPids.yaw = { p: 53, i: 88, d: 4 };
+    expect(parsePreset(exportPreset(custom)).betaflightPids.yaw).toEqual({ p: 53, i: 88, d: 4 });
+
+    custom.betaflightPids.roll.p = 256;
+    expect(() => exportPreset(custom)).toThrow(/Betaflight roll P/);
+  });
   it("round-trips configuration and rejects invalid curves/versions/inertia", () => {
     const c = defaultPreset();
     expect(parsePreset(exportPreset(c))).toEqual(c);

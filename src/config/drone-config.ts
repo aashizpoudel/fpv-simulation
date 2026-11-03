@@ -9,14 +9,23 @@ export interface RotorConfig {
 }
 
 export type ControllerType = "acro" | "angle" | "simple";
+export type RcChannelOrder = [number, number, number, number, number, number, number, number];
 
 export interface DroneConfig {
   name: string;
+  /** One-based raw channel positions for Betaflight's internal AERT1234 channels. */
+  rcChannelOrder: RcChannelOrder;
   body: BodyDynamics;
   propulsion: PropulsionConfig;
   aerodynamics: AeroConfig;
   battery: BatteryConfig;
   rates: { expo: number; rcRate: number; superRate: number };
+  /** Betaflight's native integer P/I/D values for the active rate PID profile. */
+  betaflightPids: {
+    roll: { p: number; i: number; d: number };
+    pitch: { p: number; i: number; d: number };
+    yaw: { p: number; i: number; d: number };
+  };
   // Physical dimensions (full extents)
   width: number; // meters
   length: number; // meters
@@ -61,7 +70,7 @@ export interface DroneConfig {
     fpvTiltDeg?: number; // FPV camera uptilt angle in degrees
   };
 
-  // PID rate controller config (acro mode)
+  // Legacy JS controller gains; Betaflight uses betaflightPids above.
   pidRateConfig?: {
     roll: { kP: number; kI: number; kD: number };
     pitch: { kP: number; kI: number; kD: number };

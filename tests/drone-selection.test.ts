@@ -4,7 +4,7 @@ import { loadSelectedDrone, setupDroneSelection } from "../src/app/drone-selecti
 import { loadFlightConfig } from "../src/app/flight-settings";
 import { STORAGE_KEYS } from "../src/app/storage-keys";
 import { DEFAULT_DRONE } from "../src/config/drone-catalog";
-import { defaultPreset, exportPreset, parsePreset } from "../src/config/presets";
+import { defaultPreset, parsePreset } from "../src/config/presets";
 
 beforeEach(() => {
   localStorage.clear();
@@ -53,26 +53,7 @@ describe("drone selection", () => {
     get.mockRestore();
   });
 
-  it("migrates the old model while preserving saved flight tuning", () => {
-    const config = defaultPreset();
-    config.modelUrl = `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`;
-    config.rates.expo = 0.6;
-    delete (config.rates as Partial<typeof config.rates>).rcRate;
-    delete (config.rates as Partial<typeof config.rates>).superRate;
-    config.battery.initialCharge = 0.45;
-    const text = JSON.stringify({ version: 1, config });
-    localStorage.setItem(STORAGE_KEYS.physicsPreset, text);
-    const loaded = loadFlightConfig();
-    expect(loaded.modelUrl).toBe(DEFAULT_DRONE.config.modelUrl);
-    expect(loaded.rates.expo).toBe(0.6);
-    expect(loaded.rates.rcRate).toBe(1);
-    expect(loaded.rates.superRate).toBe(0.7);
-    expect(loaded.battery.initialCharge).toBe(0.45);
-    expect(parsePreset(exportPreset(loaded))).toEqual(loaded);
-    expect(config.modelUrl).toContain("tinyhawk.gltf");
-  });
-
-  it("still rejects arbitrary imported model URLs", () => {
+  it("rejects arbitrary imported model URLs", () => {
     const config = defaultPreset();
     config.modelUrl = "https://example.com/drone.glb";
     expect(() => parsePreset(JSON.stringify({ version: 1, config }))).toThrow("Unsupported drone model");

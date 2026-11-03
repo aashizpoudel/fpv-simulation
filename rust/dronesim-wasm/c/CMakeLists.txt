@@ -161,6 +161,7 @@ target_compile_definitions(betaflight PUBLIC
   __TARGET__="SITL"
   __REVISION__="7bd98d8"
   SIMULATOR_BUILD=1
+  SET_IMU_FROM_EULER=1
   FLASH_SIZE=2048
   HSE_VALUE=8000000
   _GNU_SOURCE

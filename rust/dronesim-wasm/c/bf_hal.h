@@ -34,6 +34,32 @@ void bf_hal_advance_time(uint32_t dt_us);
 bool bf_hal_is_armed(void);
 
 /**
+ * Disarm and clear controller state after a simulation reset.
+ */
+void bf_hal_reset_flight_state(void);
+
+/**
+ * Get bitmask of active arming disable flags (0 = arming permitted).
+ */
+uint32_t bf_hal_get_arming_disable_flags(void);
+
+/**
+ * Replace the active Betaflight rate profile's type and Roll/Pitch/Yaw values.
+ * type: 0 Betaflight, 1 Raceflight, 2 KISS, 3 Actual, 4 Quick.
+ * rc_rates, expo, and super_rates use native Betaflight integer units.
+ * Returns 1 on success, 0 for an invalid type or out-of-range value.
+ */
+int bf_hal_set_rates(uint8_t type, const uint8_t rc_rates[3],
+                     const uint8_t expo[3], const uint8_t super_rates[3]);
+
+/**
+ * Replace the active PID profile's Roll/Pitch/Yaw P, I, and D values.
+ * pids is [roll P,I,D, pitch P,I,D, yaw P,I,D] in native Betaflight units.
+ * Returns 1 on success, 0 if armed.
+ */
+int bf_hal_set_pid_rate_config(const uint8_t pids[9]);
+
+/**
  * Set the EEPROM file path (or in-memory filename) for config persistence.
  */
 void bf_hal_set_eeprom_filename(const char *filename);
@@ -55,9 +81,13 @@ void bf_hal_set_attitude_quat(float w, float x, float y, float z);
 
 /**
  * Set 8 normalized RC channel values in range [-1.0, 1.0].
- * [0: Roll, 1: Pitch, 2: Throttle, 3: Yaw, 4: AUX1 (Arm), 5: AUX2 (Mode), 6: AUX3, 7: AUX4]
+ * Raw order follows the Betaflight rcmap loaded from EEPROM. The caller
+ * arranges Roll, Pitch, Yaw, Throttle and AUX values into those eight slots.
  */
 void bf_hal_set_rc(const float channels[8]);
+
+/** Feed centered sticks and low throttle/AUX in the EEPROM receiver order. */
+void bf_hal_set_neutral_rc(void);
 
 /**
  * Update battery telemetry (volts, amps, mAh drawn, and detected cell count).

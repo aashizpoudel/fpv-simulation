@@ -1,11 +1,14 @@
 import type { DroneConfig } from "../config/drone-config";
 import type { Controls, DroneTelemetry, Vec3 } from "../types";
 import { RapierPhysics } from "../physics/rapier-physics";
+import { DroneSimPhysics } from "../physics/dronesim-physics";
 import type { CollisionData } from "./simulation-messages";
 
 const DEFAULT_FIXED_TIME_STEP = 1 / 480;
 // Keep real-time physics through ordinary rendering dips down to 15 FPS.
 const DEFAULT_MAX_CATCH_UP = 1 / 15;
+
+export type PhysicsBackend = RapierPhysics | DroneSimPhysics;
 
 export type SimulationEngineOptions = {
   fixedTimeStep?: number;
@@ -13,7 +16,8 @@ export type SimulationEngineOptions = {
   clampZ?: number;
   roofHeight?: number;
   config?: DroneConfig;
-  physics?: RapierPhysics;
+  physics?: PhysicsBackend;
+  backend?: "rapier" | "dronesim";
 };
 
 export class SimulationEngine {
@@ -25,7 +29,7 @@ export class SimulationEngine {
   createPropCollider(data: CollisionData): void {
     this.physics.createPropCollider(data);
   }
-  private physics: RapierPhysics;
+  private physics: PhysicsBackend;
   public beforeFixedStep?: (input: Controls) => Controls | null;
   public afterFixedStep?: (input: Controls, telemetry: DroneTelemetry) => void;
   public get timestep(): number {
@@ -46,7 +50,12 @@ export class SimulationEngine {
   private lastTelemetry: DroneTelemetry;
 
   constructor(options: SimulationEngineOptions = {}) {
-    this.fixedTimeStep = options.fixedTimeStep ?? DEFAULT_FIXED_TIME_STEP;
+    this.physics = options.physics ?? (options.backend === "dronesim"
+      ? new DroneSimPhysics(options.config)
+      : new RapierPhysics(options.config));
+    this.fixedTimeStep =
+      options.fixedTimeStep ??
+      (this.physics instanceof DroneSimPhysics ? 1 / 1000 : DEFAULT_FIXED_TIME_STEP);
     this.maxSubSteps =
       options.maxSubSteps ??
       Math.ceil(DEFAULT_MAX_CATCH_UP / this.fixedTimeStep);
@@ -59,7 +68,6 @@ export class SimulationEngine {
       throw new Error("Invalid simulation cadence");
     this.clampZ = options.clampZ ?? -Infinity;
     this.roofHeight = options.roofHeight ?? Infinity;
-    this.physics = options.physics ?? new RapierPhysics(options.config);
     this.lastTelemetry = this.physics.getTelemetry();
   }
 

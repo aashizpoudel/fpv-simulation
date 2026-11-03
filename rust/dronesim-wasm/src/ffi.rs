@@ -29,6 +29,7 @@ impl DroneSim {
     }
 
     fn reset(&mut self) {
+        self.fc.reset_flight_state();
         self.plant.reset();
         self.motor_commands = [0.0; ROTOR_COUNT];
         self.latest = self.plant.step([0.0; ROTOR_COUNT], 0.0, false, 0.0);
@@ -138,6 +139,44 @@ pub unsafe extern "C" fn dronesim_reset(handle: *mut DroneSim) {
     }
 }
 
+/// Set the active Betaflight rate profile. Layout:
+/// [rate type, roll/pitch/yaw RC rate, roll/pitch/yaw expo,
+///  roll/pitch/yaw super rate], all in native Betaflight units.
+/// Rate types: 0 Betaflight, 1 Raceflight, 2 KISS, 3 Actual, 4 Quick.
+/// Returns 1 on success or 0 for invalid input.
+/// # Safety
+/// `handle` must be a live pointer from `dronesim_init`; `values` must point
+/// to `length` readable bytes in WASM memory.
+#[no_mangle]
+pub unsafe extern "C" fn dronesim_set_rates(handle: *mut DroneSim, values: *const u8, length: usize) -> i32 {
+    let Some(sim) = handle.as_mut() else { return 0 };
+    if values.is_null() || length != 10 {
+        return 0;
+    }
+    let data = std::slice::from_raw_parts(values, length);
+    let rc_rates = [data[1], data[2], data[3]];
+    let expo = [data[4], data[5], data[6]];
+    let super_rates = [data[7], data[8], data[9]];
+    i32::from(sim.fc.set_rates(data[0], rc_rates, expo, super_rates))
+}
+
+/// Set active Betaflight PID P/I/D values in native integer units.
+/// Layout: [roll P,I,D, pitch P,I,D, yaw P,I,D]. Returns 0 while armed.
+/// # Safety
+/// `handle` must be a live pointer from `dronesim_init`; `values` must point
+/// to `length` readable bytes in WASM memory.
+#[no_mangle]
+pub unsafe extern "C" fn dronesim_set_pid_rate_config(handle: *mut DroneSim, values: *const u8, length: usize) -> i32 {
+    let Some(sim) = handle.as_mut() else { return 0 };
+    if values.is_null() || length != 9 {
+        return 0;
+    }
+    let data = std::slice::from_raw_parts(values, length);
+    let mut pids = [0; 9];
+    pids.copy_from_slice(data);
+    i32::from(sim.fc.set_pid_rate_config(pids))
+}
+
 /// # Safety
 /// `handle` must be null or a live pointer returned by `dronesim_init`.
 #[no_mangle]
@@ -209,10 +248,75 @@ pub unsafe extern "C" fn dronesim_charge(handle: *const DroneSim) -> f64 {
 /// # Safety
 /// `handle` must be null or a live pointer returned by `dronesim_init`.
 #[no_mangle]
-pub unsafe extern "C" fn dronesim_boot_settle(handle: *mut DroneSim, ticks: u32) -> i32 {
+pub unsafe extern "C" fn dronesim_boot_settle(handle: *mut DroneSim, ticks: u32, _legacy_rc_channel_order: u32) -> i32 {
     let Some(sim) = handle.as_mut() else { return 0 };
     sim.fc.settle(ticks);
     1
+}
+
+fn flight_step_with_raw_rc(
+    sim: &mut DroneSim,
+    rc: [f32; 8],
+    gyro: [f32; 3],
+    acc: [f32; 3],
+    quat: [f32; 4],
+    axial_airspeed_mps: f64,
+    dt_s: f64,
+) -> i32 {
+    // Betaflight interprets raw slots using the rcmap loaded from EEPROM.
+    sim.motor_commands = sim.fc.step(&rc, gyro, acc, quat, dt_s);
+
+    let armed = sim.fc.is_armed();
+    sim.latest = sim
+        .plant
+        .step(sim.motor_commands, axial_airspeed_mps, armed, dt_s);
+
+    let mah_drawn = (1.0 - sim.latest.charge_fraction) * sim.plant.battery_config.capacity_ah * 1000.0;
+    sim.fc.update_battery(
+        sim.latest.battery_voltage,
+        sim.latest.battery_current_amp,
+        mah_drawn,
+    );
+
+    1
+}
+
+/// Step with all eight normalized raw receiver slots in EEPROM channel order.
+/// `rc_channels` must point to eight readable f32 values in WASM memory.
+/// # Safety
+/// `handle` must be a live pointer returned by `dronesim_init`.
+#[no_mangle]
+pub unsafe extern "C" fn dronesim_flight_step_raw(
+    handle: *mut DroneSim,
+    rc_channels: *const f32,
+    rc_length: usize,
+    gyro_x: f32,
+    gyro_y: f32,
+    gyro_z: f32,
+    acc_x: f32,
+    acc_y: f32,
+    acc_z: f32,
+    quat_w: f32,
+    quat_x: f32,
+    quat_y: f32,
+    quat_z: f32,
+    axial_airspeed_mps: f64,
+    dt_s: f64,
+) -> i32 {
+    let Some(sim) = handle.as_mut() else { return 0 };
+    if rc_channels.is_null() || rc_length != 8 {
+        return 0;
+    }
+    let raw = std::slice::from_raw_parts(rc_channels, rc_length);
+    if raw.iter().any(|value| !value.is_finite() || !(-1.0..=1.0).contains(value)) {
+        return 0;
+    }
+    let mut rc = [0.0; 8];
+    rc.copy_from_slice(raw);
+    flight_step_with_raw_rc(
+        sim, rc, [gyro_x, gyro_y, gyro_z], [acc_x, acc_y, acc_z],
+        [quat_w, quat_x, quat_y, quat_z], axial_airspeed_mps, dt_s,
+    )
 }
 
 /// # Safety
@@ -220,13 +324,14 @@ pub unsafe extern "C" fn dronesim_boot_settle(handle: *mut DroneSim, ticks: u32)
 #[no_mangle]
 pub unsafe extern "C" fn dronesim_flight_step(
     handle: *mut DroneSim,
-    // RC stick inputs [-1.0, 1.0]:
-    rc_roll: f32,
-    rc_pitch: f32,
-    rc_throttle: f32,
-    rc_yaw: f32,
-    rc_arm: f32,
-    rc_mode: f32,
+    // Legacy six-slot ABI. Values are already in raw EEPROM receiver order.
+    raw_rc_0: f32,
+    raw_rc_1: f32,
+    raw_rc_2: f32,
+    raw_rc_3: f32,
+    raw_rc_4: f32,
+    raw_rc_5: f32,
+    _legacy_rc_channel_order: u32,
     // Rigid body kinematics from physics:
     gyro_x: f32,
     gyro_y: f32,
@@ -242,30 +347,11 @@ pub unsafe extern "C" fn dronesim_flight_step(
     dt_s: f64,
 ) -> i32 {
     let Some(sim) = handle.as_mut() else { return 0 };
-
-    let rc = [rc_roll, rc_pitch, rc_throttle, rc_yaw, rc_arm, rc_mode, -1.0, -1.0];
-    let gyro = [gyro_x, gyro_y, gyro_z];
-    let acc = [acc_x, acc_y, acc_z];
-    let quat = [quat_w, quat_x, quat_y, quat_z];
-
-    // 1. Betaflight computes motor commands:
-    sim.motor_commands = sim.fc.step(&rc, gyro, acc, quat, dt_s);
-
-    // 2. MotorPlant computes thrust, torque, and battery sag:
-    let armed = sim.fc.is_armed();
-    sim.latest = sim
-        .plant
-        .step(sim.motor_commands, axial_airspeed_mps, armed, dt_s);
-
-    // 3. Feed battery state back to Betaflight:
-    let mah_drawn = (1.0 - sim.latest.charge_fraction) * sim.plant.battery_config.capacity_ah * 1000.0;
-    sim.fc.update_battery(
-        sim.latest.battery_voltage,
-        sim.latest.battery_current_amp,
-        mah_drawn,
-    );
-
-    1
+    flight_step_with_raw_rc(
+        sim, [raw_rc_0, raw_rc_1, raw_rc_2, raw_rc_3, raw_rc_4, raw_rc_5, -1.0, -1.0],
+        [gyro_x, gyro_y, gyro_z], [acc_x, acc_y, acc_z],
+        [quat_w, quat_x, quat_y, quat_z], axial_airspeed_mps, dt_s,
+    )
 }
 
 /// # Safety

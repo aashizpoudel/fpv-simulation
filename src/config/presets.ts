@@ -64,6 +64,12 @@ export function validateDroneConfig(c: DroneConfig): void {
   );
   // Assets are selected by the application, never loaded from arbitrary imported URLs.
   check(c.modelUrl === Tinyhawk3Config.modelUrl, "Unsupported drone model");
+  check(
+    Array.isArray(c.rcChannelOrder) && c.rcChannelOrder.length === 8 &&
+      new Set(c.rcChannelOrder).size === 8 &&
+      c.rcChannelOrder.every((channel) => Number.isInteger(channel) && channel >= 1 && channel <= 8),
+    "RC channel order must be a permutation of [1,2,3,4,5,6,7,8]",
+  );
   range(c.mass, 0.01, 0.15, "Mass (kg)");
   for (const key of ["width", "length", "height"] as const)
     range(c[key], 0.01, 0.3, key);
@@ -153,6 +159,13 @@ export function validateDroneConfig(c: DroneConfig): void {
   range(c.rates.expo, 0, 0.8, "Expo");
   range(c.rates.rcRate, 0.01, 2.55, "RC Rate");
   range(c.rates.superRate, 0, 0.99, "Super Rate");
+  for (const axis of ["roll", "pitch", "yaw"] as const) {
+    for (const term of ["p", "i", "d"] as const) {
+      const value = c.betaflightPids[axis][term];
+      check(Number.isInteger(value) && value >= 0 && value <= 255,
+        `Betaflight ${axis} ${term.toUpperCase()} must be an integer from 0 to 255`);
+    }
+  }
   range(c.yawTorquePerNewton, 0.0001, 0.02, "Yaw torque coefficient");
   check(
     c.controllerType === "acro" || c.controllerType === "angle",
@@ -194,17 +207,6 @@ export function validateDroneConfig(c: DroneConfig): void {
 }
 export function normalizePreset(config: DroneConfig): DroneConfig {
   const copy = structuredClone(config);
-  // Upgrade the original built-in asset without resetting saved flight tuning.
-  if (copy?.modelUrl === `${import.meta.env.BASE_URL}drone_models/tinyhawk.gltf`) {
-    copy.modelUrl = Tinyhawk3Config.modelUrl;
-  }
-  // Presets from the earlier cubic curve had only expo. Supply the new
-  // Betaflight controls without discarding the other saved flight settings.
-  if (copy?.rates && !Object.prototype.hasOwnProperty.call(copy.rates, "rcRate")
-    && !Object.prototype.hasOwnProperty.call(copy.rates, "superRate")) {
-    copy.rates.rcRate = Tinyhawk3Config.rates.rcRate;
-    copy.rates.superRate = Tinyhawk3Config.rates.superRate;
-  }
   validateDroneConfig(copy);
   const hover = hoverCommand(
     copy.mass,

@@ -44,6 +44,8 @@ try {
         '_dronesim_init',
         '_dronesim_free',
         '_dronesim_reset',
+        '_dronesim_set_rates',
+        '_dronesim_set_pid_rate_config',
         '_dronesim_step',
         '_dronesim_thrust',
         '_dronesim_torque',
@@ -51,6 +53,7 @@ try {
         '_dronesim_current',
         '_dronesim_charge',
         '_dronesim_flight_step',
+        '_dronesim_flight_step_raw',
         '_dronesim_boot_settle',
         '_dronesim_is_armed',
         '_dronesim_motor_command',
@@ -61,6 +64,9 @@ try {
         '_bf_hal_scheduler',
         '_bf_hal_advance_time',
         '_bf_hal_is_armed',
+        '_bf_hal_reset_flight_state',
+        '_bf_hal_debug_arm',
+        '_bf_hal_get_arming_disable_flags',
         '_bf_hal_set_eeprom_filename',
         '_bf_hal_set_imu',
         '_bf_hal_set_attitude_quat',
@@ -76,8 +82,9 @@ try {
     $cmd = "emcmake cmake -S c -B c/build -DCMAKE_BUILD_TYPE=Release && " +
            "cmake --build c/build -j 4 && " +
            "emcc -Wl,--whole-archive c/build/libbetaflight.a target/wasm32-unknown-unknown/release/libdronesim_wasm.a -Wl,--no-whole-archive " +
-           "-O2 -sALLOW_MEMORY_GROWTH=1 -sSTANDALONE_WASM=1 --no-entry -sEXPORTED_FUNCTIONS=$exports " +
-           "-o target/wasm32-unknown-unknown/release/dronesim_wasm.wasm"
+           "-O2 -g -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createDroneSim -sENVIRONMENT=web,worker,node -sFORCE_FILESYSTEM=1 -sALLOW_MEMORY_GROWTH=1 -sNO_EXIT_RUNTIME=1 -sEXPORTED_RUNTIME_METHODS=FS,HEAPU8,HEAPF32 " +
+           "-sEXPORTED_FUNCTIONS=$exports " +
+           "-o target/dronesim.js"
 
     docker run --rm -v "${dockerPath}/rust/dronesim-wasm:/workspace" -w /workspace emscripten/emsdk:4.0.21 sh -c $cmd
     if ($LASTEXITCODE) { throw 'Docker build/link failed' }
@@ -89,9 +96,13 @@ finally {
     }
 }
 
-# 3. Copy to public distribution directory
+# 3. Copy to public distribution directory & src/vendor
 $out = Join-Path $repo 'public/wasm/dronesim'
 New-Item -ItemType Directory -Force $out | Out-Null
-Copy-Item -LiteralPath (Join-Path $rustDir 'target/wasm32-unknown-unknown/release/dronesim_wasm.wasm') -Destination (Join-Path $out 'dronesim_wasm.wasm') -Force
+Copy-Item -LiteralPath (Join-Path $rustDir 'target/dronesim.wasm') -Destination (Join-Path $out 'dronesim_wasm.wasm') -Force
 
-Write-Host "==> Unified DroneSim + Betaflight WASM successfully built: public/wasm/dronesim/dronesim_wasm.wasm"
+$vendor = Join-Path $repo 'src/vendor'
+New-Item -ItemType Directory -Force $vendor | Out-Null
+Copy-Item -LiteralPath (Join-Path $rustDir 'target/dronesim.js') -Destination (Join-Path $vendor 'dronesim.js') -Force
+
+Write-Host "==> Unified DroneSim + Betaflight WASM successfully built: public/wasm/dronesim/dronesim_wasm.wasm & src/vendor/dronesim.js"

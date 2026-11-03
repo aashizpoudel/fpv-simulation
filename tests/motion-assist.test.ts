@@ -100,7 +100,7 @@ describe("MotionAssist", () => {
   it("turns left (heading increases) with positive yaw", async () => {
     const s = await hovering();
     const p0 = s.psi();
-    s.fly(0.5, { ...neutral, yaw: 1 });
+    s.fly(0.35, { ...neutral, yaw: 1 });
     expect(s.psi()).toBeGreaterThan(p0 + 0.3);
   });
 

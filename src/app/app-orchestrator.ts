@@ -78,6 +78,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   const simulationClient = new SimulationClient({
     config: config,
     roofHeight: options.worldConfig?.roofHeight,
+    backend: "dronesim",
     ...options.simulationOptions,
   }, options.simulationExecution);
   const audioEngine = new DroneAudioEngine(config);
@@ -340,7 +341,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
         config,
         worldName,
         simulationStart,
-        options.simulationOptions?.fixedTimeStep ?? 1 / 480,
+        options.simulationOptions?.fixedTimeStep ??
+          (options.simulationOptions?.backend === "rapier" ? 1 / 480 : 1 / 1000),
       );
       recording.raceProps = raceProps;
       await simulationClient.startRecording(recording);

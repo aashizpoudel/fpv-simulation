@@ -5,6 +5,7 @@ export type { DroneConfig, RotorConfig, ControllerType } from "./drone-config";
 // Tinyhawk III-inspired estimated preset.
 // Published size/motor class; propulsion and aerodynamic coefficients are estimates.
 export const Tinyhawk3Config: DroneConfig = {
+  rcChannelOrder: [1, 2, 4, 3, 5, 6, 7, 8], // AERT1234
   name: "75 mm 1S — Tinyhawk III inspired (estimated)",
   body: {
     centerOfMass: { x: 0, y: 0, z: -0.004 },
@@ -48,6 +49,11 @@ export const Tinyhawk3Config: DroneConfig = {
   },
   // Legacy Betaflight rates: RC Rate 1.00, Super Rate 0.70, Expo 0.
   rates: { expo: 0, rcRate: 1, superRate: 0.7 },
+  betaflightPids: {
+    roll: { p: 45, i: 80, d: 30 },
+    pitch: { p: 47, i: 84, d: 34 },
+    yaw: { p: 85, i: 15, d: 0 },
+  },
   // Outer shell size (collision box)
   width: 0.105,
   length: 0.105,

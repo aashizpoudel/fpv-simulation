@@ -20,6 +20,9 @@ export default defineConfig(({ mode }) => {
       outDir: "build",
       rollupOptions: { input: { index: "index.html", play: "play.html" } },
     },
+    worker: {
+      format: "es",
+    },
     server: {
       host: "127.0.0.1",
       allowedHosts: [".ts.net"],
