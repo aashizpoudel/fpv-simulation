@@ -12,7 +12,6 @@ extern "C" {
     fn bf_hal_set_imu(gx: f32, gy: f32, gz: f32, ax: f32, ay: f32, az: f32);
     fn bf_hal_set_attitude_quat(w: f32, x: f32, y: f32, z: f32);
     fn bf_hal_set_rc(channels: *const f32);
-    fn bf_hal_set_neutral_rc();
     fn bf_hal_set_battery(sag: f32, unf: f32, amp: f32, mah: f32, cells: u8);
     fn bf_hal_get_motor_command(index: u8) -> f32;
     fn bf_hal_get_motor_pwm(index: u8) -> f32;
@@ -34,7 +33,6 @@ mod host_mock {
     pub(super) unsafe fn bf_hal_set_imu(_gx: f32, _gy: f32, _gz: f32, _ax: f32, _ay: f32, _az: f32) {}
     pub(super) unsafe fn bf_hal_set_attitude_quat(_w: f32, _x: f32, _y: f32, _z: f32) {}
     pub(super) unsafe fn bf_hal_set_rc(_channels: *const f32) {}
-    pub(super) unsafe fn bf_hal_set_neutral_rc() {}
     pub(super) unsafe fn bf_hal_set_battery(_sag: f32, _unf: f32, _amp: f32, _mah: f32, _cells: u8) {}
     pub(super) unsafe fn bf_hal_get_motor_command(_index: u8) -> f32 { 0.0 }
     pub(super) unsafe fn bf_hal_get_motor_pwm(_index: u8) -> f32 { 1000.0 }
@@ -67,18 +65,6 @@ impl BetaflightController {
 
     pub fn is_initialized(&self) -> bool {
         self.initialized
-    }
-
-    /// Advance Betaflight by N settling ticks (for gyro calibration during boot).
-    pub fn settle(&mut self, iterations: u32) {
-        for _ in 0..iterations {
-            unsafe {
-                bf_hal_advance_time(1000);
-                bf_hal_set_imu(0.0, 0.0, 0.0, 0.0, 0.0, 9.80665);
-                bf_hal_set_neutral_rc();
-                bf_hal_scheduler();
-            }
-        }
     }
 
     /// Step Betaflight with sensor inputs & RC stick commands.

@@ -3616,7 +3616,6 @@ var _malloc,
   _bf_hal_get_arming_disable_flags,
   _bf_hal_init,
   _bf_hal_scheduler,
-  _dronesim_boot_settle,
   _dronesim_charge,
   _dronesim_config_alloc,
   _dronesim_config_free,
@@ -3629,6 +3628,7 @@ var _malloc,
   _dronesim_motor_command,
   _dronesim_motor_pwm,
   _dronesim_reset,
+  _dronesim_rpm,
   _dronesim_serial_pull,
   _dronesim_serial_push,
   _dronesim_set_pid_rate_config,
@@ -3731,7 +3731,6 @@ function assignWasmExports(wasmExports) {
   _bf_hal_get_arming_disable_flags = Module['_bf_hal_get_arming_disable_flags'] = wasmExports['bf_hal_get_arming_disable_flags'];
   _bf_hal_init = Module['_bf_hal_init'] = wasmExports['bf_hal_init'];
   _bf_hal_scheduler = Module['_bf_hal_scheduler'] = wasmExports['bf_hal_scheduler'];
-  _dronesim_boot_settle = Module['_dronesim_boot_settle'] = wasmExports['dronesim_boot_settle'];
   _dronesim_charge = Module['_dronesim_charge'] = wasmExports['dronesim_charge'];
   _dronesim_config_alloc = Module['_dronesim_config_alloc'] = wasmExports['dronesim_config_alloc'];
   _dronesim_config_free = Module['_dronesim_config_free'] = wasmExports['dronesim_config_free'];
@@ -3744,6 +3743,7 @@ function assignWasmExports(wasmExports) {
   _dronesim_motor_command = Module['_dronesim_motor_command'] = wasmExports['dronesim_motor_command'];
   _dronesim_motor_pwm = Module['_dronesim_motor_pwm'] = wasmExports['dronesim_motor_pwm'];
   _dronesim_reset = Module['_dronesim_reset'] = wasmExports['dronesim_reset'];
+  _dronesim_rpm = Module['_dronesim_rpm'] = wasmExports['dronesim_rpm'];
   _dronesim_serial_pull = Module['_dronesim_serial_pull'] = wasmExports['dronesim_serial_pull'];
   _dronesim_serial_push = Module['_dronesim_serial_push'] = wasmExports['dronesim_serial_push'];
   _dronesim_set_pid_rate_config = Module['_dronesim_set_pid_rate_config'] = wasmExports['dronesim_set_pid_rate_config'];

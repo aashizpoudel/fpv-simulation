@@ -137,9 +137,11 @@ fn init_uses_the_supplied_rotor_and_battery_values() {
             dronesim_step(stronger, 1.0, 1.0, 1.0, 1.0, 0.0, 1, 0.001);
         }
         assert!(dronesim_thrust(stronger, 0) > dronesim_thrust(normal, 0));
+        assert!(dronesim_rpm(normal, 0) > 10_000.0);
         assert_eq!(dronesim_voltage(normal), 3.6);
         assert!(dronesim_charge(normal) < 1.0);
         dronesim_reset(normal);
+        assert_eq!(dronesim_rpm(normal, 0), 0.0);
         assert_eq!(dronesim_charge(normal), 1.0);
         dronesim_free(normal);
         dronesim_free(stronger);

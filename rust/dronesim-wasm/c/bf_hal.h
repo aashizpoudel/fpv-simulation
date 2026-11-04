@@ -86,9 +86,6 @@ void bf_hal_set_attitude_quat(float w, float x, float y, float z);
  */
 void bf_hal_set_rc(const float channels[8]);
 
-/** Feed centered sticks and low throttle/AUX in the EEPROM receiver order. */
-void bf_hal_set_neutral_rc(void);
-
 /**
  * Update battery telemetry (volts, amps, mAh drawn, and detected cell count).
  */

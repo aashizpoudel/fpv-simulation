@@ -9,6 +9,7 @@ import type { DroneConfig } from "../config/drone-config";
 import { Tinyhawk3Config } from "../config/tinyhawk-config";
 import { normalizePreset } from "../config/presets";
 import { applyBetaflightTuning } from "./betaflight-tuning";
+import { ImuSensorModel } from "./imu-sensor";
 
 const GRAVITY = 9.81;
 const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
@@ -51,11 +52,16 @@ export class DroneSimPhysics {
   private impact = 0;
   private gforce = 1;
   private touchingLastStep = false;
+  private rotorRpms: [number, number, number, number] = [0, 0, 0, 0];
+  private imu: ImuSensorModel;
   private telemetry!: DroneTelemetry;
   private readonly collisionRadius: number;
 
   constructor(private config: DroneConfig = Tinyhawk3Config, private floor = 0) {
     this.config = normalizePreset(config);
+    const p = this.config.propulsion as { motorKv?: number; referenceVoltage?: number };
+    const maxRpm = (p.motorKv ?? 15000) * (p.referenceVoltage ?? 3.8);
+    this.imu = new ImuSensorModel(this.config.imu, maxRpm);
     this.collisionRadius =
       Math.max(
         Math.hypot(this.config.length, this.config.width, this.config.height),
@@ -83,6 +89,7 @@ export class DroneSimPhysics {
       gforce: 1,
       throttle: 0,
       rotorThrusts: [0, 0, 0, 0],
+      rotorRpms: [0, 0, 0, 0],
       motorCommands: [0, 0, 0, 0],
       batteryVoltage: this.config.battery.fullVoltage,
       batteryCurrent: 0,
@@ -194,12 +201,51 @@ export class DroneSimPhysics {
       throw error;
     }
 
-    // Calibration counts gyro samples; the SITL target expects up to 10,000.
-    this.wasm._dronesim_boot_settle(this.handle, 12000, 0);
-
     this.startPosition = { ...startPosition };
     this.buildWorld();
     this.reset();
+  }
+
+  /**
+   * Run the initial 1.25s (`config.imu.calibrationDuration`) gyroscope
+   * calibration in TypeScript while settling Betaflight's RC and filter state.
+   */
+  private calibrateImuOnBoot(): void {
+    if (!this.wasm || !this.handle || !this.rcBuffer) return;
+    const dt = 0.001;
+    this.imu.reset(dt);
+
+    const neutralChannels = [0, 0, 0, -1, -1, -1, -1, -1];
+    const rawRc = new Float32Array(this.wasm.HEAPU8.buffer, this.rcBuffer, 8);
+    for (let i = 0; i < 8; i++) {
+      rawRc[this.config.rcChannelOrder[i] - 1] = neutralChannels[i];
+    }
+
+    const totalTicks = Math.max(1, Math.round(this.config.imu.calibrationDuration / dt));
+    const restGyro: Vec3 = { x: 0, y: 0, z: 0 };
+    const restAcc: Vec3 = { x: 0, y: 0, z: GRAVITY };
+    const restRpms: [number, number, number, number] = [0, 0, 0, 0];
+
+    for (let i = 0; i < totalTicks; i++) {
+      const sensed = this.imu.sample(restGyro, restAcc, restRpms, dt);
+      this.wasm._dronesim_flight_step_raw(
+        this.handle,
+        this.rcBuffer,
+        8,
+        sensed.gyro.x,
+        sensed.gyro.y,
+        sensed.gyro.z,
+        sensed.acc.x,
+        sensed.acc.y,
+        sensed.acc.z,
+        1,
+        0,
+        0,
+        0,
+        0,
+        dt,
+      );
+    }
   }
 
   private buildWorld(): void {
@@ -247,9 +293,11 @@ export class DroneSimPhysics {
     this.impact = 0;
     this.gforce = 1;
     this.touchingLastStep = false;
+    this.rotorRpms = [0, 0, 0, 0];
 
     if (this.wasm && this.handle) {
       this.wasm._dronesim_reset(this.handle);
+      this.calibrateImuOnBoot();
     }
 
     if (this.body) {
@@ -309,6 +357,7 @@ export class DroneSimPhysics {
     const localGyro = rotateVec(angvel, qInv);
     const localAcc = rotateVec(this.specificForce, qInv);
     const axialAirspeed = Math.max(0, -rotateVec(vel, qInv).z);
+    const sensedImu = this.imu.sample(localGyro, localAcc, this.rotorRpms, dt);
 
     // Throttle integration
     if (this.armed && !this.crashed) {
@@ -338,12 +387,12 @@ export class DroneSimPhysics {
       this.handle,
       this.rcBuffer,
       8,
-      localGyro.x,
-      localGyro.y,
-      localGyro.z,
-      localAcc.x,
-      localAcc.y,
-      localAcc.z,
+      sensedImu.gyro.x,
+      sensedImu.gyro.y,
+      sensedImu.gyro.z,
+      sensedImu.acc.x,
+      sensedImu.acc.y,
+      sensedImu.acc.z,
       q.w,
       q.x,
       q.y,
@@ -355,12 +404,19 @@ export class DroneSimPhysics {
     if (ok !== 1) throw new Error("DroneSim flight step failed");
     const flightControllerArmed = this.wasm._dronesim_is_armed(this.handle) !== 0;
 
-    // Sample rotor forces
+    // Sample rotor forces and RPMs
     const rotorThrusts: [number, number, number, number] = [
       this.wasm._dronesim_thrust(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[0]),
       this.wasm._dronesim_thrust(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[1]),
       this.wasm._dronesim_thrust(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[2]),
       this.wasm._dronesim_thrust(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[3]),
+    ];
+
+    this.rotorRpms = [
+      this.wasm._dronesim_rpm(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[0]),
+      this.wasm._dronesim_rpm(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[1]),
+      this.wasm._dronesim_rpm(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[2]),
+      this.wasm._dronesim_rpm(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[3]),
     ];
 
     const rotorTorques: [number, number, number, number] = [
@@ -488,6 +544,7 @@ export class DroneSimPhysics {
       gforce: this.gforce,
       throttle: this.throttle * 100,
       rotorThrusts: [...rotorThrusts],
+      rotorRpms: [...this.rotorRpms],
       motorCommands: [...motorCommands],
       batteryVoltage: voltage,
       batteryCurrent: current,

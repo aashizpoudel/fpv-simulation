@@ -179,15 +179,6 @@ void bf_hal_set_rc(const float channels[8]) {
     }
 }
 
-void bf_hal_set_neutral_rc(void) {
-    float raw[RC_CHANNEL_COUNT] = {0};
-    for (int channel = 0; channel < RX_MAPPABLE_CHANNEL_COUNT; channel++) {
-        raw[rxConfig()->rcmap[channel]] =
-            (channel == THROTTLE || channel >= 4) ? -1.0f : 0.0f;
-    }
-    bf_hal_set_rc(raw);
-}
-
 // =============================================================================
 // In-Memory Virtual Serial Ring Buffer (MSP / Configurator)
 // =============================================================================
@@ -530,9 +521,15 @@ int bf_hal_init(void) {
     resetRawRcCacheFromMap();
 
     // In SITL software simulation:
-    // 1. Clear power on arming grace time so simulator doesn't wait 5s to arm
+    // 1. Clear power on arming grace time and startup sensor calibration in firmware
+    // (TypeScript ImuSensorModel handles the initial 1.25s gyro calibration).
     systemConfigMutable()->powerOnArmingGraceTime = 0;
+    sensorsClear(SENSOR_BARO);
+    for (int i = 0; i < GYRO_COUNT; i++) {
+        gyro.gyroSensor[i].calibration.cyclesRemaining = 0;
+    }
     unsetArmingDisabled(ARMING_DISABLED_BOOT_GRACE_TIME);
+    unsetArmingDisabled(ARMING_DISABLED_CALIBRATING);
 
     // 2. Ensure virtual motor protocol is PWM
     motorConfigMutable()->dev.motorProtocol = MOTOR_PROTOCOL_PWM;

@@ -47,6 +47,22 @@ export const Tinyhawk3Config: DroneConfig = {
     maxMotorCurrent: 2.5,
     fixedVoltage: null,
   },
+  // InvenSense MPU-6000 6-axis MEMS IMU parameters (SI units: rad/s, m/s^2, s)
+  imu: {
+    gyroNoiseDensity: 0.0000873, // 0.005 deg/s/sqrt(Hz)
+    gyroBiasRandomWalk: 0.0000175, // 0.001 deg/s/sqrt(s)
+    gyroBias: { x: 0.012, y: -0.009, z: 0.006 }, // turn-on bias calibrated out during 1.25s startup
+    gyroScaleError: { x: 0.005, y: -0.004, z: 0.003 },
+    gyroVibration: 0.015, // rad/s peak harmonic vibration at max RPM
+    accNoiseDensity: 0.00392, // 400 ug/sqrt(Hz)
+    accBiasRandomWalk: 0.0001, // m/s^2/sqrt(s)
+    accBias: { x: 0.02, y: -0.015, z: 0.025 },
+    accScaleError: { x: 0.005, y: -0.005, z: 0.004 },
+    accVibration: 0.25, // m/s^2 peak harmonic vibration at max RPM
+    calibrationDuration: 1.25, // 1.25s startup gyro calibration in TypeScript
+    calibrationMovementThreshold: 0.08, // rad/s max stddev before restarting calibration
+    seed: 1337,
+  },
   // Legacy Betaflight rates: RC Rate 1.00, Super Rate 0.70, Expo 0.
   rates: { expo: 0, rcRate: 1, superRate: 0.7 },
   betaflightPids: {

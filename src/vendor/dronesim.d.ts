@@ -36,7 +36,7 @@ export interface DroneSimModule {
     qw: number, qx: number, qy: number, qz: number,
     axialAirspeed: number, dt: number
   ): number;
-  _dronesim_boot_settle(handle: number, ticks: number, legacyRcChannelOrder: number): number;
+  _dronesim_rpm(handle: number, rotor: number): number;
   _dronesim_thrust(handle: number, rotor: number): number;
   _dronesim_torque(handle: number, rotor: number): number;
   _dronesim_voltage(handle: number): number;

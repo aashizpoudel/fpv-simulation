@@ -201,6 +201,16 @@ pub unsafe extern "C" fn dronesim_step(
 /// # Safety
 /// `handle` must be null or a live pointer returned by `dronesim_init`.
 #[no_mangle]
+pub unsafe extern "C" fn dronesim_rpm(handle: *const DroneSim, rotor: i32) -> f64 {
+    handle
+        .as_ref()
+        .and_then(|sim| sim.latest.rotors.get(rotor as usize))
+        .map_or(0.0, |output| output.rpm)
+}
+
+/// # Safety
+/// `handle` must be null or a live pointer returned by `dronesim_init`.
+#[no_mangle]
 pub unsafe extern "C" fn dronesim_thrust(handle: *const DroneSim, rotor: i32) -> f64 {
     handle
         .as_ref()
@@ -243,15 +253,6 @@ pub unsafe extern "C" fn dronesim_charge(handle: *const DroneSim) -> f64 {
     handle
         .as_ref()
         .map_or(0.0, |sim| sim.latest.charge_fraction)
-}
-
-/// # Safety
-/// `handle` must be null or a live pointer returned by `dronesim_init`.
-#[no_mangle]
-pub unsafe extern "C" fn dronesim_boot_settle(handle: *mut DroneSim, ticks: u32, _legacy_rc_channel_order: u32) -> i32 {
-    let Some(sim) = handle.as_mut() else { return 0 };
-    sim.fc.settle(ticks);
-    1
 }
 
 fn flight_step_with_raw_rc(

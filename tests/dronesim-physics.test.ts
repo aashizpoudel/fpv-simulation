@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { DroneSimPhysics } from "../src/physics/dronesim-physics";
+import { ImuSensorModel } from "../src/physics/imu-sensor";
 import { Tinyhawk3Config } from "../src/config/tinyhawk-config";
 import type { DroneConfig } from "../src/config/drone-config";
 import type { DroneSimModule } from "../src/vendor/dronesim";
@@ -85,9 +86,10 @@ describe("DroneSimPhysics (Unified Betaflight + Motor WASM)", () => {
 
     const telemetry = sim.getTelemetry();
     expect(telemetry.armed).toBe(true);
-    // Rotor thrusts should be non-zero
+    // Rotor thrusts and RPMs should be non-zero
     const totalThrust = telemetry.rotorThrusts.reduce((a, b) => a + b, 0);
     expect(totalThrust).toBeGreaterThan(0.05);
+    expect(telemetry.rotorRpms?.every((rpm) => rpm > 10000)).toBe(true);
     // Battery voltage should sag under load
     expect(telemetry.batteryVoltage).toBeLessThan(4.35);
   });
@@ -227,3 +229,38 @@ it("selects the Betaflight backend through serializable simulation options", asy
     engine.dispose();
   }
 });
+
+describe("ImuSensorModel (TypeScript 6-axis MEMS IMU & 1.25s calibration)", () => {
+  it("calibrates out turn-on gyro bias over 1.25s and restarts if moved", () => {
+    const imu = new ImuSensorModel(Tinyhawk3Config.imu, 57000);
+    expect(imu.isCalibrated()).toBe(false);
+    expect(imu.getCalibrationCyclesRemaining()).toBe(1250);
+
+    // Disturb the drone mid-calibration so stddev exceeds threshold -> restarts 1.25s window
+    for (let i = 0; i < 1250; i++) {
+      const rate = i < 600 ? 0.5 : 0;
+      imu.sample({ x: rate, y: 0, z: 0 }, { x: 0, y: 0, z: 9.81 }, [0, 0, 0, 0], 0.001);
+    }
+    expect(imu.isCalibrated()).toBe(false);
+    expect(imu.getCalibrationCyclesRemaining()).toBe(1250);
+
+    // Hold stationary for 1.25s (1250 ticks at 1 ms)
+    let lastSample = imu.sample({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 9.81 }, [0, 0, 0, 0], 0.001);
+    for (let i = 1; i < 1250; i++) {
+      lastSample = imu.sample({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 9.81 }, [0, 0, 0, 0], 0.001);
+    }
+    expect(imu.isCalibrated()).toBe(true);
+    expect(lastSample.calibrated).toBe(true);
+
+    const zero = imu.getCalibratedGyroZero();
+    expect(zero.x).toBeCloseTo(Tinyhawk3Config.imu.gyroBias.x, 3);
+    expect(zero.y).toBeCloseTo(Tinyhawk3Config.imu.gyroBias.y, 3);
+    expect(zero.z).toBeCloseTo(Tinyhawk3Config.imu.gyroBias.z, 3);
+
+    // Post-calibration stationary readings are centered near zero
+    expect(Math.abs(lastSample.gyro.x)).toBeLessThan(0.01);
+    expect(Math.abs(lastSample.gyro.y)).toBeLessThan(0.01);
+    expect(Math.abs(lastSample.gyro.z)).toBeLessThan(0.01);
+  });
+});
+

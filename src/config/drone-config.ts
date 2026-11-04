@@ -28,6 +28,35 @@ export interface BetaflightRatesConfig {
   expo: number;
 }
 
+export interface ImuConfig {
+  /** Gyroscope white noise spectral density in (rad/s)/sqrt(Hz). */
+  gyroNoiseDensity: number;
+  /** Gyroscope bias random walk in (rad/s)/sqrt(s). */
+  gyroBiasRandomWalk: number;
+  /** Initial turn-on gyroscope zero-rate bias in rad/s (calibrated out during startup). */
+  gyroBias: Vec3;
+  /** Fractional gyroscope scale factor error per axis (e.g. 0.005 = +0.5%). */
+  gyroScaleError: Vec3;
+  /** Peak gyroscope rotor-harmonic vibration amplitude at max RPM in rad/s. */
+  gyroVibration: number;
+  /** Accelerometer white noise spectral density in (m/s^2)/sqrt(Hz). */
+  accNoiseDensity: number;
+  /** Accelerometer bias random walk in (m/s^2)/sqrt(s). */
+  accBiasRandomWalk: number;
+  /** Static accelerometer bias in m/s^2. */
+  accBias: Vec3;
+  /** Fractional accelerometer scale factor error per axis. */
+  accScaleError: Vec3;
+  /** Peak accelerometer rotor-harmonic vibration amplitude at max RPM in m/s^2. */
+  accVibration: number;
+  /** Startup stationary gyroscope calibration window in seconds (Betaflight default: 1.25s). */
+  calibrationDuration: number;
+  /** Maximum allowed gyro standard deviation (rad/s) during calibration before restarting. */
+  calibrationMovementThreshold: number;
+  /** Deterministic PRNG seed for reproducible sensor noise and flight replays. */
+  seed: number;
+}
+
 export interface DroneConfig {
   name: string;
   /** One-based raw channel positions for Betaflight's internal AERT1234 channels. */
@@ -36,6 +65,7 @@ export interface DroneConfig {
   propulsion: PropulsionConfig;
   aerodynamics: AeroConfig;
   battery: BatteryConfig;
+  imu: ImuConfig;
   rates: BetaflightRatesConfig;
   /** Betaflight's native integer P/I/D values for the active rate PID profile. */
   betaflightPids: {

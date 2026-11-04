@@ -177,6 +177,22 @@ export function validateDroneConfig(c: DroneConfig): void {
   range(b.idleCurrent, 0, 1, "Electronics current");
   range(b.maxMotorCurrent, 0.1, 10, "Motor current");
   if (b.fixedVoltage !== null) range(b.fixedVoltage, 0, 4.5, "Fixed voltage");
+  const imu = c.imu;
+  range(imu.gyroNoiseDensity, 0, 0.05, "Gyro noise density");
+  range(imu.gyroBiasRandomWalk, 0, 0.05, "Gyro bias random walk");
+  range(imu.gyroVibration, 0, 2, "Gyro vibration");
+  range(imu.accNoiseDensity, 0, 1, "Accel noise density");
+  range(imu.accBiasRandomWalk, 0, 1, "Accel bias random walk");
+  range(imu.accVibration, 0, 20, "Accel vibration");
+  range(imu.calibrationDuration, 0.01, 10, "IMU calibration duration");
+  range(imu.calibrationMovementThreshold, 0.001, 5, "IMU calibration movement threshold");
+  check(Number.isInteger(imu.seed), "IMU seed must be an integer");
+  for (const axis of ["x", "y", "z"] as const) {
+    range(imu.gyroBias[axis], -1, 1, `Gyro bias ${axis}`);
+    range(imu.gyroScaleError[axis], -0.2, 0.2, `Gyro scale error ${axis}`);
+    range(imu.accBias[axis], -5, 5, `Accel bias ${axis}`);
+    range(imu.accScaleError[axis], -0.2, 0.2, `Accel scale error ${axis}`);
+  }
   const rateType = c.rates.type ?? "betaflight";
   check(
     Object.prototype.hasOwnProperty.call(RATES_TYPE_META, rateType),

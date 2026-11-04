@@ -28,6 +28,7 @@ export type DroneTelemetry = {
   batteryCharge?: number;
   batteryCurrent?: number;
   motorCommands?: number[];
+  rotorRpms?: number[];
   saturation?: { roll: number; pitch: number; yaw: number };
   impactDeltaVelocity?: number;
   localPosition: Vec3;
