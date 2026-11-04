@@ -179,4 +179,27 @@ describe("settings tabs and audio", () => {
     const checkbox = document.getElementById("stickOverlayCheckbox") as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
   });
+
+  it("updates Betaflight Configurator rate columns, max velocity readouts, and curve preview", async () => {
+    const { setupFlightSettings } = await import("../src/app/flight-settings");
+    const { defaultPreset } = await import("../src/config/presets");
+    setupFlightSettings(defaultPreset(), "island");
+
+    expect(document.getElementById("maxVelRoll")!.textContent).toBe("667 °/s");
+    expect(document.getElementById("ratesCurveRoll")!.getAttribute("d")).toContain("M28.0,96.0");
+
+    const typeSelect = document.getElementById("ratesTypeSelect") as HTMLSelectElement;
+    typeSelect.value = "actual";
+    typeSelect.dispatchEvent(new Event("change"));
+
+    expect(document.getElementById("bfColRcRate")!.textContent).toBe("Center Sensitivity (°/s)");
+    expect(document.getElementById("bfColSuperRate")!.textContent).toBe("Max Rate (°/s)");
+
+    const superPitch = document.getElementById("rateSuperPitch") as HTMLInputElement;
+    superPitch.value = "850";
+    superPitch.dispatchEvent(new Event("input"));
+
+    expect(document.getElementById("maxVelPitch")!.textContent).toBe("850 °/s");
+    expect(document.getElementById("ratesCurveMaxLabel")!.textContent).toBe("850 °/s");
+  });
 });

@@ -1,4 +1,4 @@
-import { rateTarget, shapeStick } from "../rates";
+import { rateTarget, resolveAxisRates, shapeStick } from "../rates";
 /*
   Angle (self-leveling) flight mode — cascaded PID.
   Outer loop: angle PID (roll/pitch only).
@@ -97,11 +97,16 @@ export class AngleMode implements IFlightMode {
     const currentRollAngle = euler.roll;
     const currentPitchAngle = euler.pitch;
 
+    const rateType = this.rates.type ?? "betaflight";
+    const rRoll = resolveAxisRates(this.rates, "roll");
+    const rPitch = resolveAxisRates(this.rates, "pitch");
+    const rYaw = resolveAxisRates(this.rates, "yaw");
+
     // Target angles from stick inputs
     const targetRollAngle =
-      shapeStick(controls.roll, this.rates.expo) * this.maxAngleRoll;
+      shapeStick(controls.roll, rRoll.expo) * this.maxAngleRoll;
     const targetPitchAngle =
-      shapeStick(controls.pitch, this.rates.expo) * this.maxAnglePitch;
+      shapeStick(controls.pitch, rPitch.expo) * this.maxAnglePitch;
 
     // Outer PID: angle -> rate target
     const rollRateTarget = this.outerPidRoll.update(
@@ -120,10 +125,11 @@ export class AngleMode implements IFlightMode {
     // Yaw: direct rate control (no outer angle PID)
     const yawRateTarget = rateTarget(
       controls.yaw,
-      this.rates.rcRate,
-      this.rates.superRate,
-      this.rates.expo,
+      rYaw.rcRate,
+      rYaw.superRate,
+      rYaw.expo,
       this.maxRateYaw / DEG2RAD,
+      rateType,
     );
 
     // Inner PID: rate -> correction

@@ -1834,3 +1834,113 @@ body {
         animation: none;
     }
 }
+
+/* ── Betaflight Configurator Rates Table & Curve Preview ── */
+
+.bf-rates-table {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-divider);
+    border-radius: 3px;
+}
+
+.bf-rates-row {
+    display: grid;
+    grid-template-columns: 44px repeat(3, minmax(0, 1fr)) 64px;
+    align-items: center;
+    gap: 6px;
+}
+
+.bf-rates-header {
+    font-size: 10px;
+    color: var(--ui-muted);
+    font-weight: 600;
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--ui-divider);
+}
+
+.bf-rates-header span:last-child,
+.bf-max-vel {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.bf-max-vel {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ui-text);
+}
+
+.bf-axis-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.bf-axis-tag::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.bf-axis-roll::before { background: #ff5f5f; }
+.bf-axis-pitch::before { background: #5fe085; }
+.bf-axis-yaw::before { background: #5fb4ff; }
+
+.bf-rates-row input[type="number"] {
+    width: 100%;
+    padding: 3px 5px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.bf-rates-preview {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-divider);
+    border-radius: 3px;
+}
+
+.bf-rates-preview svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.bf-curve-axis {
+    stroke: var(--ui-border);
+    stroke-width: 1;
+}
+
+.bf-curve-grid {
+    stroke: var(--ui-divider);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+}
+
+.bf-curve-line {
+    fill: none;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.bf-curve-roll { stroke: #ff5f5f; }
+.bf-curve-pitch { stroke: #5fe085; }
+.bf-curve-yaw { stroke: #5fb4ff; }
+
+.bf-curve-label {
+    fill: var(--ui-muted);
+    font-size: 9px;
+    font-family: system-ui, sans-serif;
+}
+

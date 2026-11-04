@@ -1,6 +1,7 @@
 import type { DroneConfig } from "./drone-config";
 import { Tinyhawk3Config } from "./tinyhawk-config";
 import { hoverCommand } from "../physics/motor-model";
+import { RATES_TYPE_META, resolveAxisRates } from "../controllers/rates";
 import { STORAGE_KEYS } from "../app/storage-keys";
 
 export const PRESET_VERSION = 1;
@@ -38,6 +39,26 @@ function shape(value: unknown, template: unknown, path = "config"): void {
       `${path}: expected object`,
     );
     const object = value as Record<string, unknown>;
+    if (path === "config.rates") {
+      for (const [key, v] of Object.entries(template as object)) {
+        check(
+          Object.prototype.hasOwnProperty.call(object, key),
+          `${path}.${key}: required`,
+        );
+        shape(object[key], v, `${path}.${key}`);
+      }
+      const allowed = new Set([...Object.keys(template as object), "type", "roll", "pitch", "yaw"]);
+      for (const key of Object.keys(object))
+        check(allowed.has(key), `${path}.${key}: unknown field`);
+      if (object.type !== undefined)
+        check(typeof object.type === "string", `${path}.type: invalid value`);
+      for (const axis of ["roll", "pitch", "yaw"] as const) {
+        if (object[axis] !== undefined) {
+          shape(object[axis], { rcRate: 1, superRate: 0.7, expo: 0 }, `${path}.${axis}`);
+        }
+      }
+      return;
+    }
     for (const [key, v] of Object.entries(template as object)) {
       check(
         Object.prototype.hasOwnProperty.call(object, key),
@@ -156,9 +177,21 @@ export function validateDroneConfig(c: DroneConfig): void {
   range(b.idleCurrent, 0, 1, "Electronics current");
   range(b.maxMotorCurrent, 0.1, 10, "Motor current");
   if (b.fixedVoltage !== null) range(b.fixedVoltage, 0, 4.5, "Fixed voltage");
-  range(c.rates.expo, 0, 0.8, "Expo");
-  range(c.rates.rcRate, 0.01, 2.55, "RC Rate");
-  range(c.rates.superRate, 0, 0.99, "Super Rate");
+  const rateType = c.rates.type ?? "betaflight";
+  check(
+    Object.prototype.hasOwnProperty.call(RATES_TYPE_META, rateType),
+    `Unsupported rates type: ${String(rateType)}`,
+  );
+  const rateMeta = RATES_TYPE_META[rateType];
+  const validateAxisRate = (r: { rcRate: number; superRate: number; expo: number }, prefix = "") => {
+    range(r.expo, rateMeta.expo.min, rateMeta.expo.max, `${prefix}Expo`);
+    range(r.rcRate, rateMeta.rcRate.min, rateMeta.rcRate.max, `${prefix}RC Rate`);
+    range(r.superRate, rateMeta.superRate.min, rateMeta.superRate.max, `${prefix}Super Rate`);
+  };
+  validateAxisRate(c.rates);
+  for (const axis of ["roll", "pitch", "yaw"] as const) {
+    if (c.rates[axis]) validateAxisRate(resolveAxisRates(c.rates, axis), `${axis} `);
+  }
   for (const axis of ["roll", "pitch", "yaw"] as const) {
     for (const term of ["p", "i", "d"] as const) {
       const value = c.betaflightPids[axis][term];
@@ -185,7 +218,7 @@ export function validateDroneConfig(c: DroneConfig): void {
     range(gains.kP, 0, 2, `${axis} P`);
     range(gains.kI, 0, 2, `${axis} I`);
     range(gains.kD, 0, 0.05, `${axis} D`);
-    range(c.pidRateConfig.maxRate[axis], 10, 1200, `${axis} rate`);
+    range(c.pidRateConfig.maxRate[axis], 10, 1998, `${axis} rate`);
   }
   range(c.pidRateConfig.iLimit, 0, 2, "Integral limit");
   range(c.pidRateConfig.dFilterHz, 1, 200, "D filter");

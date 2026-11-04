@@ -10,6 +10,23 @@ export interface RotorConfig {
 
 export type ControllerType = "acro" | "angle" | "simple";
 export type RcChannelOrder = [number, number, number, number, number, number, number, number];
+export type BetaflightRatesType = "betaflight" | "raceflight" | "kiss" | "actual" | "quick";
+
+export interface AxisRateConfig {
+  rcRate: number;
+  superRate: number;
+  expo: number;
+}
+
+export interface BetaflightRatesConfig {
+  type?: BetaflightRatesType;
+  roll?: AxisRateConfig;
+  pitch?: AxisRateConfig;
+  yaw?: AxisRateConfig;
+  rcRate: number;
+  superRate: number;
+  expo: number;
+}
 
 export interface DroneConfig {
   name: string;
@@ -19,7 +36,7 @@ export interface DroneConfig {
   propulsion: PropulsionConfig;
   aerodynamics: AeroConfig;
   battery: BatteryConfig;
-  rates: { expo: number; rcRate: number; superRate: number };
+  rates: BetaflightRatesConfig;
   /** Betaflight's native integer P/I/D values for the active rate PID profile. */
   betaflightPids: {
     roll: { p: number; i: number; d: number };

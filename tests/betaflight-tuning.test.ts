@@ -38,6 +38,35 @@ describe("Betaflight startup tuning", () => {
     expect(free).toHaveBeenCalledWith(8);
   });
 
+  it("supports per-axis rates and Actual rates type in native Betaflight units", () => {
+    const config = structuredClone(Tinyhawk3Config);
+    config.rates = {
+      type: "actual",
+      rcRate: 180,
+      superRate: 670,
+      expo: 0.54,
+      roll: { rcRate: 180, superRate: 670, expo: 0.54 },
+      pitch: { rcRate: 190, superRate: 720, expo: 0.50 },
+      yaw: { rcRate: 200, superRate: 550, expo: 0.25 },
+    };
+
+    const heap = new Uint8Array(32);
+    const sent: number[][] = [];
+    const wasm = {
+      HEAPU8: heap,
+      _malloc: () => 4,
+      _free: () => {},
+      _dronesim_set_rates: (_handle: number, ptr: number, len: number) => {
+        sent.push(Array.from(heap.subarray(ptr, ptr + len)));
+        return 1;
+      },
+      _dronesim_set_pid_rate_config: () => 1,
+    } as unknown as DroneSimModule;
+
+    applyBetaflightTuning(wasm, 7, config);
+    expect(sent).toEqual([[3, 18, 19, 20, 54, 50, 25, 67, 72, 55]]);
+  });
+
   it("surfaces a rejected tuning update and frees its WASM buffer", () => {
     const free = vi.fn();
     const wasm = {

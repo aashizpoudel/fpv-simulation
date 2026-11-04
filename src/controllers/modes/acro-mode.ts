@@ -1,4 +1,4 @@
-import { rateTarget } from "../rates";
+import { rateTarget, resolveAxisRates } from "../rates";
 /*
   Acro (rate) flight mode — PID rate controller on roll/pitch/yaw.
   Extracted from acroController.ts.
@@ -42,9 +42,13 @@ export class AcroMode implements IFlightMode {
     const { controls, bodyAngularVelocity, throttle, dt } = input;
 
     // Target rates from stick inputs (rad/s)
-    const targetRoll = rateTarget(controls.roll, this.rates.rcRate, this.rates.superRate, this.rates.expo, this.maxRateRoll / DEG2RAD);
-    const targetPitch = rateTarget(controls.pitch, this.rates.rcRate, this.rates.superRate, this.rates.expo, this.maxRatePitch / DEG2RAD);
-    const targetYaw = rateTarget(controls.yaw, this.rates.rcRate, this.rates.superRate, this.rates.expo, this.maxRateYaw / DEG2RAD);
+    const rateType = this.rates.type ?? "betaflight";
+    const rRoll = resolveAxisRates(this.rates, "roll");
+    const rPitch = resolveAxisRates(this.rates, "pitch");
+    const rYaw = resolveAxisRates(this.rates, "yaw");
+    const targetRoll = rateTarget(controls.roll, rRoll.rcRate, rRoll.superRate, rRoll.expo, this.maxRateRoll / DEG2RAD, rateType);
+    const targetPitch = rateTarget(controls.pitch, rPitch.rcRate, rPitch.superRate, rPitch.expo, this.maxRatePitch / DEG2RAD, rateType);
+    const targetYaw = rateTarget(controls.yaw, rYaw.rcRate, rYaw.superRate, rYaw.expo, this.maxRateYaw / DEG2RAD, rateType);
 
     // Run PID controllers
     const roll = this.pidRoll.update(targetRoll, bodyAngularVelocity.x, dt, input.saturation?.roll);
