@@ -30,11 +30,13 @@ describe("navigation-only landing", () => {
     select("welcomeWorldSelect", "ekotori");
     select("welcomeControlSelect", "gamepad");
     select("welcomeFlightModeSelect", "acro");
+    select("welcomeDroneSelect", "axisflying-manta5-dc");
     expect(navigate).not.toHaveBeenCalled();
     document.getElementById("welcomePlayBtn")!.click();
     const target = new URL(navigate.mock.calls[0][0]);
     expect(target.pathname).toBe("/fpv/play.html");
     expect(localStorage.getItem("drone_sim_world")).toBe("ekotori");
+    expect(localStorage.getItem("drone_sim_drone")).toBe("axisflying-manta5-dc");
     expect(localStorage.getItem("drone_sim_control")).toBe("gamepad");
     expect(localStorage.getItem("drone_sim_flight_mode")).toBe("acro");
   });
@@ -47,6 +49,16 @@ describe("navigation-only landing", () => {
     expect(document.getElementById("welcomeStatus")!.textContent).toContain("VR only");
     document.getElementById("welcomeVrBtn")!.click();
     expect(localStorage.getItem("drone_sim_vr_intent")).toBe("1");
+  });
+  it("restores a saved drone and ignores an unknown one", () => {
+    localStorage.setItem("drone_sim_drone", "axisflying-manta5-dc");
+    setupWelcomeScreen(vi.fn());
+    const drone = document.getElementById("welcomeDroneSelect") as HTMLSelectElement;
+    expect(drone.value).toBe("axisflying-manta5-dc");
+    document.body.innerHTML = new DOMParser().parseFromString(html, "text/html").body.innerHTML;
+    localStorage.setItem("drone_sim_drone", "removed-drone");
+    setupWelcomeScreen(vi.fn());
+    expect((document.getElementById("welcomeDroneSelect") as HTMLSelectElement).value).toBe("tinyhawk-iii-plus");
   });
   it("restores the saved map but never consumes old autoplay flags", () => {
     localStorage.setItem("drone_sim_world", "forest");

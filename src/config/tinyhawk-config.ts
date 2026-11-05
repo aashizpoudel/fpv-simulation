@@ -37,6 +37,7 @@ export const Tinyhawk3Config: DroneConfig = {
     angular: { x: 0.000012, y: 0.000012, z: 0.00002 },
   },
   battery: {
+    cells: 1,
     capacityAh: 0.45,
     initialCharge: 1,
     emptyVoltage: 3.2,

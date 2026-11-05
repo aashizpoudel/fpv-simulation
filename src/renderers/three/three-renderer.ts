@@ -176,7 +176,8 @@ export class ThreejsRenderer implements IRenderer {
       // the body origin. Bounding-box centring would shift it toward the antenna.
       this.drone.add(model);
     } catch {
-      this.drone.add(new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.105, 0.045),
+      const { length, width, height } = this.droneConfig!;
+      this.drone.add(new THREE.Mesh(new THREE.BoxGeometry(length, width, height),
         new THREE.MeshStandardMaterial({ color: 0xffaa22 })));
     }
   }

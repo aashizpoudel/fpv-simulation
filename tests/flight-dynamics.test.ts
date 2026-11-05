@@ -17,6 +17,7 @@ import { SimulationEngine } from "../src/core/simulation-engine";
 import { createRecording, parseRecording } from "../src/core/flight-recording";
 import type { Controls } from "../src/types";
 import type { DroneConfig } from "../src/config/drone-config";
+import { DRONES } from "../src/config/drone-catalog";
 import type RAPIER from "@dimforge/rapier3d-compat";
 
 const neutral: Controls = {
@@ -33,11 +34,13 @@ const instances: RapierPhysics[] = [];
 afterEach(() => {
   for (const p of instances.splice(0)) p.dispose();
 });
-function config(): DroneConfig {
-  const c = defaultPreset();
+function config(base?: DroneConfig): DroneConfig {
+  const c = defaultPreset(base);
   c.battery.fixedVoltage = c.propulsion.referenceVoltage;
   return c;
 }
+const configFor = config;
+const setupWith = (c: DroneConfig) => setup(c);
 async function setup(c = config()) {
   const p = new RapierPhysics(c);
   instances.push(p);
@@ -54,7 +57,9 @@ function run(p: RapierPhysics, controls: Controls, seconds: number, hz = 480) {
   return p.getTelemetry();
 }
 
-describe("closed-loop flight", () => {
+describe.each(DRONES)("closed-loop flight: $name", ({ config: base }) => {
+  const config = () => configFor(base);
+  const setup = (c = config()) => setupWith(c);
   for (const axis of ["roll", "pitch", "yaw"] as const)
     it(`tracks ${axis} rate steps in acro mode and settles after release`, async () => {
       const c = config();

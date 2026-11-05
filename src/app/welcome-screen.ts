@@ -12,8 +12,12 @@ export function setupWelcomeScreen(
   const world = document.getElementById("welcomeWorldSelect") as HTMLSelectElement;
   const control = document.getElementById("welcomeControlSelect") as HTMLSelectElement;
   const mode = document.getElementById("welcomeFlightModeSelect") as HTMLSelectElement;
+  const drone = document.getElementById("welcomeDroneSelect") as HTMLSelectElement | null;
   const status = document.getElementById("welcomeStatus")!;
   const initial = parsePlayChoices(window.location.search);
+  // The landing page lists drones statically so that it need not load the drone catalog.
+  const savedDrone = localStorage.getItem(STORAGE_KEYS.drone);
+  if (drone && [...drone.options].some((option) => option.value === savedDrone)) drone.value = savedDrone!;
   world.value = landingWorld(window.location.search);
   control.value = initial.control;
   mode.value = initial.mode;
@@ -23,6 +27,7 @@ export function setupWelcomeScreen(
       return;
     }
     localStorage.setItem(STORAGE_KEYS.world, world.value);
+    if (drone) localStorage.setItem(STORAGE_KEYS.drone, drone.value);
     const choices = {
       control: control.value === "gamepad" || control.value === "motion" ? control.value : "keyboard",
       mode: mode.value === "acro" ? "acro" : "angle",
