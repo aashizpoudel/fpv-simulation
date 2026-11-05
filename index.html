@@ -55,21 +55,21 @@
                 <p class="welcome-kicker">Welcome to FPV Sim</p>
                 <h1 id="sim-title">Free FPV Drone Simulator</h1>
                 <p>Fly an FPV drone through the classic Counter-Strike Dust2 (de_dust2) map for free, or explore the photorealistic Factory and Ekotori maps. Practice with a keyboard, gamepad, or USB radio.</p>
-                <p class="welcome-detail">Choose a map and control type, then start flying for free in your browser. No installation required.</p>
+                <p class="welcome-detail">Choose a map, a drone, and a control type, then start flying for free in your browser. No installation required.</p>
                 <div class="welcome-choices">
                     <label for="welcomeWorldSelect">Map
                         <select id="welcomeWorldSelect">
-                            <option value="island">Island</option>
-                            <option value="forest">Forest</option>
-                            <option value="dedust">Dust2 (De Dust 2)</option>
-                            <option value="factory-splat">Factory</option>
-                            <option value="ekotori">Ekotori</option>
+                            <option value="island" data-thumb="%BASE_URL%thumbnails/maps/island.jpg" data-detail="Low-poly town and river">Island</option>
+                            <option value="forest" data-thumb="%BASE_URL%thumbnails/maps/forest.jpg" data-detail="Procedural mixed forest">Forest</option>
+                            <option value="dedust" data-thumb="%BASE_URL%thumbnails/maps/dedust.jpg" data-detail="Counter-Strike classic">Dust2 (De Dust 2)</option>
+                            <option value="factory-splat" data-thumb="%BASE_URL%thumbnails/maps/factory-splat.jpg" data-detail="Photorealistic splat">Factory</option>
+                            <option value="ekotori" data-thumb="%BASE_URL%thumbnails/maps/ekotori.jpg" data-detail="Photorealistic splat">Ekotori</option>
                         </select>
                     </label>
                     <label for="welcomeDroneSelect">Drone
                         <select id="welcomeDroneSelect">
-                            <option value="tinyhawk-iii-plus">EMAX Tinyhawk III Plus</option>
-                            <option value="axisflying-manta5-dc">Axisflying Manta5 DeadCat (O4 Lite)</option>
+                            <option value="tinyhawk-iii-plus" data-thumb="%BASE_URL%thumbnails/drones/tinyhawk-iii-plus.jpg" data-detail="75 mm whoop · 1S">EMAX Tinyhawk III Plus</option>
+                            <option value="axisflying-manta5-dc" data-thumb="%BASE_URL%thumbnails/drones/axisflying-manta5-dc.jpg" data-detail="5-inch freestyle · 6S">Axisflying Manta5 DeadCat (O4 Lite)</option>
                         </select>
                     </label>
                     <label for="welcomeControlSelect">Control type
@@ -90,11 +90,12 @@
                     <span id="welcomeGamepadStatus" role="status">Gamepad not detected</span>
                     <button id="welcomeGamepadBtn" class="welcome-gamepad-btn" type="button">Detect gamepad</button>
                 </div>
-                <p class="welcome-status" id="welcomeStatus" role="status">Choose a map and control type, then play.</p>
+                <p class="welcome-status" id="welcomeStatus" role="status">Choose a map, a drone, and a control type, then play.</p>
                 <div class="welcome-actions">
                     <button id="welcomePlayBtn" class="welcome-play" type="button">Play</button>
                     <button id="welcomeVrBtn" class="welcome-play welcome-vr" type="button" data-vr-button hidden>Play in VR</button>
                 </div>
+                <p class="welcome-support">Like this project? <a href="https://buymeacoffee.com/aashizpoudel" target="_blank" rel="noopener">Support me on Buy Me a Coffee</a></p>
             </div>
         </section>
 

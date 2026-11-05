@@ -1,6 +1,7 @@
 import { landingWorld, parsePlayChoices, playUrl, savePlayChoices } from "./page-navigation";
 import { STORAGE_KEYS } from "./storage-keys";
 import "../styles.css";
+import { setupChoiceCarousel } from "../ui/choice-carousel";
 import { setupWelcomeGamepadStatus } from "../ui/welcome-gamepad-status";
 import { subscribeVrSupport } from "../xr/xr-support";
 import { setupPwa } from "../pwa";
@@ -21,6 +22,8 @@ export function setupWelcomeScreen(
   world.value = landingWorld(window.location.search);
   control.value = initial.control;
   mode.value = initial.mode;
+  setupChoiceCarousel(world, "Map");
+  if (drone) setupChoiceCarousel(drone, "Drone");
   const go = (vr: boolean) => {
     if (control.value === "motion" && !vr) {
       status.textContent = "The motion controller works in VR only. Select Play in VR.";

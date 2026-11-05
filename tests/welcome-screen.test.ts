@@ -60,6 +60,55 @@ describe("navigation-only landing", () => {
     setupWelcomeScreen(vi.fn());
     expect((document.getElementById("welcomeDroneSelect") as HTMLSelectElement).value).toBe("tinyhawk-iii-plus");
   });
+  it("shows map and drone carousels with a thumbnail for every option", () => {
+    localStorage.setItem("drone_sim_world", "dedust");
+    setupWelcomeScreen(vi.fn());
+    for (const [id, count] of [["welcomeWorldSelect", 5], ["welcomeDroneSelect", 2]] as const) {
+      const select = document.getElementById(id) as HTMLSelectElement;
+      expect(select.closest("label")!.hidden).toBe(true);
+      const cards = document.querySelectorAll<HTMLElement>(`#${id}Carousel [role="radio"]`);
+      expect(cards).toHaveLength(count);
+      for (const card of cards) {
+        expect(card.querySelector("img")!.getAttribute("src")).toMatch(/thumbnails\/(maps|drones)\/[\w-]+\.jpg$/);
+      }
+    }
+    const checked = document.querySelector('#welcomeWorldSelectCarousel [aria-checked="true"]') as HTMLElement;
+    expect(checked.dataset.value).toBe("dedust");
+    expect(checked.tabIndex).toBe(0);
+  });
+  it("selects with a card click, the arrows, and the arrow keys", () => {
+    const navigate = vi.fn();
+    setupWelcomeScreen(navigate);
+    const world = document.getElementById("welcomeWorldSelect") as HTMLSelectElement;
+    const carousel = document.getElementById("welcomeWorldSelectCarousel")!;
+    const onChange = vi.fn();
+    world.addEventListener("change", onChange);
+    (carousel.querySelector('[data-value="factory-splat"]') as HTMLElement).click();
+    expect(world.value).toBe("factory-splat");
+    expect(onChange).toHaveBeenCalledTimes(1);
+    (carousel.querySelector('[aria-label="Next map"]') as HTMLElement).click();
+    expect(world.value).toBe("ekotori");
+    (carousel.querySelector('[aria-label="Next map"]') as HTMLElement).click();
+    expect(world.value).toBe("island");
+    (carousel.querySelector('[aria-label="Previous map"]') as HTMLElement).click();
+    expect(world.value).toBe("ekotori");
+    const track = carousel.querySelector('[role="radiogroup"]')!;
+    track.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+    expect(world.value).toBe("island");
+    track.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(world.value).toBe("forest");
+    expect(document.activeElement).toBe(carousel.querySelector('[data-value="forest"]'));
+    (document.querySelector('#welcomeDroneSelectCarousel [data-value="axisflying-manta5-dc"]') as HTMLElement).click();
+    document.getElementById("welcomePlayBtn")!.click();
+    expect(localStorage.getItem("drone_sim_world")).toBe("forest");
+    expect(localStorage.getItem("drone_sim_drone")).toBe("axisflying-manta5-dc");
+  });
+  it("follows select changes made by other code", () => {
+    setupWelcomeScreen(vi.fn());
+    select("welcomeDroneSelect", "axisflying-manta5-dc");
+    const checked = document.querySelector('#welcomeDroneSelectCarousel [aria-checked="true"]') as HTMLElement;
+    expect(checked.dataset.value).toBe("axisflying-manta5-dc");
+  });
   it("restores the saved map but never consumes old autoplay flags", () => {
     localStorage.setItem("drone_sim_world", "forest");
     sessionStorage.setItem("fpv_resume_auto_play", "1");
