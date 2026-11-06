@@ -1,16 +1,19 @@
 import { hoverCommand } from "../physics/motor-model";
 import type { DroneConfig } from "./drone-config";
 
-// Axisflying MANTA5 DeadCat (DJI O4 Lite, 6S) inspired estimated preset.
-// Published: 238 mm wheelbase, ~180 g frame, 4.9–5.1" props, 4S/6S 1050–1500 mAh.
-// Motor, mass, inertia, and aerodynamic values are estimates for a 2207-class 6S build.
+// Axisflying MANTA 5 DeadCat, 6S O4 Lite.
+// Frame kit: 238 mm wheelbase, 133 g, props to 5.1 in, 6S 1050–1500 mAh.
+// Motor: C246 1850 KV, Axisflying's 5 in / 6S pairing. Bench on a GF 51466 at 23.4 V
+// is 1741.5 g, 41.5 A, 59.44 mΩ. The thrust number below is the no-load-RPM anchor
+// that makes the motor plant reproduce that bench point.
 export const Manta5DeadCatConfig: DroneConfig = {
   rcChannelOrder: [1, 2, 4, 3, 5, 6, 7, 8], // AERT1234
-  name: "238 mm 6S — Axisflying Manta5 DeadCat inspired (estimated)",
+  name: "238 mm 6S — Axisflying Manta 5 DeadCat, C246 1850 KV",
   body: {
-    centerOfMass: { x: 0, y: 0, z: -0.002 },
-    // Motors and props dominate; the wider lateral motor spacing raises roll over pitch.
-    inertia: { x: 0.0016, y: 0.0014, z: 0.0028 },
+    // Battery center from the model (6 mm forward, 28 mm above the motor plane).
+    centerOfMass: { x: 0.0039, y: 0, z: 0.0108 },
+    // About the center of mass: 133 g frame along the arms, 31 g motors, 5 g props.
+    inertia: { x: 0.00171, y: 0.00116, z: 0.0027 },
     collisionShape: "box",
     ductRadius: 0.06,
     ductHeight: 0.02,
@@ -32,6 +35,13 @@ export const Manta5DeadCatConfig: DroneConfig = {
     fallTime: 0.05,
     idle: 0.05,
     airmode: true,
+    // C246 1850 KV. Resistance and peak current are the 1850 KV spec-sheet values.
+    motorKv: 1850,
+    motorResistance: 0.05944,
+    motorNoLoadCurrent: 1.0,
+    motorPeakCurrent: 41.5,
+    rotorInertia: 6e-6,
+    escTimeConstant: 0.002,
   },
   aerodynamics: {
     linear: { x: 0.04, y: 0.04, z: 0.06 },
@@ -46,7 +56,7 @@ export const Manta5DeadCatConfig: DroneConfig = {
     fullVoltage: 25.2,
     resistance: 0.025,
     idleCurrent: 0.4,
-    maxMotorCurrent: 35,
+    maxMotorCurrent: 41.5,
     fixedVoltage: null,
   },
   // TDK InvenSense ICM-42688-P / BMI270 6-axis MEMS IMU parameters
@@ -72,14 +82,14 @@ export const Manta5DeadCatConfig: DroneConfig = {
     pitch: { p: 48, i: 85, d: 38 },
     yaw: { p: 90, i: 30, d: 0 },
   },
-  // Collision box: prop tip to prop tip, landing feet to battery top.
-  width: 0.308,
-  length: 0.251,
+  // Prop-tip box for the 5.1 in maximum prop on the 238 mm motor rectangle.
+  width: 0.315,
+  length: 0.279,
   height: 0.06,
   modelUrl: `${import.meta.env.BASE_URL}drone_models/axisflying-manta5-dc.glb`,
 
-  // Mass: ~590 g AUW (~400 g dry + ~190 g 6S 1100 mAh)
-  mass: 0.59,
+  // 133 g frame + 124 g motors + 20 g props + 65 g stack/O4/receiver + 170 g 6S 1100 mAh.
+  mass: 0.512,
 
   linearDamping: 0,
   angularDamping: 0,
@@ -89,8 +99,8 @@ export const Manta5DeadCatConfig: DroneConfig = {
     const dx = 0.0747; // longitudinal half-spacing
     const dy = 0.0926; // lateral half-spacing
     const armHeight = 0.0;
-    // Estimated 2207 1950 KV on 6S with 5.1" props: 1.4 kgf = 13.7 N
-    const maxThrustPerRotor = 13.7;
+    // No-load anchor. At 23.4 V the plant settles at the published 1741.5 g.
+    const maxThrustPerRotor = 20.26;
 
     return [
       { name: "frontRight", position: { x: +dx, y: -dy, z: armHeight }, maxThrust: maxThrustPerRotor },
@@ -107,8 +117,8 @@ export const Manta5DeadCatConfig: DroneConfig = {
   stickRate: 0.12,
   controllerType: "angle",
   rotorMode: true,
-  // 5" prop torque-to-thrust ratio
-  yawTorquePerNewton: 0.01,
+  // (41.5 A − 1 A) × Kt / 17.08 N at the GF 51466 bench point.
+  yawTorquePerNewton: 0.01224,
 
   cameraConfig: {
     thirdPersonBehind: 1.2,

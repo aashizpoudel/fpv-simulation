@@ -59,8 +59,8 @@ export class DroneSimPhysics {
 
   constructor(private config: DroneConfig = Tinyhawk3Config, private floor = 0) {
     this.config = normalizePreset(config);
-    const p = this.config.propulsion as { motorKv?: number; referenceVoltage?: number };
-    const maxRpm = (p.motorKv ?? 15000) * (p.referenceVoltage ?? 3.8);
+    const p = this.config.propulsion;
+    const maxRpm = p.motorKv * p.referenceVoltage;
     this.imu = new ImuSensorModel(this.config.imu, maxRpm);
     this.collisionRadius =
       Math.max(
@@ -151,18 +151,17 @@ export class DroneSimPhysics {
     const cfgPtr = this.wasm._dronesim_config_alloc();
     const memF64 = new Float64Array(this.wasm.HEAPU8.buffer, cfgPtr, cfgLen);
 
-    const p = this.config.propulsion as any;
+    const p = this.config.propulsion;
     const b = this.config.battery;
 
-    const motorKv = p.motorKv ?? 15000;
-    const motorResistance = p.motorResistance ?? 0.38;
-    const motorNoLoadCurrent = p.motorNoLoadCurrent ?? 0.0075;
-    const motorPeakCurrent = p.motorPeakCurrent ?? (b.maxMotorCurrent * 4);
-    const arm = Math.hypot(this.config.rotors[0].position.x, this.config.rotors[0].position.y);
-    const rotorInertia = p.rotorInertia ?? Math.max(1e-8, 3.75e-8 * (arm / 0.027) ** 2);
-    const escTimeConstant = p.escTimeConstant ?? 0.002;
-    const yawTorque = this.config.yawTorquePerNewton ?? 0.003;
-    const referenceVoltage = p.referenceVoltage ?? 3.8;
+    const motorKv = p.motorKv;
+    const motorResistance = p.motorResistance;
+    const motorNoLoadCurrent = p.motorNoLoadCurrent;
+    const motorPeakCurrent = p.motorPeakCurrent;
+    const rotorInertia = p.rotorInertia;
+    const escTimeConstant = p.escTimeConstant;
+    const yawTorque = this.config.yawTorquePerNewton;
+    const referenceVoltage = p.referenceVoltage;
     const maxRpm = motorKv * referenceVoltage;
 
     for (let i = 0; i < 4; i++) {

@@ -305,8 +305,35 @@ export function setupBenchControls(options: BenchControlsOptions = {}) {
     }
   };
 
-  const formatRateValue = (val: number, step: number) =>
-    step < 1 ? val.toFixed(2) : String(Math.round(val));
+  const formatSliderValue = (el: HTMLInputElement) => {
+    const value = Number(el.value);
+    const step = Number(el.step);
+    if (!Number.isFinite(value)) return el.value;
+    if (!Number.isFinite(step) || step <= 0 || step >= 1) return String(Math.round(value));
+    const decimals = (el.step.split(".")[1] ?? "").length;
+    return value.toFixed(decimals);
+  };
+
+  const snapToStep = (value: number, min: number, max: number, step: number) => {
+    const clamped = Math.min(max, Math.max(min, value));
+    if (!(step > 0)) return clamped;
+    const snapped = min + Math.round((clamped - min) / step) * step;
+    const decimals = (String(step).split(".")[1] ?? "").length;
+    const rounded = decimals ? Number(snapped.toFixed(decimals)) : Math.round(snapped);
+    return Math.min(max, Math.max(min, rounded));
+  };
+
+  const syncSliderNumbers = () => {
+    sidebar?.querySelectorAll<HTMLInputElement>("input.bench-slider-num").forEach((text) => {
+      if (document.activeElement === text) return;
+      const range = document.getElementById(text.id.replace(/Num$/, ""));
+      if (!(range instanceof HTMLInputElement)) return;
+      text.min = range.min;
+      text.max = range.max;
+      text.step = range.step;
+      text.value = formatSliderValue(range);
+    });
+  };
 
   const syncRateSlidersForType = (rateType: BetaflightRatesType) => {
     const meta = RATES_TYPE_META[rateType] ?? RATES_TYPE_META.betaflight;
@@ -354,7 +381,6 @@ export function setupBenchControls(options: BenchControlsOptions = {}) {
 
   const updateOutputsAndCurve = () => {
     const rateType = ((typeSelect?.value as BetaflightRatesType) || activeConfig.rates.type || "betaflight");
-    const meta = RATES_TYPE_META[rateType] ?? RATES_TYPE_META.betaflight;
 
     // PID outputs
     for (const [id, outId] of [
@@ -384,13 +410,6 @@ export function setupBenchControls(options: BenchControlsOptions = {}) {
     for (const axis of ["roll", "pitch", "yaw"] as const) {
       const ids = rateIds[axis];
       const r = curves[axis];
-      const rcOut = output(ids.rcOut);
-      const superOut = output(ids.superOut);
-      const expoOut = output(ids.expoOut);
-      if (rcOut) rcOut.textContent = formatRateValue(r.rcRate, meta.rcRate.step);
-      if (superOut) superOut.textContent = formatRateValue(r.superRate, meta.superRate.step);
-      if (expoOut) expoOut.textContent = formatRateValue(r.expo, meta.expo.step);
-
       const maxDps = Math.round(Math.abs(evaluateBetaflightRateDps(1, r, rateType)));
       peaks[axis] = maxDps;
       const maxVelOut = output(ids.maxVel);
@@ -420,29 +439,7 @@ export function setupBenchControls(options: BenchControlsOptions = {}) {
       pathEl.setAttribute("d", pts.join(" "));
     }
 
-    // Physical & IMU outputs
-    const massEl = slider("benchMassG");
-    const thrustEl = slider("benchMaxThrust");
-    const tiltEl = slider("benchCameraTilt");
-    const capEl = slider("benchBatteryCapacity");
-    const irEl = slider("benchBatteryResistance");
-    const dragEl = slider("benchLinearDrag");
-    const gNoiseEl = slider("benchGyroNoise");
-    const gVibEl = slider("benchGyroVibration");
-    const aNoiseEl = slider("benchAccNoise");
-    const calDurEl = slider("benchCalDuration");
-
-    if (massEl && output("benchMassGVal")) output("benchMassGVal")!.textContent = `${massEl.value} g`;
-    if (thrustEl && output("benchMaxThrustVal")) output("benchMaxThrustVal")!.textContent = `${Number(thrustEl.value).toFixed(2)} N`;
-    if (tiltEl && output("benchCameraTiltVal")) output("benchCameraTiltVal")!.textContent = `${tiltEl.value}°`;
-    if (capEl && output("benchBatteryCapacityVal")) output("benchBatteryCapacityVal")!.textContent = `${capEl.value} mAh`;
-    if (irEl && output("benchBatteryResistanceVal")) output("benchBatteryResistanceVal")!.textContent = `${Number(irEl.value).toFixed(2)} Ω`;
-    if (dragEl && output("benchLinearDragVal")) output("benchLinearDragVal")!.textContent = Number(dragEl.value).toFixed(3);
-    if (gNoiseEl && output("benchGyroNoiseVal")) output("benchGyroNoiseVal")!.textContent = Number(gNoiseEl.value).toFixed(5);
-    if (gVibEl && output("benchGyroVibrationVal")) output("benchGyroVibrationVal")!.textContent = Number(gVibEl.value).toFixed(3);
-    if (aNoiseEl && output("benchAccNoiseVal")) output("benchAccNoiseVal")!.textContent = Number(aNoiseEl.value).toFixed(3);
-    if (calDurEl && output("benchCalDurationVal")) output("benchCalDurationVal")!.textContent = `${Number(calDurEl.value).toFixed(2)} s`;
-
+    syncSliderNumbers();
     updatePidStepCurves();
   };
 
@@ -579,12 +576,36 @@ export function setupBenchControls(options: BenchControlsOptions = {}) {
     setStatus("Pending changes — click Apply to Drone to reload.");
   });
 
-  sidebar?.querySelectorAll<HTMLInputElement>('input[type="range"], input[type="number"]').forEach((inputEl) => {
+  const pending = () => setStatus("Pending changes — click Apply to Drone to reload.");
+  sidebar?.querySelectorAll<HTMLInputElement>('input[type="range"], input[type="number"]:not(.bench-slider-num)').forEach((inputEl) => {
     inputEl.addEventListener("input", () => {
       updateOutputsAndCurve();
-      setStatus("Pending changes — click Apply to Drone to reload.");
+      pending();
     });
     inputEl.addEventListener("change", () => {
+      updateOutputsAndCurve();
+    });
+  });
+  sidebar?.querySelectorAll<HTMLInputElement>("input.bench-slider-num").forEach((text) => {
+    const range = document.getElementById(text.id.replace(/Num$/, ""));
+    if (!(range instanceof HTMLInputElement)) return;
+    const writeRange = (commit: boolean) => {
+      const raw = text.value.trim();
+      if (!commit && (raw === "" || raw === "-" || raw === "." || raw === "-." || raw.endsWith("."))) return;
+      const n = Number(raw);
+      const snapped = Number.isFinite(n)
+        ? snapToStep(n, Number(range.min), Number(range.max), Number(range.step))
+        : Number(range.value);
+      range.value = String(snapped);
+      if (commit) text.value = formatSliderValue(range);
+    };
+    text.addEventListener("input", () => {
+      writeRange(false);
+      updateOutputsAndCurve();
+      pending();
+    });
+    text.addEventListener("change", () => {
+      writeRange(true);
       updateOutputsAndCurve();
     });
   });

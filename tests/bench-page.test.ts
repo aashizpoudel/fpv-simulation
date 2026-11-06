@@ -84,6 +84,38 @@ describe("bench.html tuning lab", () => {
     expect(applied!.imu.gyroVibration).toBeCloseTo(0.045);
   });
 
+  it("keeps each slider and its number field on the same value", () => {
+    let applied: DroneConfig | undefined;
+    setupBenchControls({
+      initialConfig: defaultPreset(),
+      onApply: (cfg) => {
+        applied = cfg;
+      },
+    });
+    const ranges = [...document.querySelectorAll<HTMLInputElement>("#benchSidebar input[type='range']")];
+    expect(ranges.length).toBeGreaterThan(0);
+    for (const range of ranges) {
+      const text = document.getElementById(`${range.id}Num`) as HTMLInputElement;
+      expect(text?.type).toBe("number");
+      expect(Number(text.value)).toBeCloseTo(Number(range.value), 2);
+    }
+
+    const mass = document.getElementById("benchMassGNum") as HTMLInputElement;
+    mass.value = "600";
+    mass.dispatchEvent(new Event("input"));
+    mass.dispatchEvent(new Event("change"));
+    expect((document.getElementById("benchMassG") as HTMLInputElement).value).toBe("600");
+
+    const thrust = document.getElementById("benchMaxThrust") as HTMLInputElement;
+    thrust.value = "12.5";
+    thrust.dispatchEvent(new Event("input"));
+    expect((document.getElementById("benchMaxThrustNum") as HTMLInputElement).value).toBe("12.50");
+
+    (document.getElementById("benchApplyBtn") as HTMLButtonElement).click();
+    expect(applied!.mass).toBeCloseTo(0.6);
+    expect(applied!.rotors[0].maxThrust).toBeCloseTo(12.5);
+  });
+
   it("switches to keyboard automatically when gamepad is not detected", async () => {
     const play = vi.fn(async (control: "keyboard" | "gamepad") => control === "keyboard");
     startBenchFlight(

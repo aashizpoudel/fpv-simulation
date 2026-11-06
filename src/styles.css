@@ -2346,7 +2346,7 @@ body {
 
 .bench-slider-row {
     display: grid;
-    grid-template-columns: 105px minmax(0, 1fr) 58px;
+    grid-template-columns: 96px minmax(0, 1fr) 76px;
     align-items: center;
     gap: 8px;
     font-size: 11px;
@@ -2357,6 +2357,18 @@ body {
     width: 100%;
     accent-color: var(--ui-text);
     cursor: pointer;
+}
+
+.bench-slider-row input.bench-slider-num {
+    width: 100%;
+    min-width: 0;
+    padding: 3px 4px;
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-border);
+    border-radius: 3px;
+    font: 600 11px "Courier New", "Consolas", monospace;
+    font-variant-numeric: tabular-nums;
 }
 
 .bench-slider-row output {

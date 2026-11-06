@@ -5,6 +5,7 @@ import { loadFlightConfig } from "../src/app/flight-settings";
 import { STORAGE_KEYS } from "../src/app/storage-keys";
 import { DEFAULT_DRONE, DRONES } from "../src/config/drone-catalog";
 import { Manta5DeadCatConfig } from "../src/config/manta5-config";
+import { Tinyhawk3Config } from "../src/config/tinyhawk-config";
 import { defaultPreset, exportPreset, parsePreset } from "../src/config/presets";
 
 beforeEach(() => {
@@ -56,6 +57,20 @@ describe("drone selection", () => {
     localStorage.setItem(STORAGE_KEYS.drone, "axisflying-manta5-dc");
     localStorage.setItem(STORAGE_KEYS.physicsPreset, exportPreset(tuned));
     expect(loadFlightConfig()).toEqual(tuned);
+  });
+
+  it("uses whoop motor electrics on Tinyhawk and C246 electrics on Manta 5", () => {
+    expect(defaultPreset(Tinyhawk3Config).propulsion).toMatchObject({
+      motorKv: 15000,
+      motorResistance: 0.38,
+      motorPeakCurrent: 10,
+    });
+    expect(defaultPreset(Manta5DeadCatConfig).propulsion).toMatchObject({
+      motorKv: 1850,
+      motorResistance: 0.05944,
+      motorPeakCurrent: 41.5,
+    });
+    expect(defaultPreset(Manta5DeadCatConfig).mass).toBeCloseTo(0.512);
   });
 
   it("checks pack voltages against the cell count", () => {

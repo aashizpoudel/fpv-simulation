@@ -110,51 +110,51 @@
                             <label class="bench-slider-row" for="benchRollRcRate">
                                 <span data-rate-label="rc">RC Rate</span>
                                 <input id="benchRollRcRate" type="range" min="0.01" max="2.55" step="0.01" />
-                                <output id="benchRollRcRateVal" for="benchRollRcRate">1.00</output>
+                                <input id="benchRollRcRateNum" class="bench-slider-num" type="number" min="0.01" max="2.55" step="0.01" value="1" aria-label="Roll RC Rate" />
                             </label>
                             <label class="bench-slider-row" for="benchRollSuperRate">
                                 <span data-rate-label="super">Super Rate</span>
                                 <input id="benchRollSuperRate" type="range" min="0" max="0.99" step="0.01" />
-                                <output id="benchRollSuperRateVal" for="benchRollSuperRate">0.70</output>
+                                <input id="benchRollSuperRateNum" class="bench-slider-num" type="number" min="0" max="0.99" step="0.01" value="0.7" aria-label="Roll Super Rate" />
                             </label>
                             <label class="bench-slider-row" for="benchRollExpo">
                                 <span data-rate-label="expo">RC Expo</span>
                                 <input id="benchRollExpo" type="range" min="0" max="1" step="0.01" />
-                                <output id="benchRollExpoVal" for="benchRollExpo">0.00</output>
+                                <input id="benchRollExpoNum" class="bench-slider-num" type="number" min="0" max="1" step="0.01" value="0" aria-label="Roll RC Expo" />
                             </label>
 
                             <div class="bench-sublabel">Pitch (<output id="benchMaxVelPitch">667 °/s</output>)</div>
                             <label class="bench-slider-row" for="benchPitchRcRate">
                                 <span data-rate-label="rc">RC Rate</span>
                                 <input id="benchPitchRcRate" type="range" min="0.01" max="2.55" step="0.01" />
-                                <output id="benchPitchRcRateVal" for="benchPitchRcRate">1.00</output>
+                                <input id="benchPitchRcRateNum" class="bench-slider-num" type="number" min="0.01" max="2.55" step="0.01" value="1" aria-label="Pitch RC Rate" />
                             </label>
                             <label class="bench-slider-row" for="benchPitchSuperRate">
                                 <span data-rate-label="super">Super Rate</span>
                                 <input id="benchPitchSuperRate" type="range" min="0" max="0.99" step="0.01" />
-                                <output id="benchPitchSuperRateVal" for="benchPitchSuperRate">0.70</output>
+                                <input id="benchPitchSuperRateNum" class="bench-slider-num" type="number" min="0" max="0.99" step="0.01" value="0.7" aria-label="Pitch Super Rate" />
                             </label>
                             <label class="bench-slider-row" for="benchPitchExpo">
                                 <span data-rate-label="expo">RC Expo</span>
                                 <input id="benchPitchExpo" type="range" min="0" max="1" step="0.01" />
-                                <output id="benchPitchExpoVal" for="benchPitchExpo">0.00</output>
+                                <input id="benchPitchExpoNum" class="bench-slider-num" type="number" min="0" max="1" step="0.01" value="0" aria-label="Pitch RC Expo" />
                             </label>
 
                             <div class="bench-sublabel">Yaw (<output id="benchMaxVelYaw">667 °/s</output>)</div>
                             <label class="bench-slider-row" for="benchYawRcRate">
                                 <span data-rate-label="rc">RC Rate</span>
                                 <input id="benchYawRcRate" type="range" min="0.01" max="2.55" step="0.01" />
-                                <output id="benchYawYawRcRateVal" for="benchYawRcRate">1.00</output>
+                                <input id="benchYawRcRateNum" class="bench-slider-num" type="number" min="0.01" max="2.55" step="0.01" value="1" aria-label="Yaw RC Rate" />
                             </label>
                             <label class="bench-slider-row" for="benchYawSuperRate">
                                 <span data-rate-label="super">Super Rate</span>
                                 <input id="benchYawSuperRate" type="range" min="0" max="0.99" step="0.01" />
-                                <output id="benchYawSuperRateVal" for="benchYawSuperRate">0.70</output>
+                                <input id="benchYawSuperRateNum" class="bench-slider-num" type="number" min="0" max="0.99" step="0.01" value="0.7" aria-label="Yaw Super Rate" />
                             </label>
                             <label class="bench-slider-row" for="benchYawExpo">
                                 <span data-rate-label="expo">RC Expo</span>
                                 <input id="benchYawExpo" type="range" min="0" max="1" step="0.01" />
-                                <output id="benchYawExpoVal" for="benchYawExpo">0.00</output>
+                                <input id="benchYawExpoNum" class="bench-slider-num" type="number" min="0" max="1" step="0.01" value="0" aria-label="Yaw RC Expo" />
                             </label>
 
                             <div class="bf-rates-preview">
@@ -179,33 +179,33 @@
                         <div class="bench-section-body">
                             <label class="bench-slider-row" for="benchMassG">
                                 <span>Mass (g)</span>
-                                <input id="benchMassG" type="range" min="20" max="120" step="1" />
-                                <output id="benchMassGVal" for="benchMassG">44 g</output>
+                                <input id="benchMassG" type="range" min="20" max="1500" step="1" />
+                                <input id="benchMassGNum" class="bench-slider-num" type="number" min="20" max="1500" step="1" value="44" aria-label="Mass (g)" />
                             </label>
                             <label class="bench-slider-row" for="benchMaxThrust">
                                 <span>Rotor Thrust (N)</span>
-                                <input id="benchMaxThrust" type="range" min="0.12" max="0.60" step="0.01" />
-                                <output id="benchMaxThrustVal" for="benchMaxThrust">0.20 N</output>
+                                <input id="benchMaxThrust" type="range" min="0.12" max="30" step="0.01" />
+                                <input id="benchMaxThrustNum" class="bench-slider-num" type="number" min="0.12" max="30" step="0.01" value="0.20" aria-label="Rotor thrust (N)" />
                             </label>
                             <label class="bench-slider-row" for="benchCameraTilt">
                                 <span>FPV Tilt (°)</span>
                                 <input id="benchCameraTilt" type="range" min="0" max="55" step="1" />
-                                <output id="benchCameraTiltVal" for="benchCameraTilt">20°</output>
+                                <input id="benchCameraTiltNum" class="bench-slider-num" type="number" min="0" max="55" step="1" value="20" aria-label="FPV tilt (degrees)" />
                             </label>
                             <label class="bench-slider-row" for="benchBatteryCapacity">
                                 <span>Battery (mAh)</span>
                                 <input id="benchBatteryCapacity" type="range" min="200" max="1200" step="50" />
-                                <output id="benchBatteryCapacityVal" for="benchBatteryCapacity">450</output>
+                                <input id="benchBatteryCapacityNum" class="bench-slider-num" type="number" min="200" max="1200" step="50" value="450" aria-label="Battery capacity (mAh)" />
                             </label>
                             <label class="bench-slider-row" for="benchBatteryResistance">
                                 <span>Battery IR (Ω)</span>
                                 <input id="benchBatteryResistance" type="range" min="0.01" max="0.30" step="0.01" />
-                                <output id="benchBatteryResistanceVal" for="benchBatteryResistance">0.08 Ω</output>
+                                <input id="benchBatteryResistanceNum" class="bench-slider-num" type="number" min="0.01" max="0.30" step="0.01" value="0.08" aria-label="Battery internal resistance (ohm)" />
                             </label>
                             <label class="bench-slider-row" for="benchLinearDrag">
                                 <span>Linear Drag</span>
                                 <input id="benchLinearDrag" type="range" min="0" max="0.05" step="0.002" />
-                                <output id="benchLinearDragVal" for="benchLinearDrag">0.008</output>
+                                <input id="benchLinearDragNum" class="bench-slider-num" type="number" min="0" max="0.05" step="0.002" value="0.008" aria-label="Linear drag" />
                             </label>
                         </div>
                     </details>
@@ -217,22 +217,22 @@
                             <label class="bench-slider-row" for="benchGyroNoise">
                                 <span>Gyro Noise</span>
                                 <input id="benchGyroNoise" type="range" min="0" max="0.002" step="0.00005" />
-                                <output id="benchGyroNoiseVal" for="benchGyroNoise">0.00009</output>
+                                <input id="benchGyroNoiseNum" class="bench-slider-num" type="number" min="0" max="0.002" step="0.00005" value="0.00009" aria-label="Gyro noise" />
                             </label>
                             <label class="bench-slider-row" for="benchGyroVibration">
                                 <span>Rotor Vib (rad/s)</span>
                                 <input id="benchGyroVibration" type="range" min="0" max="0.15" step="0.005" />
-                                <output id="benchGyroVibrationVal" for="benchGyroVibration">0.015</output>
+                                <input id="benchGyroVibrationNum" class="bench-slider-num" type="number" min="0" max="0.15" step="0.005" value="0.015" aria-label="Rotor vibration (rad/s)" />
                             </label>
                             <label class="bench-slider-row" for="benchAccNoise">
                                 <span>Accel Noise</span>
                                 <input id="benchAccNoise" type="range" min="0" max="0.05" step="0.001" />
-                                <output id="benchAccNoiseVal" for="benchAccNoise">0.004</output>
+                                <input id="benchAccNoiseNum" class="bench-slider-num" type="number" min="0" max="0.05" step="0.001" value="0.004" aria-label="Accelerometer noise" />
                             </label>
                             <label class="bench-slider-row" for="benchCalDuration">
                                 <span>Gyro Cal (s)</span>
                                 <input id="benchCalDuration" type="range" min="0.1" max="3.0" step="0.05" />
-                                <output id="benchCalDurationVal" for="benchCalDuration">1.25 s</output>
+                                <input id="benchCalDurationNum" class="bench-slider-num" type="number" min="0.1" max="3" step="0.05" value="1.25" aria-label="Gyro calibration (s)" />
                             </label>
                         </div>
                     </details>

@@ -31,6 +31,13 @@ export const Tinyhawk3Config: DroneConfig = {
     fallTime: 0.04,
     idle: 0.05,
     airmode: true,
+    // 0802-class 1S whoop motor (11000–15000 Kv).
+    motorKv: 15000,
+    motorResistance: 0.38,
+    motorNoLoadCurrent: 0.0075,
+    motorPeakCurrent: 10,
+    rotorInertia: 3.75e-8,
+    escTimeConstant: 0.002,
   },
   aerodynamics: {
     linear: { x: 0.008, y: 0.008, z: 0.012 },

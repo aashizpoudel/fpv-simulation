@@ -153,6 +153,12 @@ export interface PropulsionConfig {
   fallTime: number;
   idle: number; // normalized command
   airmode: boolean;
+  motorKv: number; // RPM per volt
+  motorResistance: number; // ohm, winding
+  motorNoLoadCurrent: number; // A
+  motorPeakCurrent: number; // A, winding clamp
+  rotorInertia: number; // kg m², motor + propeller
+  escTimeConstant: number; // seconds, ESC duty lag
 }
 export interface AeroConfig {
   linear: Vec3; // N / (m/s)

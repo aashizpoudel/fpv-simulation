@@ -153,6 +153,12 @@ export function validateDroneConfig(c: DroneConfig): void {
   range(p.riseTime, 0.001, 0.2, "Motor rise time");
   range(p.fallTime, 0.001, 0.3, "Motor fall time");
   range(p.idle, 0, 0.2, "Motor idle");
+  range(p.motorKv, 500, 20000, "Motor Kv");
+  range(p.motorResistance, 0.01, 1, "Motor resistance");
+  range(p.motorNoLoadCurrent, 0, 5, "Motor no-load current");
+  range(p.motorPeakCurrent, 0.1, 80, "Motor peak current");
+  range(p.rotorInertia, 1e-9, 1e-4, "Rotor inertia");
+  range(p.escTimeConstant, 0.0001, 0.05, "ESC time constant");
   check(p.thrustCurve.length >= 2, "Thrust curve needs at least two points");
   p.thrustCurve.forEach(([u, t], i) => {
     check(
