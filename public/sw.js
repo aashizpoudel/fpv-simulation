@@ -6,6 +6,7 @@ const PRECACHE_ASSETS = [
   './',
   'index.html',
   'play.html',
+  'bench.html',
   'manifest.webmanifest',
   'favicon.svg',
   'icons/icon-192.png',
@@ -60,7 +61,11 @@ self.addEventListener('fetch', (event) => {
         .catch(async () => {
           const cached = await caches.match(request);
           if (cached) return cached;
-          const page = url.pathname.endsWith('/play.html') ? 'play.html' : 'index.html';
+          const page = url.pathname.endsWith('/bench.html')
+            ? 'bench.html'
+            : url.pathname.endsWith('/play.html')
+              ? 'play.html'
+              : 'index.html';
           return caches.match(new URL(page, self.registration.scope).href);
         })
     );

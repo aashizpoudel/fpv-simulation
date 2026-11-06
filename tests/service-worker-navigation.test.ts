@@ -11,7 +11,7 @@ it.each(["https://example.com/", "https://example.com/repo/"])("uses each page's
   new Function("self", "caches", "fetch", readFileSync("public/sw.js", "utf8"))(
     worker, { match }, async () => { throw new Error("offline"); },
   );
-  for (const page of ["index.html", "play.html"]) {
+  for (const page of ["index.html", "play.html", "bench.html"]) {
     const url = `${scope}${page}?world=forest&mode=acro`;
     let result: Promise<unknown> | undefined;
     handlers.fetch({ request: { url, method: "GET", mode: "navigate", headers: new Headers() }, respondWith: (value: Promise<unknown>) => { result = value; } });

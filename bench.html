@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FPV Drone Tuning Bench — PID, Rates &amp; Physics Lab | FPV Sim</title>
+        <meta name="description" content="Experiment with Betaflight PID gains, RC rate curves, drone mass, motor thrust, and IMU sensor parameters on the Island map in real time." />
+        <meta name="robots" content="noindex, follow" />
+        <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+        <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
+        <meta name="theme-color" content="#0a1118" />
+    </head>
+    <body class="bench-body">
+        <main class="bench-layout" id="benchLayout">
+            <aside class="bench-sidebar" id="benchSidebar" aria-label="Drone configuration and tuning sidebar">
+                <div class="bench-sidebar-header">
+                    <div class="bench-brand">
+                        <span class="bench-badge">BENCH</span>
+                        <h1>Drone Tuning Lab</h1>
+                    </div>
+                    <button id="benchCollapseBtn" class="bench-icon-btn" type="button" aria-expanded="true" aria-controls="benchSidebar" title="Collapse tuning sidebar">
+                        ◀
+                    </button>
+                </div>
+
+                <div class="bench-sidebar-scroll">
+                    <div class="bench-toolbar">
+                        <button id="benchApplyBtn" class="bench-btn bench-btn-primary" type="button">Apply to Drone</button>
+                        <button id="benchResetDefaultsBtn" class="bench-btn" type="button">Reset Defaults</button>
+                        <button id="benchExportBtn" class="bench-btn" type="button">Export JSON</button>
+                    </div>
+                    <p id="benchStatus" class="bench-status" role="status">Adjust sliders to apply live tuning to the Island drone.</p>
+
+                    <!-- 1. Betaflight PIDs -->
+                    <details class="bench-section" id="benchSectionPids">
+                        <summary class="bench-section-title">Betaflight PID Gains (0 – 255)</summary>
+                        <div class="bench-section-body">
+                            <div class="bench-pid-grid">
+                                <span class="bf-axis-tag bf-axis-roll">Roll</span>
+                                <label class="bench-num-field" for="benchRollP"><span>P</span><input id="benchRollP" type="number" min="0" max="255" step="1" aria-label="Roll P" /></label>
+                                <label class="bench-num-field" for="benchRollI"><span>I</span><input id="benchRollI" type="number" min="0" max="255" step="1" aria-label="Roll I" /></label>
+                                <label class="bench-num-field" for="benchRollD"><span>D</span><input id="benchRollD" type="number" min="0" max="255" step="1" aria-label="Roll D" /></label>
+                            </div>
+                            <div class="bf-rates-preview bench-pid-chart">
+                                <svg id="benchPidSvgRoll" viewBox="0 0 260 88" role="img" aria-label="Roll PID response curve">
+                                    <line x1="28" y1="8" x2="28" y2="74" class="bf-curve-axis" />
+                                    <line x1="28" y1="41" x2="252" y2="41" class="bf-curve-grid" />
+                                    <line x1="28" y1="22" x2="252" y2="22" class="bf-curve-grid bf-curve-setpoint" />
+                                    <path id="benchPidStepRoll" class="bf-curve-line bf-curve-roll" d="" />
+                                    <path id="benchPidLiveTargetRoll" class="bf-curve-line bf-curve-target" d="" />
+                                    <path id="benchPidLiveGyroRoll" class="bf-curve-line bf-curve-roll" d="" />
+                                    <text x="32" y="17" id="benchPidLabelRoll" class="bf-curve-label">Roll Step &amp; Live Rate</text>
+                                </svg>
+                            </div>
+
+                            <div class="bench-pid-grid">
+                                <span class="bf-axis-tag bf-axis-pitch">Pitch</span>
+                                <label class="bench-num-field" for="benchPitchP"><span>P</span><input id="benchPitchP" type="number" min="0" max="255" step="1" aria-label="Pitch P" /></label>
+                                <label class="bench-num-field" for="benchPitchI"><span>I</span><input id="benchPitchI" type="number" min="0" max="255" step="1" aria-label="Pitch I" /></label>
+                                <label class="bench-num-field" for="benchPitchD"><span>D</span><input id="benchPitchD" type="number" min="0" max="255" step="1" aria-label="Pitch D" /></label>
+                            </div>
+                            <div class="bf-rates-preview bench-pid-chart">
+                                <svg id="benchPidSvgPitch" viewBox="0 0 260 88" role="img" aria-label="Pitch PID response curve">
+                                    <line x1="28" y1="8" x2="28" y2="74" class="bf-curve-axis" />
+                                    <line x1="28" y1="41" x2="252" y2="41" class="bf-curve-grid" />
+                                    <line x1="28" y1="22" x2="252" y2="22" class="bf-curve-grid bf-curve-setpoint" />
+                                    <path id="benchPidStepPitch" class="bf-curve-line bf-curve-pitch" d="" />
+                                    <path id="benchPidLiveTargetPitch" class="bf-curve-line bf-curve-target" d="" />
+                                    <path id="benchPidLiveGyroPitch" class="bf-curve-line bf-curve-pitch" d="" />
+                                    <text x="32" y="17" id="benchPidLabelPitch" class="bf-curve-label">Pitch Step &amp; Live Rate</text>
+                                </svg>
+                            </div>
+
+                            <div class="bench-pid-grid">
+                                <span class="bf-axis-tag bf-axis-yaw">Yaw</span>
+                                <label class="bench-num-field" for="benchYawP"><span>P</span><input id="benchYawP" type="number" min="0" max="255" step="1" aria-label="Yaw P" /></label>
+                                <label class="bench-num-field" for="benchYawI"><span>I</span><input id="benchYawI" type="number" min="0" max="255" step="1" aria-label="Yaw I" /></label>
+                                <label class="bench-num-field" for="benchYawD"><span>D</span><input id="benchYawD" type="number" min="0" max="255" step="1" aria-label="Yaw D" /></label>
+                            </div>
+                            <div class="bf-rates-preview bench-pid-chart">
+                                <svg id="benchPidSvgYaw" viewBox="0 0 260 88" role="img" aria-label="Yaw PID response curve">
+                                    <line x1="28" y1="8" x2="28" y2="74" class="bf-curve-axis" />
+                                    <line x1="28" y1="41" x2="252" y2="41" class="bf-curve-grid" />
+                                    <line x1="28" y1="22" x2="252" y2="22" class="bf-curve-grid bf-curve-setpoint" />
+                                    <path id="benchPidStepYaw" class="bf-curve-line bf-curve-yaw" d="" />
+                                    <path id="benchPidLiveTargetYaw" class="bf-curve-line bf-curve-target" d="" />
+                                    <path id="benchPidLiveGyroYaw" class="bf-curve-line bf-curve-yaw" d="" />
+                                    <text x="32" y="17" id="benchPidLabelYaw" class="bf-curve-label">Yaw Step &amp; Live Rate</text>
+                                </svg>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- 2. Betaflight Rates -->
+                    <details class="bench-section" id="benchSectionRates">
+                        <summary class="bench-section-title">Betaflight Rates &amp; Curve</summary>
+                        <div class="bench-section-body">
+                            <label class="bench-select-row" for="benchRatesType">
+                                <span>Rates Type</span>
+                                <select id="benchRatesType">
+                                    <option value="betaflight">Betaflight</option>
+                                    <option value="actual">Actual</option>
+                                    <option value="quick">Quick</option>
+                                    <option value="kiss">KISS</option>
+                                    <option value="raceflight">RaceFlight</option>
+                                </select>
+                            </label>
+
+                            <div class="bench-sublabel">Roll (<output id="benchMaxVelRoll">667 °/s</output>)</div>
+                            <label class="bench-slider-row" for="benchRollRcRate">
+                                <span data-rate-label="rc">RC Rate</span>
+                                <input id="benchRollRcRate" type="range" min="0.01" max="2.55" step="0.01" />
+                                <output id="benchRollRcRateVal" for="benchRollRcRate">1.00</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchRollSuperRate">
+                                <span data-rate-label="super">Super Rate</span>
+                                <input id="benchRollSuperRate" type="range" min="0" max="0.99" step="0.01" />
+                                <output id="benchRollSuperRateVal" for="benchRollSuperRate">0.70</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchRollExpo">
+                                <span data-rate-label="expo">RC Expo</span>
+                                <input id="benchRollExpo" type="range" min="0" max="1" step="0.01" />
+                                <output id="benchRollExpoVal" for="benchRollExpo">0.00</output>
+                            </label>
+
+                            <div class="bench-sublabel">Pitch (<output id="benchMaxVelPitch">667 °/s</output>)</div>
+                            <label class="bench-slider-row" for="benchPitchRcRate">
+                                <span data-rate-label="rc">RC Rate</span>
+                                <input id="benchPitchRcRate" type="range" min="0.01" max="2.55" step="0.01" />
+                                <output id="benchPitchRcRateVal" for="benchPitchRcRate">1.00</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchPitchSuperRate">
+                                <span data-rate-label="super">Super Rate</span>
+                                <input id="benchPitchSuperRate" type="range" min="0" max="0.99" step="0.01" />
+                                <output id="benchPitchSuperRateVal" for="benchPitchSuperRate">0.70</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchPitchExpo">
+                                <span data-rate-label="expo">RC Expo</span>
+                                <input id="benchPitchExpo" type="range" min="0" max="1" step="0.01" />
+                                <output id="benchPitchExpoVal" for="benchPitchExpo">0.00</output>
+                            </label>
+
+                            <div class="bench-sublabel">Yaw (<output id="benchMaxVelYaw">667 °/s</output>)</div>
+                            <label class="bench-slider-row" for="benchYawRcRate">
+                                <span data-rate-label="rc">RC Rate</span>
+                                <input id="benchYawRcRate" type="range" min="0.01" max="2.55" step="0.01" />
+                                <output id="benchYawYawRcRateVal" for="benchYawRcRate">1.00</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchYawSuperRate">
+                                <span data-rate-label="super">Super Rate</span>
+                                <input id="benchYawSuperRate" type="range" min="0" max="0.99" step="0.01" />
+                                <output id="benchYawSuperRateVal" for="benchYawSuperRate">0.70</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchYawExpo">
+                                <span data-rate-label="expo">RC Expo</span>
+                                <input id="benchYawExpo" type="range" min="0" max="1" step="0.01" />
+                                <output id="benchYawExpoVal" for="benchYawExpo">0.00</output>
+                            </label>
+
+                            <div class="bf-rates-preview">
+                                <svg id="benchRatesCurveSvg" viewBox="0 0 260 116" role="img" aria-label="Bench rate curve preview">
+                                    <line x1="28" y1="10" x2="28" y2="96" class="bf-curve-axis" />
+                                    <line x1="28" y1="96" x2="252" y2="96" class="bf-curve-axis" />
+                                    <line x1="140" y1="10" x2="140" y2="96" class="bf-curve-grid" />
+                                    <line x1="28" y1="53" x2="252" y2="53" class="bf-curve-grid" />
+                                    <path id="benchCurveYaw" class="bf-curve-line bf-curve-yaw" d="" />
+                                    <path id="benchCurvePitch" class="bf-curve-line bf-curve-pitch" d="" />
+                                    <path id="benchCurveRoll" class="bf-curve-line bf-curve-roll" d="" />
+                                    <text x="32" y="20" id="benchCurveMaxLabel" class="bf-curve-label">667 °/s</text>
+                                    <text x="140" y="110" text-anchor="middle" class="bf-curve-label">Stick Deflection (0% → 100%)</text>
+                                </svg>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- 3. Drone Physical & Propulsion Values -->
+                    <details class="bench-section" id="benchSectionAirframe">
+                        <summary class="bench-section-title">Drone Airframe &amp; Propulsion</summary>
+                        <div class="bench-section-body">
+                            <label class="bench-slider-row" for="benchMassG">
+                                <span>Mass (g)</span>
+                                <input id="benchMassG" type="range" min="20" max="120" step="1" />
+                                <output id="benchMassGVal" for="benchMassG">44 g</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchMaxThrust">
+                                <span>Rotor Thrust (N)</span>
+                                <input id="benchMaxThrust" type="range" min="0.12" max="0.60" step="0.01" />
+                                <output id="benchMaxThrustVal" for="benchMaxThrust">0.20 N</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchCameraTilt">
+                                <span>FPV Tilt (°)</span>
+                                <input id="benchCameraTilt" type="range" min="0" max="55" step="1" />
+                                <output id="benchCameraTiltVal" for="benchCameraTilt">20°</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchBatteryCapacity">
+                                <span>Battery (mAh)</span>
+                                <input id="benchBatteryCapacity" type="range" min="200" max="1200" step="50" />
+                                <output id="benchBatteryCapacityVal" for="benchBatteryCapacity">450</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchBatteryResistance">
+                                <span>Battery IR (Ω)</span>
+                                <input id="benchBatteryResistance" type="range" min="0.01" max="0.30" step="0.01" />
+                                <output id="benchBatteryResistanceVal" for="benchBatteryResistance">0.08 Ω</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchLinearDrag">
+                                <span>Linear Drag</span>
+                                <input id="benchLinearDrag" type="range" min="0" max="0.05" step="0.002" />
+                                <output id="benchLinearDragVal" for="benchLinearDrag">0.008</output>
+                            </label>
+                        </div>
+                    </details>
+
+                    <!-- 4. IMU Sensor Parameters -->
+                    <details class="bench-section" id="benchSectionImu">
+                        <summary class="bench-section-title">IMU Sensor Model (MPU-6000)</summary>
+                        <div class="bench-section-body">
+                            <label class="bench-slider-row" for="benchGyroNoise">
+                                <span>Gyro Noise</span>
+                                <input id="benchGyroNoise" type="range" min="0" max="0.002" step="0.00005" />
+                                <output id="benchGyroNoiseVal" for="benchGyroNoise">0.00009</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchGyroVibration">
+                                <span>Rotor Vib (rad/s)</span>
+                                <input id="benchGyroVibration" type="range" min="0" max="0.15" step="0.005" />
+                                <output id="benchGyroVibrationVal" for="benchGyroVibration">0.015</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchAccNoise">
+                                <span>Accel Noise</span>
+                                <input id="benchAccNoise" type="range" min="0" max="0.05" step="0.001" />
+                                <output id="benchAccNoiseVal" for="benchAccNoise">0.004</output>
+                            </label>
+                            <label class="bench-slider-row" for="benchCalDuration">
+                                <span>Gyro Cal (s)</span>
+                                <input id="benchCalDuration" type="range" min="0.1" max="3.0" step="0.05" />
+                                <output id="benchCalDurationVal" for="benchCalDuration">1.25 s</output>
+                            </label>
+                        </div>
+                    </details>
+                </div>
+            </aside>
+
+            <section class="bench-viewport" id="benchViewport">
+                <button id="benchExpandBtn" class="bench-expand-btn" type="button" aria-label="Expand tuning sidebar" title="Open tuning sidebar" hidden>
+                    ▶ Tuning Bench
+                </button>
+                <div id="renderingContainer"></div>
+                <div class="loading-overlay" id="loadingOverlay" role="status" aria-live="polite" hidden>
+                    <div class="loading-card">
+                        <div class="loading-spinner" aria-hidden="true"></div>
+                        <p id="loadingOverlayText">Loading Island bench…</p>
+                        <div class="loading-bar indeterminate"><div id="loadingOverlayBar"></div></div>
+                    </div>
+                </div>
+
+                <!-- OSD Overlay -->
+                <div class="osd">
+                    <span class="osd-el osd-top-left" id="flightMode">ANGLE</span>
+                    <span class="osd-el osd-top-center" id="altitude">—</span>
+                    <span class="osd-el osd-top-right" id="fps">—</span>
+                    <span class="osd-el osd-lod-status" id="lodStatus" role="status">Loading Island bench environment…</span>
+                    <span class="osd-el osd-controls-hint" id="hudControlsHint">Press [H] for controls · [G] to record</span>
+
+                    <div class="recording-indicator" id="recordingIndicator" style="display: none;" aria-live="polite">
+                        <span class="rec-dot"></span>
+                        <span class="rec-label">REC</span>
+                        <span class="rec-time" id="recTime">0:00</span>
+                    </div>
+
+                    <div class="osd-el osd-left-center">
+                        <div class="osd-label">SPD</div>
+                        <div id="speed">0.0</div>
+                    </div>
+
+                    <div class="osd-el osd-right-center">
+                        <div class="osd-label">THR</div>
+                        <div id="throttle">0%</div>
+                        <div class="osd-throttle-bar">
+                            <div class="osd-throttle-fill" id="throttleBar"></div>
+                        </div>
+                    </div>
+
+                    <div class="osd-center">
+                        <div class="osd-attitude" id="attitudeWidget">
+                            <div class="osd-attitude-inner">
+                                <div class="osd-horizon-line" id="osdHorizonLine"></div>
+                                <div class="osd-crosshair" id="osdCrosshair"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="osd-el osd-bottom-left">
+                        <div>R:<span id="roll">0.0</span></div>
+                        <div>P:<span id="pitch">0.0</span></div>
+                    </div>
+
+                    <span class="osd-el osd-bottom-right" id="gforce">G:1.0g</span>
+
+                    <div class="osd-bottom-center">
+                        <div class="osd-metrics">
+                            <div id="armStatus">DISARMED</div>
+                            <div id="battery">— V</div>
+                            <div id="position">0.0, 0.0, 0.0</div>
+                        </div>
+                        <div class="osd-stick-overlay" id="osdStickOverlay" aria-hidden="true">
+                            <div class="stick-gimbal" id="leftStickGimbal" title="Left stick: Throttle / Yaw">
+                                <div class="stick-crosshair-h"></div>
+                                <div class="stick-crosshair-v"></div>
+                                <div class="stick-dot" id="osdLeftStickDot" style="left: 50%; top: 100%;"></div>
+                            </div>
+                            <div class="stick-gimbal" id="rightStickGimbal" title="Right stick: Pitch / Roll">
+                                <div class="stick-crosshair-h"></div>
+                                <div class="stick-crosshair-v"></div>
+                                <div class="stick-dot" id="osdRightStickDot" style="left: 50%; top: 50%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cameraFeed" style="display:none;"></div>
+
+                <div class="top-right-bar">
+                    <a class="top-bar-btn" href="%BASE_URL%" aria-label="Home" title="Home">Home</a>
+                    <a class="top-bar-btn" href="%BASE_URL%play.html" aria-label="Full Simulator" title="Open Full Simulator">Fly</a>
+                    <button id="vrToggleBtn" class="top-bar-btn" type="button" data-vr-button hidden aria-label="Enter VR goggles" title="Fly in VR goggles (FPV)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-4l-2-3h-2l-2 3H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                    </button>
+                    <button id="helpToggleBtn" class="top-bar-btn" type="button" aria-label="Toggle help" title="Flight Controls &amp; Help (H)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                    </button>
+                    <button id="settingsToggleBtn" class="top-bar-btn" type="button" aria-label="Toggle settings" title="Controls &amp; View Settings">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Compact Settings Modal (No map selector) -->
+                <details class="flight-help">
+                    <summary>
+                        <div class="summary-title">
+                            <span>View, Input &amp; Recordings</span>
+                            <span class="input-badge" id="inputSource">KEYBOARD</span>
+                        </div>
+                        <button id="closeSettingsBtn" class="settings-close-btn" type="button" aria-label="Close settings">✕ Close</button>
+                    </summary>
+                    <div class="settings-panel settings-panel-grid">
+                        <div class="settings-group">
+                            <div class="settings-title">View &amp; Quality</div>
+                            <label>Camera View
+                                <select id="cameraSelect">
+                                    <option value="fpv">FPV (Cockpit)</option>
+                                    <option value="third">Third Person (Chase)</option>
+                                    <option value="orbit">Orbit (Free Look)</option>
+                                </select>
+                            </label>
+                            <label>Rendering Quality
+                                <select id="quality">
+                                    <option value="performance">Performance</option>
+                                    <option value="balanced" selected>Balanced</option>
+                                    <option value="detail">Detail</option>
+                                </select>
+                            </label>
+                            <label class="settings-checkbox"><input type="checkbox" id="crosshairCheckbox" /><span>Show crosshair (FPV)</span></label>
+                            <label class="settings-checkbox"><input type="checkbox" id="horizonLineCheckbox" /><span>Show horizon line (FPV)</span></label>
+                            <label class="settings-checkbox"><input type="checkbox" id="stickOverlayCheckbox" /><span>Show stick overlay (Gamepad)</span></label>
+                        </div>
+                        <div class="settings-group">
+                            <div class="settings-title">Input &amp; Recording</div>
+                            <p id="hoverHint">Angle mode self-levels; press F for acro mode.</p>
+                            <div class="input-source-controls" role="group" aria-label="Flight control source">
+                                <button id="inputSourceKeyboardBtn" class="input-source-toggle" type="button" aria-pressed="true">Keyboard</button>
+                                <button id="inputSourceGamepadBtn" class="input-source-toggle" type="button" aria-pressed="false" disabled>Radio / Gamepad</button>
+                                <button id="detectGamepadBtn" type="button">Detect</button>
+                            </div>
+                            <p id="gamepadDetectionStatus" class="settings-hint" role="status">No gamepad detected.</p>
+                            <div class="settings-actions" id="calibrateActions" hidden>
+                                <button id="calibrate" type="button">Calibrate radio / gamepad</button>
+                            </div>
+                            <div class="settings-actions">
+                                <button id="recordFlight" type="button">Reset &amp; record</button>
+                                <button id="exportFlightRecording" type="button" disabled>Stop &amp; export</button>
+                                <button id="stopReplay" type="button" hidden>Stop replay &amp; reset</button>
+                            </div>
+                            <p id="recordingStatus" role="status">Press G to record flight.</p>
+                        </div>
+                    </div>
+                </details>
+
+                <div class="status-banner" id="statusBanner">CRASHED - Press R to Reset</div>
+
+                <div id="helpModal" class="help-modal" style="display: none;" role="dialog" aria-labelledby="helpModalTitle">
+                    <div class="help-card">
+                        <div class="help-header">
+                            <div class="help-header-title"><h3 id="helpModalTitle">Flight Controls &amp; Shortcuts</h3></div>
+                            <button id="closeHelpBtn" class="settings-close-btn" type="button" aria-label="Close help">✕</button>
+                        </div>
+                        <div class="help-grid">
+                            <div class="help-section">
+                                <div class="help-section-title">Primary Flight Controls</div>
+                                <div class="control-row"><span class="key-badge">Shift + M</span><span>Arm / Disarm motors</span></div>
+                                <div class="control-row"><span class="key-badge">W / S</span><span>Throttle (raise / lower)</span></div>
+                                <div class="control-row"><span class="key-badge">A / D</span><span>Yaw (rotate left / right)</span></div>
+                                <div class="control-row"><span class="key-badge">↑ / ↓</span><span>Pitch (tilt forward / backward)</span></div>
+                                <div class="control-row"><span class="key-badge">← / →</span><span>Roll (tilt left / right)</span></div>
+                            </div>
+                            <div class="help-section">
+                                <div class="help-section-title">Simulation &amp; Shortcuts</div>
+                                <div class="control-row"><span class="key-badge">R</span><span>Reset drone to spawn</span></div>
+                                <div class="control-row"><span class="key-badge">F</span><span>Toggle mode (Angle / Acro)</span></div>
+                                <div class="control-row"><span class="key-badge">C</span><span>Toggle camera (FPV / Third / Orbit)</span></div>
+                                <div class="control-row"><span class="key-badge">G</span><span>Start / Stop recording</span></div>
+                                <div class="control-row"><span class="key-badge">H</span><span>Toggle this help dialog</span></div>
+                            </div>
+                            <div class="help-section help-section-wide">
+                                <button id="helpSwitchKeyboardBtn" type="button" class="key-badge" style="cursor: pointer; padding: 6px 12px; font-size: 11px;">Switch to Keyboard</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+        <script type="module" src="/src/app/bench-page.ts"></script>
+    </body>
+</html>

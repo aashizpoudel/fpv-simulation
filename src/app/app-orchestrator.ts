@@ -53,6 +53,7 @@ export type AppOrchestratorOptions = {
   simulationOptions?: Omit<SimulationOptions, "config">;
   simulationExecution?: ExecutionMode;
   worldConfig?: WorldConfig;
+  onTelemetryFrame?: (telemetry: import("../types").DroneTelemetry, controls: import("../types").Controls, flightMode: FlightModeName) => void;
 };
 
 export type FlightModeName = "acro" | "angle";
@@ -62,6 +63,8 @@ export type AppSession = {
   /** Start flying in WebXR goggle mode. Call directly from a click handler. */
   /** "motion" flies DJI Avata-style by pointing the right Touch controller. */
   enterVr(control: "keyboard" | "gamepad" | "motion", mode?: FlightModeName): Promise<void>;
+  /** Trigger an immediate viewport resize (e.g., when a sidebar is toggled). */
+  resizeViewport?(): void;
 };
 
 export async function startApp(options: AppOrchestratorOptions): Promise<AppSession> {
@@ -527,6 +530,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       return;
     }
     const telemetry = simulationClient.getTelemetry();
+    options.onTelemetryFrame?.(telemetry, controls, flightMode);
 
     if (
       flightStarted &&
@@ -680,6 +684,9 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
       flightStarted = true;
       updateStickOverlayVisibility();
       lastTime = performance.now();
+    },
+    resizeViewport() {
+      renderer.resize();
     },
   };
 }

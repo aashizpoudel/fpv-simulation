@@ -18,7 +18,13 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "build",
-      rollupOptions: { input: { index: "index.html", play: "play.html" } },
+      rollupOptions: {
+        input: {
+          index: "index.html",
+          play: "play.html",
+          bench: "bench.html",
+        },
+      },
     },
     worker: {
       format: "es",
