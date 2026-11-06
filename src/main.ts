@@ -3,7 +3,7 @@ import "./styles.css";
 import { setupPwa } from "./pwa";
 import type { AppSession } from "./app/app-orchestrator";
 import { setupGameStart } from "./app/game-start";
-import { parsePlayChoices } from "./app/page-navigation";
+import { parsePlayChoices, parseSimulationBackend } from "./app/page-navigation";
 import { setupVrButtons } from "./ui/vr-buttons";
 import { setupFullscreenButton } from "./ui/fullscreen-button";
 import { setupLoadingOverlay } from "./ui/loading-overlay";
@@ -48,6 +48,7 @@ const appReady: Promise<AppSession> = import("./app/app-orchestrator").then(({ s
     rendererStart,
     initialCameraMode,
     worldConfig: isCesium ? undefined : worldConfig,
+    simulationOptions: { backend: parseSimulationBackend(window.location.search) },
   }));
 const loadingOverlay = setupLoadingOverlay(appReady);
 loadingOverlay.show();

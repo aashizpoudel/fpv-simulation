@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePlayChoices, playUrl } from "../src/app/page-navigation";
+import { benchUrl, parsePlayChoices, parseSimulationBackend, playUrl } from "../src/app/page-navigation";
 
 describe("game navigation", () => {
   it("defaults direct game visits to keyboard, angle and no VR", () => {
@@ -14,6 +14,18 @@ describe("game navigation", () => {
   it.each(["https://example.com/", "https://example.com/repo/", "https://example.com/repo/index.html"])("uses sibling game URL from %s", (source) => {
     const url = new URL(playUrl(source, "forest", parsePlayChoices("")));
     expect(url.pathname).toBe(source.includes("repo") ? "/repo/play.html" : "/play.html");
+  });
+  it("defaults the simulation backend to Betaflight and accepts Vanilla", () => {
+    expect(parseSimulationBackend("")).toBe("dronesim");
+    expect(parseSimulationBackend("?backend=vanilla")).toBe("rapier");
+    expect(parseSimulationBackend("?backend=rapier")).toBe("rapier");
+    expect(parseSimulationBackend("?backend=other")).toBe("dronesim");
+    localStorage.setItem("drone_sim_backend", "rapier");
+    expect(parseSimulationBackend("")).toBe("rapier");
+    localStorage.removeItem("drone_sim_backend");
+  });
+  it("opens the bench beside the landing page", () => {
+    expect(new URL(benchUrl("https://example.com/repo/")).pathname).toBe("/repo/bench.html");
   });
   it("forces the compatible renderer only for VR", () => {
     const url = new URL(playUrl("https://example.com/repo/", "forest", parsePlayChoices("?vr=1")));

@@ -39,6 +39,23 @@ describe("navigation-only landing", () => {
     expect(localStorage.getItem("drone_sim_drone")).toBe("axisflying-manta5-dc");
     expect(localStorage.getItem("drone_sim_control")).toBe("gamepad");
     expect(localStorage.getItem("drone_sim_flight_mode")).toBe("acro");
+    expect(localStorage.getItem("drone_sim_backend")).toBe("dronesim");
+  });
+  it("sends Play and Bench to the selected simulation backend", () => {
+    const navigate = vi.fn();
+    setupWelcomeScreen(navigate);
+    select("welcomeBackendSelect", "rapier");
+    document.getElementById("welcomePlayBtn")!.click();
+    expect(new URL(navigate.mock.calls[0][0]).pathname).toBe("/fpv/play.html");
+    expect(localStorage.getItem("drone_sim_backend")).toBe("rapier");
+    document.getElementById("welcomeBenchBtn")!.click();
+    expect(new URL(navigate.mock.calls[1][0]).pathname).toBe("/fpv/bench.html");
+    expect(localStorage.getItem("drone_sim_backend")).toBe("rapier");
+  });
+  it("restores the saved simulation backend", () => {
+    localStorage.setItem("drone_sim_backend", "rapier");
+    setupWelcomeScreen(vi.fn());
+    expect((document.getElementById("welcomeBackendSelect") as HTMLSelectElement).value).toBe("rapier");
   });
   it("forwards VR intent without starting a session", () => {
     const navigate = vi.fn();

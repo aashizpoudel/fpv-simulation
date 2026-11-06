@@ -6,6 +6,18 @@ export type PlayChoices = {
   vr: boolean;
 };
 
+export type SimulationBackend = "rapier" | "dronesim";
+
+/** Welcome labels are Vanilla and Betaflight SITL. Stored values match the engine backend. */
+export function parseSimulationBackend(search = ""): SimulationBackend {
+  const param = new URLSearchParams(search).get("backend") || localStorage.getItem(STORAGE_KEYS.simulationBackend);
+  return param === "rapier" || param === "vanilla" ? "rapier" : "dronesim";
+}
+
+export function saveSimulationBackend(backend: SimulationBackend): void {
+  localStorage.setItem(STORAGE_KEYS.simulationBackend, backend);
+}
+
 export function parsePlayChoices(search: string = ""): PlayChoices {
   const params = new URLSearchParams(search);
   const vrParam = params.get("vr");
@@ -42,5 +54,13 @@ export function playUrl(current: string, world: string, choices: PlayChoices): s
   if (choices.vr) {
     target.searchParams.set("renderer", "threejs");
   }
+  return target.toString();
+}
+
+/** Bench keeps the deployment directory and always opens the Island tuning page. */
+export function benchUrl(current: string): string {
+  const source = new URL(current);
+  const target = new URL("bench.html", source);
+  target.search = "";
   return target.toString();
 }

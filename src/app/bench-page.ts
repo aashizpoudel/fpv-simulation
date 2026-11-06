@@ -22,7 +22,7 @@ import { resolveWorldConfig } from "../config/world-config";
 import { resolveCameraMode, resolveWorld } from "./url-options";
 import { downloadJson } from "./download";
 import { loadFlightConfig } from "./flight-settings";
-import { parsePlayChoices, type PlayChoices } from "./page-navigation";
+import { parsePlayChoices, parseSimulationBackend, type PlayChoices } from "./page-navigation";
 import { setupSettingsTabs } from "./settings-tabs";
 import { setupConfigControls } from "./config-controls";
 import { setupLoadingOverlay } from "../ui/loading-overlay";
@@ -700,6 +700,7 @@ if (typeof window !== "undefined" && document.getElementById("benchSidebar") && 
       rendererStart: worldConfig.spawnPosition,
       initialCameraMode,
       worldConfig,
+      simulationOptions: { backend: parseSimulationBackend(window.location.search) },
       onTelemetryFrame: (telemetry, controls, flightMode) => {
         bench.pushTelemetryFrame(telemetry, controls, flightMode);
       },

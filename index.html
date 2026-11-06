@@ -85,6 +85,12 @@
                             <option value="acro">Acro (rate)</option>
                         </select>
                     </label>
+                    <label for="welcomeBackendSelect">Select Simulation Backend
+                        <select id="welcomeBackendSelect">
+                            <option value="dronesim" selected>Betaflight SITL</option>
+                            <option value="rapier">Vanilla</option>
+                        </select>
+                    </label>
                 </div>
                 <div class="welcome-gamepad" id="welcomeGamepad" data-state="missing">
                     <span id="welcomeGamepadStatus" role="status">Gamepad not detected</span>
@@ -93,6 +99,7 @@
                 <p class="welcome-status" id="welcomeStatus" role="status">Choose a map, a drone, and a control type, then play.</p>
                 <div class="welcome-actions">
                     <button id="welcomePlayBtn" class="welcome-play" type="button">Play</button>
+                    <button id="welcomeBenchBtn" class="welcome-settings" type="button">Go to Bench</button>
                     <button id="welcomeVrBtn" class="welcome-play welcome-vr" type="button" data-vr-button hidden>Play in VR</button>
                 </div>
                 <p class="welcome-support">Like this project? <a href="https://buymeacoffee.com/aashizpoudel" target="_blank" rel="noopener">Support me on Buy Me a Coffee</a></p>
