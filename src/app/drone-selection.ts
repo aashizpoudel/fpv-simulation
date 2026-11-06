@@ -9,7 +9,7 @@ export function loadSelectedDrone() {
   }
 }
 
-export function setupDroneSelection(): void {
+export function setupDroneSelection(onChange?: () => void): void {
   const selects = ["welcomeDroneSelect", "droneSelect"]
     .map((id) => document.getElementById(id) as HTMLSelectElement | null)
     .filter((select): select is HTMLSelectElement => select !== null);
@@ -20,10 +20,12 @@ export function setupDroneSelection(): void {
     select.value = selected.id;
     select.addEventListener("change", () => {
       const drone = resolveDrone(select.value);
+      const changed = drone.id !== loadSelectedDrone().id;
       for (const other of selects) other.value = drone.id;
       try {
         localStorage.setItem(STORAGE_KEYS.drone, drone.id);
       } catch { /* Selection still works when storage is unavailable. */ }
+      if (changed) onChange?.();
     });
   }
 }

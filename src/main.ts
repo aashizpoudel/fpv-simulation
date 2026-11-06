@@ -5,6 +5,7 @@ import type { AppSession } from "./app/app-orchestrator";
 import { setupGameStart } from "./app/game-start";
 import { parsePlayChoices } from "./app/page-navigation";
 import { setupVrButtons } from "./ui/vr-buttons";
+import { setupFullscreenButton } from "./ui/fullscreen-button";
 import { setupLoadingOverlay } from "./ui/loading-overlay";
 import { resolveWorldConfig } from "./config/world-config";
 import {
@@ -32,7 +33,7 @@ const rendererStart: Vec3 = isCesium
 const initialCameraMode = resolveCameraMode(isCesium);
 
 setupConfigControls(rendererType, worldName);
-setupDroneSelection();
+setupDroneSelection(() => window.location.reload());
 
 const droneConfig = loadFlightConfig();
 setupFlightSettings(droneConfig, isCesium ? "cesium" : worldConfig.name);
@@ -52,6 +53,7 @@ const loadingOverlay = setupLoadingOverlay(appReady);
 loadingOverlay.show();
 setupGameStart(appReady, choices);
 setupVrButtons(rendererType, appReady, () => choices);
+setupFullscreenButton();
 setupPwa();
 void appReady.catch((error) => {
   console.error("Failed to start app", error);

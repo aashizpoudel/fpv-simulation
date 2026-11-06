@@ -17,10 +17,12 @@ export class FlightController implements IController {
   private motors: MotorModel[];
   private thrusts: number[];
   private commands: number[];
+  private referenceVoltage: number;
   constructor(
     config: DroneConfig,
     private mode: IFlightMode,
   ) {
+    this.referenceVoltage = config.propulsion.referenceVoltage;
     this.throttleManager = new ThrottleManager(config.throttleRate);
     this.mixer = new MotorMixer(
       config.rotors,
@@ -69,7 +71,7 @@ export class FlightController implements IController {
       this.commands.fill(0);
     }
     this.thrusts = this.motors.map((motor, i) =>
-      motor.step(this.commands[i], telemetry.batteryVoltage ?? 3.8, dt),
+      motor.step(this.commands[i], telemetry.batteryVoltage ?? this.referenceVoltage, dt),
     );
     return {
       ...this.mixer.computeForces(this.thrusts, telemetry.localOrientation),

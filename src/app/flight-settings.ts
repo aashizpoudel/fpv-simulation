@@ -21,17 +21,21 @@ import { downloadJson } from "./download";
 import { parseRecording, type FlightRecording } from "../core/flight-recording";
 import { STORAGE_KEYS } from "./storage-keys";
 import { loadSelectedDrone } from "./drone-selection";
+import { DRONES } from "../config/drone-catalog";
 
 export function loadFlightConfig(): DroneConfig {
+  const drone = loadSelectedDrone().config;
   const saved = localStorage.getItem(PRESET_STORAGE_KEY);
-  if (!saved) return normalizePreset(loadSelectedDrone().config);
+  if (!saved) return normalizePreset(drone);
   try {
-    return parsePreset(saved);
+    const config = parsePreset(saved);
+    // Saved tuning belongs to the drone it was made for; a new selection starts from its own defaults.
+    return config.modelUrl === drone.modelUrl ? config : defaultPreset(drone);
   } catch (error) {
     const message = document.getElementById("flightSettingsStatus");
     if (message)
       message.textContent = `Saved preset could not be loaded: ${(error as Error).message}. Using defaults.`;
-    return defaultPreset();
+    return defaultPreset(drone);
   }
 }
 
@@ -257,6 +261,8 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
 
   const apply = (c: DroneConfig) => {
     localStorage.setItem(PRESET_STORAGE_KEY, exportPreset(c));
+    const drone = DRONES.find((d) => d.config.modelUrl === c.modelUrl);
+    if (drone) localStorage.setItem(STORAGE_KEYS.drone, drone.id);
     sessionStorage.setItem(STORAGE_KEYS.hideSettings, "true");
     if (flightHelp) flightHelp.open = false;
     location.reload();
@@ -316,7 +322,7 @@ export function setupFlightSettings(config: DroneConfig, world: string): void {
       closeSettings();
     });
   }
-  action("restoreFlightSettings", () => apply(defaultPreset()));
+  action("restoreFlightSettings", () => apply(defaultPreset(loadSelectedDrone().config)));
   action("exportFlightPreset", () =>
     downloadJson("whoop-preset.json", exportPreset(config)),
   );

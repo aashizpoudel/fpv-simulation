@@ -1,4 +1,5 @@
 import type { DroneConfig } from "./drone-config";
+import { DRONES } from "./drone-catalog";
 import { Tinyhawk3Config } from "./tinyhawk-config";
 import { hoverCommand } from "../physics/motor-model";
 import { RATES_TYPE_META, resolveAxisRates } from "../controllers/rates";
@@ -84,16 +85,19 @@ export function validateDroneConfig(c: DroneConfig): void {
     "Preset name must contain 1–119 characters",
   );
   // Assets are selected by the application, never loaded from arbitrary imported URLs.
-  check(c.modelUrl === Tinyhawk3Config.modelUrl, "Unsupported drone model");
+  check(
+    DRONES.some((drone) => drone.config.modelUrl === c.modelUrl),
+    "Unsupported drone model",
+  );
   check(
     Array.isArray(c.rcChannelOrder) && c.rcChannelOrder.length === 8 &&
       new Set(c.rcChannelOrder).size === 8 &&
       c.rcChannelOrder.every((channel) => Number.isInteger(channel) && channel >= 1 && channel <= 8),
     "RC channel order must be a permutation of [1,2,3,4,5,6,7,8]",
   );
-  range(c.mass, 0.01, 0.15, "Mass (kg)");
+  range(c.mass, 0.01, 1.5, "Mass (kg)");
   for (const key of ["width", "length", "height"] as const)
-    range(c[key], 0.01, 0.3, key);
+    range(c[key], 0.01, 0.5, key);
   range(c.linearDamping, 0, 0, "Legacy linear damping");
   range(c.angularDamping, 0, 0, "Legacy angular damping");
   check(c.rotors.length === 4, "Exactly four X-layout motors required");
@@ -108,9 +112,9 @@ export function validateDroneConfig(c: DroneConfig): void {
     "Motors must occupy four distinct X-layout quadrants",
   );
   for (const r of c.rotors) {
-    range(r.maxThrust, 0.01, 2, "Motor thrust (N)");
+    range(r.maxThrust, 0.01, 30, "Motor thrust (N)");
     for (const axis of ["x", "y", "z"] as const)
-      range(r.position[axis], -0.15, 0.15, `Motor ${axis}`);
+      range(r.position[axis], -0.25, 0.25, `Motor ${axis}`);
   }
   // Mixer coefficients assume a symmetric quad X geometry.
   for (const axis of ["x", "y"] as const)
@@ -122,7 +126,7 @@ export function validateDroneConfig(c: DroneConfig): void {
         "Mixer requires symmetric X rotor offsets",
       );
   for (const axis of ["x", "y", "z"] as const) {
-    range(c.body.inertia[axis], 1e-7, 0.002, `Inertia ${axis}`);
+    range(c.body.inertia[axis], 1e-7, 0.02, `Inertia ${axis}`);
     range(c.body.centerOfMass[axis], -0.02, 0.02, `Center of mass ${axis}`);
     range(c.aerodynamics.linear[axis], 0, 0.1, `Linear drag ${axis}`);
     range(c.aerodynamics.quadratic[axis], 0, 0.03, `Quadratic drag ${axis}`);
@@ -142,8 +146,10 @@ export function validateDroneConfig(c: DroneConfig): void {
   range(c.body.friction, 0, 2, "Friction");
   range(c.body.restitution, 0, 1, "Restitution");
   range(c.body.crashDeltaVelocity, 0.1, 50, "Crash threshold");
+  const b = c.battery;
+  check(Number.isInteger(b.cells) && b.cells >= 1 && b.cells <= 8, "Cell count must be an integer from 1 to 8");
   const p = c.propulsion;
-  range(p.referenceVoltage, 2.5, 4.5, "Reference voltage");
+  range(p.referenceVoltage, 2.5 * b.cells, 4.5 * b.cells, "Reference voltage");
   range(p.riseTime, 0.001, 0.2, "Motor rise time");
   range(p.fallTime, 0.001, 0.3, "Motor fall time");
   range(p.idle, 0, 0.2, "Motor idle");
@@ -168,15 +174,14 @@ export function validateDroneConfig(c: DroneConfig): void {
       p.thrustCurve[p.thrustCurve.length - 1][1] === 1,
     "Curve endpoints must be [0,0] and [1,1]",
   );
-  const b = c.battery;
   range(b.capacityAh, 0.05, 2, "Capacity (Ah)");
   range(b.initialCharge, 0, 1, "Battery charge");
-  range(b.emptyVoltage, 2.5, 3.6, "Empty voltage");
-  range(b.fullVoltage, 3.7, 4.5, "Full voltage");
+  range(b.emptyVoltage, 2.5 * b.cells, 3.6 * b.cells, "Empty voltage");
+  range(b.fullVoltage, 3.7 * b.cells, 4.5 * b.cells, "Full voltage");
   range(b.resistance, 0, 0.5, "Battery resistance");
   range(b.idleCurrent, 0, 1, "Electronics current");
-  range(b.maxMotorCurrent, 0.1, 10, "Motor current");
-  if (b.fixedVoltage !== null) range(b.fixedVoltage, 0, 4.5, "Fixed voltage");
+  range(b.maxMotorCurrent, 0.1, 60, "Motor current");
+  if (b.fixedVoltage !== null) range(b.fixedVoltage, 0, 4.5 * b.cells, "Fixed voltage");
   const imu = c.imu;
   range(imu.gyroNoiseDensity, 0, 0.05, "Gyro noise density");
   range(imu.gyroBiasRandomWalk, 0, 0.05, "Gyro bias random walk");
@@ -282,6 +287,6 @@ export function exportPreset(config: DroneConfig): string {
     2,
   );
 }
-export function defaultPreset(): DroneConfig {
-  return normalizePreset(Tinyhawk3Config);
+export function defaultPreset(config: DroneConfig = Tinyhawk3Config): DroneConfig {
+  return normalizePreset(config);
 }

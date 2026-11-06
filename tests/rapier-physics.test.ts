@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { RapierPhysics } from "../src/physics/rapier-physics";
 import { Tinyhawk3Config } from "../src/config/tinyhawk-config";
+import { Manta5DeadCatConfig } from "../src/config/manta5-config";
 import type { Controls } from "../src/types";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import { readFile } from "node:fs/promises";
@@ -117,6 +118,22 @@ describe("Rapier flight and contacts", () => {
     const result = advance(physics, 1);
     expect(result.localPosition.z).toBeCloseTo(Tinyhawk3Config.height / 2, 2);
     expect(result.localVelocity.z).toBeCloseTo(0, 2);
+    expect(result.crashed).toBe(false);
+  });
+
+  it("settles the Manta5 on its box collider and takes off under absolute throttle", async () => {
+    const physics = new RapierPhysics(Manta5DeadCatConfig);
+    instances.push(physics);
+    await physics.init({ x: 0, y: 0, z: 0.05 });
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 0.2));
+    floor.position.z = -0.1;
+    physics.createCollider(meshToTrimesh(floor));
+    const landed = advance(physics, 1);
+    expect(landed.localPosition.z).toBeCloseTo(Manta5DeadCatConfig.height / 2, 2);
+    expect(landed.crashed).toBe(false);
+    physics.setArmed(true);
+    const result = advance(physics, 0.5, { ...neutral, arm: true, throttle: 1 });
+    expect(result.localPosition.z).toBeGreaterThan(1);
     expect(result.crashed).toBe(false);
   });
 

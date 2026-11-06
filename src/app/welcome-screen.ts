@@ -1,6 +1,7 @@
 import { landingWorld, parsePlayChoices, playUrl, savePlayChoices } from "./page-navigation";
 import { STORAGE_KEYS } from "./storage-keys";
 import "../styles.css";
+import { setupChoiceCarousel } from "../ui/choice-carousel";
 import { setupWelcomeGamepadStatus } from "../ui/welcome-gamepad-status";
 import { subscribeVrSupport } from "../xr/xr-support";
 import { setupPwa } from "../pwa";
@@ -12,17 +13,24 @@ export function setupWelcomeScreen(
   const world = document.getElementById("welcomeWorldSelect") as HTMLSelectElement;
   const control = document.getElementById("welcomeControlSelect") as HTMLSelectElement;
   const mode = document.getElementById("welcomeFlightModeSelect") as HTMLSelectElement;
+  const drone = document.getElementById("welcomeDroneSelect") as HTMLSelectElement | null;
   const status = document.getElementById("welcomeStatus")!;
   const initial = parsePlayChoices(window.location.search);
+  // The landing page lists drones statically so that it need not load the drone catalog.
+  const savedDrone = localStorage.getItem(STORAGE_KEYS.drone);
+  if (drone && [...drone.options].some((option) => option.value === savedDrone)) drone.value = savedDrone!;
   world.value = landingWorld(window.location.search);
   control.value = initial.control;
   mode.value = initial.mode;
+  setupChoiceCarousel(world, "Map");
+  if (drone) setupChoiceCarousel(drone, "Drone");
   const go = (vr: boolean) => {
     if (control.value === "motion" && !vr) {
       status.textContent = "The motion controller works in VR only. Select Play in VR.";
       return;
     }
     localStorage.setItem(STORAGE_KEYS.world, world.value);
+    if (drone) localStorage.setItem(STORAGE_KEYS.drone, drone.value);
     const choices = {
       control: control.value === "gamepad" || control.value === "motion" ? control.value : "keyboard",
       mode: mode.value === "acro" ? "acro" : "angle",

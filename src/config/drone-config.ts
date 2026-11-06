@@ -160,6 +160,7 @@ export interface AeroConfig {
   angular: Vec3; // N m / (rad/s)
 }
 export interface BatteryConfig {
+  cells: number; // series cell count; voltages below are for the full pack
   capacityAh: number;
   initialCharge: number;
   emptyVoltage: number;
