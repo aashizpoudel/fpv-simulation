@@ -739,6 +739,14 @@ body {
     display: block;
 }
 
+.bump-border {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 72px 14px rgba(255, 64, 48, 0.9);
+}
+
 .osd-crosshair::before,
 .osd-crosshair::after {
     content: "";

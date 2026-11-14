@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   collision: "drone_sim_collision",
   quality: "drone_sim_quality",
   crosshair: "drone_sim_crosshair",
+  fisheye: "drone_sim_fisheye",
   horizonLine: "drone_sim_horizon_line",
   stickOverlay: "drone_sim_stick_overlay",
   audioVolume: "drone_sim_audio_volume",

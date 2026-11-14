@@ -26,6 +26,36 @@ export function subscribeCrosshair(onChange: (enabled: boolean) => void): () => 
   return () => window.removeEventListener(CROSSHAIR_EVENT, listener);
 }
 
+const FISHEYE_KEY = STORAGE_KEYS.fisheye;
+const FISHEYE_EVENT = "drone-fisheye-change";
+
+export function getFisheyeAmount(): number {
+  try {
+    const amount = Number(localStorage.getItem(FISHEYE_KEY));
+    if (!Number.isFinite(amount)) return 0;
+    return Math.min(1, Math.max(0, amount));
+  } catch {
+    return 0;
+  }
+}
+
+export function setFisheyeAmount(amount: number): void {
+  const clamped = Math.min(1, Math.max(0, amount));
+  try {
+    localStorage.setItem(FISHEYE_KEY, String(clamped));
+  } catch {
+    /* Live control still works. */
+  }
+  window.dispatchEvent(new CustomEvent(FISHEYE_EVENT, { detail: clamped }));
+}
+
+export function subscribeFisheye(onChange: (amount: number) => void): () => void {
+  onChange(getFisheyeAmount());
+  const listener = (event: Event) => onChange((event as CustomEvent<number>).detail);
+  window.addEventListener(FISHEYE_EVENT, listener);
+  return () => window.removeEventListener(FISHEYE_EVENT, listener);
+}
+
 const HORIZON_KEY = STORAGE_KEYS.horizonLine;
 const HORIZON_EVENT = "drone-horizon-line-change";
 

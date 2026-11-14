@@ -2,6 +2,8 @@ import { getAudioVolume, setAudioVolume } from "../audio/audio-preferences";
 import {
   isCrosshairEnabled,
   setCrosshairEnabled,
+  getFisheyeAmount,
+  setFisheyeAmount,
   isHorizonLineEnabled,
   setHorizonLineEnabled,
   isStickOverlayEnabled,
@@ -42,6 +44,22 @@ export function setupSettingsTabs(): void {
     crosshairCheckbox.checked = isCrosshairEnabled();
     crosshairCheckbox.addEventListener("change", () => {
       setCrosshairEnabled(crosshairCheckbox.checked);
+    });
+  }
+
+  const fisheye = root.querySelector<HTMLInputElement>("#fisheyeAmount");
+  const fisheyeOut = root.querySelector<HTMLOutputElement>("#fisheyeAmountValue");
+  if (fisheye) {
+    const showFisheye = () => {
+      const amount = Number(fisheye.value);
+      if (fisheyeOut) fisheyeOut.value = amount.toFixed(2);
+      fisheye.setAttribute("aria-valuetext", amount.toFixed(2));
+    };
+    fisheye.value = getFisheyeAmount().toFixed(2);
+    showFisheye();
+    fisheye.addEventListener("input", () => {
+      showFisheye();
+      setFisheyeAmount(Number(fisheye.value));
     });
   }
 

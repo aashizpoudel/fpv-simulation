@@ -10,6 +10,7 @@ import { Tinyhawk3Config } from "../config/tinyhawk-config";
 import { normalizePreset } from "../config/presets";
 import { applyBetaflightTuning } from "./betaflight-tuning";
 import { ImuSensorModel } from "./imu-sensor";
+import { groundEffectFactor } from "./ground-effect";
 
 const GRAVITY = 9.81;
 const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
@@ -53,6 +54,7 @@ export class DroneSimPhysics {
   private gforce = 1;
   private touchingLastStep = false;
   private rotorRpms: [number, number, number, number] = [0, 0, 0, 0];
+  private readonly groundRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -1 });
   private imu: ImuSensorModel;
   private telemetry!: DroneTelemetry;
   private readonly collisionRadius: number;
@@ -434,31 +436,37 @@ export class DroneSimPhysics {
       this.wasm._dronesim_motor_command(this.handle, BETAFLIGHT_MOTOR_FOR_ROTOR[3]),
     ];
 
-    // Compute net thrust and control torques in body frame (Z-up)
-    const totalThrust = rotorThrusts[0] + rotorThrusts[1] + rotorThrusts[2] + rotorThrusts[3];
-    let bodyTorqueX = 0;
-    let bodyTorqueY = 0;
-    let bodyTorqueZ = 0;
-
-    for (let i = 0; i < 4; i++) {
-      const r = this.config.rotors[i].position;
-      // r x F for a rotor force along local +Z.
-      bodyTorqueX += r.y * rotorThrusts[i];
-      bodyTorqueY -= r.x * rotorThrusts[i];
-      bodyTorqueZ += rotorTorques[i] * ROTOR_SPIN[i];
-    }
-
-    // Transform forces and torques from body frame to world frame
-    const worldThrust = rotateVec({ x: 0, y: 0, z: totalThrust }, q);
-    const worldTorque = rotateVec({ x: bodyTorqueX, y: bodyTorqueY, z: bodyTorqueZ }, q);
-
-    // Apply forces and torques to Rapier body
+    // Apply each motor force at its own position. Rapier forms the net force
+    // and the moment about the center of mass. A reaction torque is a free
+    // couple, so Rapier accepts it with addTorque rather than at a point.
+    // Ground effect scales thrust from a downward ray on the map mesh.
     this.body.resetForces(true);
     this.body.resetTorques(true);
 
     if (flightControllerArmed && !this.crashed) {
-      this.body.addForce(worldThrust, true);
-      this.body.addTorque(worldTorque, true);
+      const rotorRadius = this.config.body.ductRadius;
+      const rayReach = rotorRadius * 2 + 0.001;
+      if (this.updateMapRegion(pos, 2 + this.collisionRadius)) this.world.updateSceneQueries();
+      for (let i = 0; i < 4; i++) {
+        const rotorPosition = this.config.rotors[i].position;
+        const worldOffset = rotateVec(rotorPosition, q);
+        const point = {
+          x: pos.x + worldOffset.x,
+          y: pos.y + worldOffset.y,
+          z: pos.z + worldOffset.z,
+        };
+        const height = this.rotorHeightAboveGround(point, rayReach);
+        const gain = groundEffectFactor(height, rotorRadius);
+        const thrust = rotorThrusts[i] * gain;
+        rotorThrusts[i] = thrust;
+        const worldForce = rotateVec({ x: 0, y: 0, z: thrust }, q);
+        const worldTorque = rotateVec(
+          { x: 0, y: 0, z: rotorTorques[i] * gain * ROTOR_SPIN[i] },
+          q,
+        );
+        this.body.addForceAtPoint(worldForce, point, true);
+        this.body.addTorque(worldTorque, true);
+      }
     }
 
     // Aerodynamic drag
@@ -558,6 +566,26 @@ export class DroneSimPhysics {
     };
 
     return this.telemetry;
+  }
+
+  /** Distance from a rotor to the map surface below it. Infinity when nothing is within reach. */
+  private rotorHeightAboveGround(rotor: Vec3, maxDistance: number): number {
+    if (!this.world) return Infinity;
+    const origin = this.groundRay.origin;
+    origin.x = rotor.x;
+    origin.y = rotor.y;
+    origin.z = rotor.z + 0.001;
+    const hit = this.world.castRay(
+      this.groundRay,
+      maxDistance,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      this.body,
+    );
+    if (!hit) return Infinity;
+    return Math.max(0, hit.toi - 0.001);
   }
 
   // ===========================================================================

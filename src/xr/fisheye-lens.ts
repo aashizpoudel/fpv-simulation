@@ -72,16 +72,21 @@ uniform sampler2D source;
 uniform vec2 halfAngle;
 uniform vec2 tanHalf;
 uniform float vignette;
+uniform float strength;
 varying vec2 vUv;
 void main() {
-  vec2 p = (vUv * 2.0 - 1.0) * halfAngle;
-  float theta = length(p);
-  vec2 dir = theta > 1e-6 ? p / theta : vec2(0.0);
-  vec2 plane = tan(theta) * dir;
+  vec2 n = vUv * 2.0 - 1.0;
+  vec2 fishP = n * halfAngle;
+  float theta = length(fishP);
+  vec2 dir = theta > 1e-6 ? fishP / theta : vec2(0.0);
+  vec2 fishPlane = tan(theta) * dir;
+  vec2 rectPlane = n * tan(halfAngle);
+  float k = clamp(strength, 0.0, 1.0);
+  vec2 plane = mix(rectPlane, fishPlane, k);
   vec2 srcUv = 0.5 + 0.5 * plane / tanHalf;
   vec4 c = texture2D(source, srcUv);
   float r = theta / length(halfAngle);
-  c.rgb *= 1.0 - vignette * smoothstep(0.3, 1.0, r);
+  c.rgb *= 1.0 - vignette * k * smoothstep(0.3, 1.0, r);
   if (srcUv.x < 0.0 || srcUv.x > 1.0 || srcUv.y < 0.0 || srcUv.y > 1.0) c = vec4(0.0, 0.0, 0.0, 1.0);
   gl_FragColor = vec4(c.rgb, 1.0);
   #include <colorspace_fragment>
@@ -102,6 +107,7 @@ export function createFisheyeMaterial(): THREE.ShaderMaterial {
       halfAngle: { value: new THREE.Vector2(1, 1) },
       tanHalf: { value: new THREE.Vector2(1, 1) },
       vignette: { value: 0.35 },
+      strength: { value: 1 },
     },
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,

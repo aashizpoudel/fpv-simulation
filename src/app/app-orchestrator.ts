@@ -25,6 +25,7 @@ import type { CameraMode, Vec3 } from "../types";
 import {
   getHudElements,
   nextCameraMode,
+  nextBumpOpacity,
   requireElement,
   updateHUD,
 } from "../ui/hud";
@@ -126,6 +127,8 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
   };
   let flightStarted = false;
   let lastTime = performance.now();
+  let bumpOpacity = 0;
+  let previousImpact = 0;
   let frameCount = 0;
   let fpsTime = performance.now();
   const renderIntervalMs = 1000 / 60;
@@ -543,6 +546,10 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     }
 
     ui.statusBanner.classList.toggle("show", telemetry.crashed);
+    const impact = telemetry.impactDeltaVelocity ?? 0;
+    bumpOpacity = nextBumpOpacity(bumpOpacity, impact, previousImpact, deltaTime);
+    previousImpact = impact;
+    ui.bumpBorder.style.opacity = bumpOpacity.toFixed(3);
 
     // Temporarily cap desktop view rendering while input and physics keep updating.
     if (vrActive || now >= nextRenderTime) {
@@ -564,6 +571,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
           recordingSec: recording ? recordedSteps * recording.fixedTimeStep : 0,
           crosshair: crosshairEnabled,
           horizonLine: horizonLineEnabled,
+          bump: bumpOpacity,
           sticks: stickOverlayEnabled && activeInputSource !== "keyboard" ? controls : null,
           fps: lastFps,
           latencyMs: 30,

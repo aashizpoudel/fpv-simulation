@@ -9,6 +9,9 @@ import {
   subscribeHorizonLine,
   isStickOverlayEnabled,
   subscribeStickOverlay,
+  getFisheyeAmount,
+  setFisheyeAmount,
+  subscribeFisheye,
 } from "../src/app/crosshair-preferences";
 
 const html = readFileSync("play.html", "utf8");
@@ -70,6 +73,30 @@ describe("settings tabs and audio", () => {
     expect(getAudioVolume()).toBe(1);
     setupSettingsTabs();
     expect((document.getElementById("audioVolume") as HTMLInputElement).value).toBe("100");
+  });
+
+  it("keeps the FPV fisheye lens at 0 until the slider moves", () => {
+    expect(getFisheyeAmount()).toBe(0);
+    setupSettingsTabs();
+    const slider = document.getElementById("fisheyeAmount") as HTMLInputElement;
+    expect(slider.value).toBe("0.00");
+    expect(document.getElementById("fisheyeAmountValue")!.textContent).toBe("0.00");
+
+    const onFisheye = vi.fn();
+    const unsubscribe = subscribeFisheye(onFisheye);
+    try {
+      slider.value = "0.4";
+      slider.dispatchEvent(new Event("input"));
+      expect(getFisheyeAmount()).toBeCloseTo(0.4);
+      expect(onFisheye).toHaveBeenLastCalledWith(0.4);
+      expect(document.getElementById("fisheyeAmountValue")!.textContent).toBe("0.40");
+      expect(localStorage.getItem("drone_sim_fisheye")).toBe("0.4");
+
+      setFisheyeAmount(2);
+      expect(getFisheyeAmount()).toBe(1);
+    } finally {
+      unsubscribe();
+    }
   });
 
   it("keeps crosshair disabled by default and toggles on user interaction", () => {

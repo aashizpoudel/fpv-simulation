@@ -87,8 +87,9 @@ describe("fisheye lens", () => {
   it("creates a material with the expected uniforms", () => {
     const m = createFisheyeMaterial();
     expect(m).toBeInstanceOf(THREE.ShaderMaterial);
-    for (const k of ["source", "halfAngle", "tanHalf", "vignette"]) expect(m.uniforms[k]).toBeDefined();
+    for (const k of ["source", "halfAngle", "tanHalf", "vignette", "strength"]) expect(m.uniforms[k]).toBeDefined();
     expect(m.uniforms.vignette.value).toBeCloseTo(0.35);
+    expect(m.uniforms.strength.value).toBe(1);
     expect(m.depthTest).toBe(false);
     const half = o3HalfAngles("16:9");
     const src = sourceCameraFor(half);

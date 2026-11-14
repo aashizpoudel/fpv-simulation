@@ -17,6 +17,7 @@ export type HudElements = {
   osd: HTMLElement;
   horizonLine: HTMLElement;
   crosshair: HTMLElement;
+  bumpBorder: HTMLElement;
 };
 
 export function nextCameraMode(current: CameraMode): CameraMode {
@@ -27,6 +28,22 @@ export function nextCameraMode(current: CameraMode): CameraMode {
     return "orbit";
   }
   return "fpv";
+}
+
+/** Impact speed, in m/s, that counts as a bump rather than resting contact. */
+export const BUMP_IMPACT_MPS = 0.4;
+const BUMP_FADE_SECONDS = 0.45;
+
+/** Edge brightness after this frame. A new bump lights it; it then fades. */
+export function nextBumpOpacity(
+  opacity: number,
+  impactMps: number,
+  previousImpactMps: number,
+  dtSeconds: number,
+): number {
+  const hit = impactMps >= BUMP_IMPACT_MPS && previousImpactMps < BUMP_IMPACT_MPS;
+  const lit = hit ? 1 : opacity;
+  return Math.max(0, lit - Math.max(0, dtSeconds) / BUMP_FADE_SECONDS);
 }
 
 export function getHudElements(): HudElements {
@@ -46,6 +63,7 @@ export function getHudElements(): HudElements {
     osd: requireSelector<HTMLElement>(".osd"),
     horizonLine: requireSelector<HTMLElement>(".osd-horizon-line"),
     crosshair: requireSelector<HTMLElement>(".osd-crosshair"),
+    bumpBorder: requireSelector<HTMLElement>(".bump-border"),
   };
 }
 

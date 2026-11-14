@@ -94,6 +94,39 @@ describe("DroneSimPhysics (Unified Betaflight + Motor WASM)", () => {
     expect(telemetry.batteryVoltage).toBeLessThan(4.35);
   });
 
+  it("increases thrust when the map surface is within one rotor diameter", async () => {
+    const floor = {
+      vertices: new Float32Array([
+        -2, -2, 0, 2, -2, 0, 2, 2, 0, -2, 2, 0,
+      ]),
+      indices: new Uint32Array([0, 1, 2, 0, 2, 3]),
+    };
+    const low = new DroneSimPhysics(Tinyhawk3Config);
+    const high = new DroneSimPhysics(Tinyhawk3Config);
+    await low.init({ x: 0, y: 0, z: 0.03 });
+    await high.init({ x: 0, y: 0, z: 1 });
+    low.createCollider(floor);
+    high.createCollider(floor);
+    const input = {
+      thrust: 0, throttle: 1, roll: 0, pitch: 0, yaw: 0,
+      arm: true, reset: false, speedMultiplier: 1,
+    };
+    const idle = { ...input, throttle: 0 };
+    for (const sim of [low, high]) {
+      sim.setArmed(true);
+      for (let i = 0; i < 40; i++) sim.step(idle, 0.001, -1);
+    }
+    let lowThrust = 0;
+    let highThrust = 0;
+    for (let i = 0; i < 80; i++) {
+      lowThrust = low.step(input, 0.001, -1).rotorThrusts.reduce((a, b) => a + b, 0);
+      highThrust = high.step(input, 0.001, -1).rotorThrusts.reduce((a, b) => a + b, 0);
+    }
+    expect(lowThrust).toBeGreaterThan(highThrust * 1.02);
+    low.dispose();
+    high.dispose();
+  });
+
   it("keeps Betaflight disarmed when the arm switch is raised at full throttle", () => {
     sim.setArmed(true);
     for (let i = 0; i < 20; i++) {

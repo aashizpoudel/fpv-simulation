@@ -27,6 +27,8 @@ export type GogglesOsdState = {
   sticks?: Controls | null;
   fps?: number;
   latencyMs: number;
+  /** Edge brightness from 0 to 1 after a collision. */
+  bump?: number;
 };
 
 /** Format seconds as "M:SS" (under 10 minutes) or "MM:SS". */
@@ -112,6 +114,14 @@ export class GogglesOsd {
     const cy = feed.y + feed.height / 2;
 
     ctx.clearRect(0, 0, this.width, this.height);
+    const bump = s.bump ?? 0;
+    if (bump > 0.01) {
+      ctx.save();
+      ctx.strokeStyle = `rgba(255, 64, 48, ${bump})`;
+      ctx.lineWidth = Math.max(18, this.height * 0.04);
+      ctx.strokeRect(feed.x + ctx.lineWidth / 2, feed.y + ctx.lineWidth / 2, feed.width - ctx.lineWidth, feed.height - ctx.lineWidth);
+      ctx.restore();
+    }
     ctx.font = `bold ${fontPx}px monospace`;
     ctx.lineWidth = Math.max(2, fontPx / 6);
     ctx.textBaseline = "middle";

@@ -59,6 +59,7 @@
         </div>
         <!-- OSD Overlay -->
         <div class="osd">
+            <div class="bump-border" aria-hidden="true"></div>
             <!-- Top row -->
             <span class="osd-el osd-top-left" id="flightMode">ANGLE</span>
             <span class="osd-el osd-top-center" id="altitude">—</span>
@@ -240,6 +241,9 @@
                             <input type="checkbox" id="collisionCheckbox" />
                             <span>Show collision wireframe</span>
                         </label>
+                        <label for="fisheyeAmount">Fisheye lens (FPV) <output id="fisheyeAmountValue" for="fisheyeAmount">0.00</output></label>
+                        <input id="fisheyeAmount" class="settings-volume" type="range" min="0" max="1" step="0.01" value="0" aria-describedby="fisheyeHint" />
+                        <p id="fisheyeHint" class="settings-hint">0 is a normal lens. 1 is a full equidistant fisheye. Third person and orbit stay unchanged.</p>
                         <label class="settings-checkbox">
                             <input type="checkbox" id="crosshairCheckbox" />
                             <span>Show crosshair (FPV)</span>

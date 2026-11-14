@@ -11,6 +11,8 @@ import { fetchSplatLodManifest } from "./splat-lod-loader";
 import { renderQuality } from "./render-quality";
 import { externalCameraRig, headingRotation } from "./external-camera";
 import { STORAGE_KEYS } from "../../app/storage-keys";
+import { subscribeFisheye } from "../../app/crosshair-preferences";
+import { FpvFisheye } from "./fpv-fisheye";
 import { GogglesView } from "../../xr/goggles-view";
 import { reportLoading } from "../../ui/loading-overlay";
 import type { GogglesSettings } from "../../xr/goggles-config";
@@ -51,6 +53,9 @@ export class ThreejsRenderer implements IRenderer {
   );
   private disposed = false;
   private goggles?: GogglesView;
+  private fisheyeAmount = 0;
+  private unsubscribeFisheye?: () => void;
+  private fpvFisheye?: FpvFisheye;
   private xrLocalSpace: XRReferenceSpace | null = null;
   private resizeHandler = () => this.resize();
   private qualityHandler = () => this.applyQuality();
@@ -157,6 +162,9 @@ export class ThreejsRenderer implements IRenderer {
     this.resize();
     window.addEventListener("resize", this.resizeHandler);
     document.getElementById("quality")?.addEventListener("change", this.qualityHandler);
+    this.unsubscribeFisheye = subscribeFisheye((amount) => {
+      this.fisheyeAmount = amount;
+    });
     this.applyQuality();
     const loader = new GLTFLoader();
     // Await all jobs even on failure so disposal cannot race another asset load.
@@ -365,6 +373,11 @@ export class ThreejsRenderer implements IRenderer {
       this.goggles.render(this.camera.position, this.camera.quaternion);
       return;
     }
+    if (mode === "fpv" && this.fisheyeAmount > 0) {
+      this.fpvFisheye ??= new FpvFisheye(this.renderer);
+      this.fpvFisheye.render(this.scene, this.camera, this.fisheyeAmount);
+      return;
+    }
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -516,6 +529,8 @@ export class ThreejsRenderer implements IRenderer {
     this.exitVr();
     window.removeEventListener("resize", this.resizeHandler);
     document.getElementById("quality")?.removeEventListener("change", this.qualityHandler);
+    this.unsubscribeFisheye?.();
+    this.fpvFisheye?.dispose();
     this.controls?.dispose();
     this.forest?.dispose();
     this.forest = undefined;
