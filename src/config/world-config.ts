@@ -12,7 +12,7 @@ import type { Vec3 } from "../types";
 export interface WorldConfig {
   name: string;
   /** Environment generated at runtime instead of loading a mesh or splats. */
-  proceduralWorld?: "forest";
+  proceduralWorld?: "forest" | "home";
   /** Regular mesh world. Mutually exclusive with splatLodManifestPath. */
   mapGlbPath?: string;
   /** Repacked coarse-to-fine splat manifest consumed by the Three.js renderer. */
@@ -33,6 +33,8 @@ export interface WorldConfig {
   collisionCellSize?: number;
   /** Spawn position at scale=1. Scaled automatically by mapScale. */
   spawnPosition: Vec3;
+  /** Heading about world +Z, in radians. Zero faces +X. */
+  spawnYaw?: number;
   bounds: { min: Vec3; max: Vec3 };
   /** Ground level (Z) at scale=1. Scaled automatically by mapScale. */
   groundLevel: number;

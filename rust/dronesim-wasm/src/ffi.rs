@@ -34,6 +34,15 @@ impl DroneSim {
         self.motor_commands = [0.0; ROTOR_COUNT];
         self.latest = self.plant.step([0.0; ROTOR_COUNT], 0.0, false, 0.0);
     }
+
+    fn replace_battery(&mut self) {
+        let voltage = self.plant.replace_battery();
+        let capacity = self.plant.battery_config.capacity_ah;
+        self.latest.battery_voltage = voltage;
+        self.latest.charge_fraction = (self.plant.charge_ah / capacity).clamp(0.0, 1.0);
+        let mah_drawn = (1.0 - self.latest.charge_fraction) * capacity * 1000.0;
+        self.fc.update_battery(voltage, self.latest.battery_current_amp, mah_drawn);
+    }
 }
 
 /// Each rotor has: KV, resistance, no-load current, peak current, inertia,
@@ -136,6 +145,16 @@ pub unsafe extern "C" fn dronesim_free(handle: *mut DroneSim) {
 pub unsafe extern "C" fn dronesim_reset(handle: *mut DroneSim) {
     if let Some(sim) = handle.as_mut() {
         sim.reset();
+    }
+}
+
+/// Restore the pack to its starting charge. Rotor speed and flight-controller state stay.
+/// # Safety
+/// `handle` must be null or a live pointer returned by `dronesim_init`.
+#[no_mangle]
+pub unsafe extern "C" fn dronesim_replace_battery(handle: *mut DroneSim) {
+    if let Some(sim) = handle.as_mut() {
+        sim.replace_battery();
     }
 }
 

@@ -10,14 +10,19 @@ export function setupWelcomeGamepadStatus(): () => void {
   if (!root || !status || !button) return () => {};
 
   let detected: number | null = null;
+  const control = document.getElementById("welcomeControlSelect") as HTMLSelectElement | null;
+  const gamepadOption = control?.querySelector<HTMLOptionElement>('option[value="gamepad"]') ?? null;
 
   const findGamepad = (): Gamepad | null =>
     Array.from(navigator.getGamepads?.() ?? []).find((pad): pad is Gamepad => !!pad) ?? null;
 
   const render = (hint?: string) => {
-    root.dataset.state = detected === null ? "missing" : "detected";
-    status.textContent = detected === null ? hint ?? "Gamepad not detected" : "Gamepad detected";
-    button.textContent = detected === null ? "Detect gamepad" : "Reset gamepad detection";
+    const available = detected !== null;
+    root.dataset.state = available ? "detected" : "missing";
+    status.textContent = available ? "Gamepad detected" : hint ?? "Gamepad not detected";
+    button.textContent = available ? "Reset gamepad detection" : "Detect gamepad";
+    if (gamepadOption) gamepadOption.disabled = !available;
+    if (!available && control?.value === "gamepad") control.value = "keyboard";
   };
 
   const detect = (): boolean => {

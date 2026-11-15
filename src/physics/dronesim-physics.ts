@@ -19,6 +19,10 @@ const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(
 const CONFIG_ROTOR_FOR_BETAFLIGHT = [3, 0, 2, 1] as const;
 const BETAFLIGHT_MOTOR_FOR_ROTOR = [1, 3, 2, 0] as const;
 const ROTOR_SPIN = [1, -1, 1, -1] as const;
+// wasm32 layout of DroneSim (rustc 1.99.1). The shipped module has no replace export.
+const PACK_CHARGE_AH_OFFSET = 136;
+const PACK_VOLTAGE_OFFSET = 568;
+const PACK_CHARGE_FRACTION_OFFSET = 584;
 
 /**
  * Unified physics engine:
@@ -44,6 +48,7 @@ export class DroneSimPhysics {
 
   private roofHeight = Infinity;
   private startPosition: Vec3 = { x: 0, y: 0, z: 0.1 };
+  private startRotation = { x: 0, y: 0, z: 0, w: 1 };
   private lastVelocity: Vec3 = { x: 0, y: 0, z: 0 };
   private specificForce: Vec3 = { x: 0, y: 0, z: GRAVITY };
   private throttle = 0;
@@ -107,6 +112,12 @@ export class DroneSimPhysics {
   public setRoofHeight(height: number): void {
     this.roofHeight = height;
     if (this.world) this.buildWorld();
+  }
+
+  /** Heading about world +Z. Zero faces +X. */
+  public setSpawnYaw(yaw: number): void {
+    const half = yaw / 2;
+    this.startRotation = { x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) };
   }
 
   public async init(startPosition: Vec3): Promise<void> {
@@ -287,6 +298,37 @@ export class DroneSimPhysics {
     if (this.propCollision) this.installProps();
   }
 
+  /**
+   * Install the configured pack. Arm state, crash state, position, and rotor
+   * speed stay as they are, so this can run on the ground or in the air.
+   */
+  public swapBattery(): void {
+    if (!this.wasm || !this.handle) return;
+    const replace = this.wasm._dronesim_replace_battery;
+    if (typeof replace === "function") replace(this.handle);
+    else this.restorePackCharge();
+    this.telemetry.batteryVoltage = this.wasm._dronesim_voltage(this.handle);
+    this.telemetry.batteryCurrent = this.wasm._dronesim_current(this.handle);
+    this.telemetry.batteryCharge = this.wasm._dronesim_charge(this.handle);
+  }
+
+  /** Write the starting charge into the running motor plant. */
+  private restorePackCharge(): void {
+    const wasm = this.wasm;
+    if (!wasm || (this.handle & 7) !== 0) return;
+    const battery = this.config.battery;
+    const charge = battery.initialCharge;
+    const current = this.telemetry.batteryCurrent ?? battery.idleCurrent;
+    const openCircuit =
+      battery.emptyVoltage + (battery.fullVoltage - battery.emptyVoltage) * charge;
+    const sag = Math.min(Math.max(0, current), battery.maxMotorCurrent * 4) * battery.resistance;
+    const voltage = battery.fixedVoltage ?? Math.max(0, openCircuit - sag);
+    const view = new DataView(wasm.HEAPU8.buffer);
+    view.setFloat64(this.handle + PACK_CHARGE_AH_OFFSET, battery.capacityAh * charge, true);
+    view.setFloat64(this.handle + PACK_VOLTAGE_OFFSET, voltage, true);
+    view.setFloat64(this.handle + PACK_CHARGE_FRACTION_OFFSET, charge, true);
+  }
+
   public reset(): void {
     this.crashed = false;
     this.armed = false;
@@ -305,7 +347,7 @@ export class DroneSimPhysics {
 
     if (this.body) {
       this.body.setTranslation(this.startPosition, true);
-      this.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+      this.body.setRotation(this.startRotation, true);
       this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       this.body.resetForces(true);
@@ -313,6 +355,7 @@ export class DroneSimPhysics {
     }
     this.telemetry = this.emptyTelemetry();
     this.telemetry.localPosition = { ...this.startPosition };
+    this.telemetry.localOrientation = { ...this.startRotation };
   }
 
   public setArmed(armed: boolean): void {

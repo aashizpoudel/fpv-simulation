@@ -9,7 +9,7 @@ export function meshToTrimesh(mesh: THREE.Object3D): CollisionData {
   mesh.updateMatrixWorld(true);
 
   mesh.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.geometry) {
+    if (child instanceof THREE.Mesh && child.geometry && !child.userData.noCollide) {
       const geometry = child.geometry;
       const positionAttr = geometry.attributes.position;
 

@@ -21,6 +21,7 @@ export type Command =
   | { type: "controls"; controls: Controls }
   | { type: "armed"; armed: boolean }
   | { type: "reset" }
+  | { type: "swap-battery" }
   | { type: "mode"; mode: "acro" | "angle" }
   | { type: "collision"; kind: "map" | "props"; data: CollisionData }
   | { type: "place-props"; world: WorldConfig }

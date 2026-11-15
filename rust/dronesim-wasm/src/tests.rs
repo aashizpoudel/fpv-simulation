@@ -103,6 +103,39 @@ fn disarming_spins_down_and_reset_restores_state() {
 }
 
 #[test]
+fn replace_battery_restores_charge_and_keeps_rotor_speed() {
+    let mut plant = plant();
+    for _ in 0..4000 {
+        plant.step([1.0; 4], 0.0, true, 0.001);
+    }
+    let rpm = plant.rotors[0].rpm;
+    assert!(rpm > 1000.0);
+    assert!(plant.charge_ah < 0.45);
+    let voltage = plant.replace_battery();
+    assert!((plant.charge_ah - 0.45).abs() < 1e-12);
+    assert_eq!(plant.rotors[0].rpm, rpm);
+    assert!(voltage > 3.5);
+
+    let values = config_values();
+    let handle = unsafe { dronesim_init(values.as_ptr(), values.len()) };
+    assert!(!handle.is_null());
+    unsafe {
+        for _ in 0..4000 {
+            dronesim_step(handle, 1.0, 1.0, 1.0, 1.0, 0.0, 1, 0.001);
+        }
+        let rpm = dronesim_rpm(handle, 0);
+        let charge_before = dronesim_charge(handle);
+        let voltage_before = dronesim_voltage(handle);
+        assert!(charge_before < 1.0);
+        dronesim_replace_battery(handle);
+        assert!((dronesim_charge(handle) - 1.0).abs() < 1e-9);
+        assert_eq!(dronesim_rpm(handle, 0), rpm);
+        assert!(dronesim_voltage(handle) > voltage_before);
+        dronesim_free(handle);
+    }
+}
+
+#[test]
 fn invalid_time_step_does_not_advance_motors_or_battery() {
     let mut plant = plant();
     let before = plant.charge_ah;

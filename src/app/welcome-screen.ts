@@ -24,7 +24,7 @@ export function setupWelcomeScreen(
   control.value = initial.control;
   mode.value = initial.mode;
   backend.value = parseSimulationBackend(window.location.search);
-  setupChoiceCarousel(world, "Map");
+  setupChoiceCarousel(world, "Map", "grid");
   if (drone) setupChoiceCarousel(drone, "Drone");
   const remember = () => {
     localStorage.setItem(STORAGE_KEYS.world, world.value);

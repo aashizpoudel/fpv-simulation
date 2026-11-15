@@ -18,6 +18,7 @@ import { reportLoading } from "../../ui/loading-overlay";
 import type { GogglesSettings } from "../../xr/goggles-config";
 import type { GogglesOsdState } from "../../xr/goggles-osd";
 import type { ForestEnvironment } from "./forest/forest";
+import type { HomeEnvironment } from "./home/home";
 import { installIslandWater, type IslandWater } from "./island-water";
 import { RotorAnimation } from "../rotor-animation";
 import { RotorMeshAnimation } from "./rotor-mesh-animation";
@@ -31,6 +32,7 @@ export class ThreejsRenderer implements IRenderer {
   private spark?: SparkRenderer;
   private splats?: SplatMesh;
   private forest?: ForestEnvironment;
+  private home?: HomeEnvironment;
   private water?: IslandWater;
   /** Shadow-casting sun for worlds with `shadows`; its frustum follows the drone. */
   private sun?: THREE.DirectionalLight;
@@ -94,7 +96,7 @@ export class ThreejsRenderer implements IRenderer {
     const viewDistance = this.worldConfig?.viewDistance;
     this.renderer = new THREE.WebGLRenderer({
       // MSAA only helps polygon edges; splat worlds don't need it.
-      antialias: Boolean(this.worldConfig?.mapGlbPath),
+      antialias: Boolean(this.worldConfig?.mapGlbPath || this.worldConfig?.proceduralWorld === "home"),
       // The 15 mm FPV near plane needs log depth to reach kilometre-scale far planes without z-fighting.
       logarithmicDepthBuffer: viewDistance !== undefined && viewDistance > 1000,
       powerPreference: "high-performance",
@@ -233,6 +235,16 @@ export class ThreejsRenderer implements IRenderer {
         });
       }
       this.status("Forest ready", 1);
+    } else if (config.proceduralWorld === "home") {
+      this.status("Loading house…");
+      const { createHome } = await import("./home/home");
+      this.home = await createHome(this.renderer, (message, progress) => this.status(message, progress));
+      this.home.root.rotation.x = Math.PI / 2;
+      if (config.collisionCellSize) this.home.root.userData.collisionCellSize = config.collisionCellSize;
+      this.scene.add(this.home.root);
+      this.home.apply(this.scene);
+      this.onMapLoaded?.(this.home.root);
+      this.status("House ready", 1);
     } else if (config.splatLodManifestPath) {
       this.status("Loading environment…");
       const url = new URL(this.assetUrl(config.splatLodManifestPath));
@@ -367,6 +379,7 @@ export class ThreejsRenderer implements IRenderer {
     }
     this.previousMode = mode;
     this.forest?.update(this.camera);
+    this.home?.update(this.position);
     this.water?.update(performance.now() / 1000, this.camera.position);
     this.updateShadowFrustum();
     if (this.goggles) {
@@ -534,6 +547,8 @@ export class ThreejsRenderer implements IRenderer {
     this.controls?.dispose();
     this.forest?.dispose();
     this.forest = undefined;
+    this.home?.dispose();
+    this.home = undefined;
     this.water?.dispose();
     this.water = undefined;
     this.splats?.removeFromParent();

@@ -263,6 +263,11 @@ export class SimulationClient {
     this.send({ type: "reset" });
   }
 
+  /** Replace the pack. The aircraft stays where it is. */
+  swapBattery(): void {
+    this.send({ type: "swap-battery" });
+  }
+
   pause(paused: boolean): void {
     this.interpolation.clear();
     this.send({ type: "pause", paused });

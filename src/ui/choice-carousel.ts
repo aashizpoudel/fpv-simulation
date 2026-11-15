@@ -3,24 +3,31 @@
  * (hidden) and keeps the value, so existing readers and `change` listeners work.
  * Options supply `data-thumb` (image URL) and optional `data-detail` (subtitle).
  */
-export function setupChoiceCarousel(select: HTMLSelectElement, label: string): HTMLElement {
+export function setupChoiceCarousel(
+  select: HTMLSelectElement,
+  label: string,
+  layout: "carousel" | "grid" = "carousel",
+): HTMLElement {
   const id = `${select.id}Carousel`;
   const root = document.createElement("div");
   root.className = "choice-carousel";
   root.id = id;
+  root.dataset.layout = layout;
+  const arrows = layout === "grid" ? "" : `
+      <button class="choice-carousel-arrow" type="button" data-step="-1" aria-label="Previous ${label.toLowerCase()}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button class="choice-carousel-arrow" type="button" data-step="1" aria-label="Next ${label.toLowerCase()}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>`;
   root.innerHTML = `
     <div class="choice-carousel-header">
       <span class="choice-carousel-label" id="${id}Label">${label}</span>
       <span class="choice-carousel-count" aria-hidden="true"></span>
     </div>
     <div class="choice-carousel-viewport">
-      <button class="choice-carousel-arrow" type="button" data-step="-1" aria-label="Previous ${label.toLowerCase()}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-      </button>
       <div class="choice-carousel-track" role="radiogroup" aria-labelledby="${id}Label"></div>
-      <button class="choice-carousel-arrow" type="button" data-step="1" aria-label="Next ${label.toLowerCase()}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </button>
+      ${arrows}
     </div>`;
   const track = root.querySelector<HTMLElement>(".choice-carousel-track")!;
   const count = root.querySelector<HTMLElement>(".choice-carousel-count")!;
@@ -96,12 +103,14 @@ export function setupChoiceCarousel(select: HTMLSelectElement, label: string): H
   source.before(root);
   source.hidden = true;
   // Arrows and edge fades show only when some cards are out of view.
-  const layout = () => {
-    root.dataset.overflow = String(track.scrollWidth > track.clientWidth + 1);
+  const fit = () => {
+    if (layout === "carousel") {
+      root.dataset.overflow = String(track.scrollWidth > track.clientWidth + 1);
+    }
     render();
   };
   render();
-  requestAnimationFrame(layout);
-  if (typeof ResizeObserver !== "undefined") new ResizeObserver(layout).observe(track);
+  requestAnimationFrame(fit);
+  if (layout === "carousel" && typeof ResizeObserver !== "undefined") new ResizeObserver(fit).observe(track);
   return root;
 }

@@ -73,16 +73,16 @@ export const Tinyhawk3Config: DroneConfig = {
   },
   // Legacy Betaflight rates: RC Rate 1.00, Super Rate 0.70, Expo 0.
   rates: { expo: 0, rcRate: 1, superRate: 0.7 },
-  // betaflightPids: {
-  //   roll: { p: 40, i: 55, d: 62 },
-  //   pitch: { p: 42, i: 58, d: 64 },
-  //   yaw: { p: 150, i: 20, d: 8 },
-  // },
-    betaflightPids: {
-    roll: { p: 90, i: 47, d: 31 },
-    pitch: { p: 102, i: 41, d: 31 },
-    yaw: { p: 180, i: 45, d: 10 },
+  betaflightPids: {
+    roll: { p: 40, i: 55, d: 62 },
+    pitch: { p: 42, i: 58, d: 64 },
+    yaw: { p: 150, i: 20, d: 8 },
   },
+  //   betaflightPids: {
+  //   roll: { p: 90, i: 47, d: 31 },
+  //   pitch: { p: 102, i: 41, d: 31 },
+  //   yaw: { p: 180, i: 45, d: 10 },
+  // },
   // Outer shell size (collision box)
   width: 0.105,
   length: 0.105,

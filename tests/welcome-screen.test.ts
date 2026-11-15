@@ -77,44 +77,46 @@ describe("navigation-only landing", () => {
     setupWelcomeScreen(vi.fn());
     expect((document.getElementById("welcomeDroneSelect") as HTMLSelectElement).value).toBe("tinyhawk-iii-plus");
   });
-  it("shows map and drone carousels with a thumbnail for every option", () => {
+  it("shows every map in a grid and the drones in a carousel", () => {
     localStorage.setItem("drone_sim_world", "dedust");
     setupWelcomeScreen(vi.fn());
-    for (const [id, count] of [["welcomeWorldSelect", 5], ["welcomeDroneSelect", 2]] as const) {
+    const maps = document.getElementById("welcomeWorldSelectCarousel")!;
+    expect(maps.dataset.layout).toBe("grid");
+    expect(maps.querySelectorAll("[role='radio']")).toHaveLength(6);
+    expect(maps.querySelector("[aria-label='Next map']")).toBeNull();
+    const drones = document.getElementById("welcomeDroneSelectCarousel")!;
+    expect(drones.dataset.layout).toBe("carousel");
+    expect(drones.querySelectorAll("[role='radio']")).toHaveLength(2);
+    for (const [id, folder] of [["welcomeWorldSelect", "maps"], ["welcomeDroneSelect", "drones"]] as const) {
       const select = document.getElementById(id) as HTMLSelectElement;
       expect(select.closest("label")!.hidden).toBe(true);
-      const cards = document.querySelectorAll<HTMLElement>(`#${id}Carousel [role="radio"]`);
-      expect(cards).toHaveLength(count);
-      for (const card of cards) {
-        expect(card.querySelector("img")!.getAttribute("src")).toMatch(/thumbnails\/(maps|drones)\/[\w-]+\.jpg$/);
+      for (const card of document.querySelectorAll<HTMLElement>(`#${id}Carousel [role="radio"]`)) {
+        expect(card.querySelector("img")!.getAttribute("src")).toMatch(new RegExp(`thumbnails/${folder}/[\\w-]+\\.jpg$`));
       }
     }
     const checked = document.querySelector('#welcomeWorldSelectCarousel [aria-checked="true"]') as HTMLElement;
     expect(checked.dataset.value).toBe("dedust");
     expect(checked.tabIndex).toBe(0);
   });
-  it("selects with a card click, the arrows, and the arrow keys", () => {
+  it("selects a map from the grid and a drone from the carousel", () => {
     const navigate = vi.fn();
     setupWelcomeScreen(navigate);
     const world = document.getElementById("welcomeWorldSelect") as HTMLSelectElement;
-    const carousel = document.getElementById("welcomeWorldSelectCarousel")!;
+    const maps = document.getElementById("welcomeWorldSelectCarousel")!;
     const onChange = vi.fn();
     world.addEventListener("change", onChange);
-    (carousel.querySelector('[data-value="factory-splat"]') as HTMLElement).click();
+    (maps.querySelector('[data-value="factory-splat"]') as HTMLElement).click();
     expect(world.value).toBe("factory-splat");
     expect(onChange).toHaveBeenCalledTimes(1);
-    (carousel.querySelector('[aria-label="Next map"]') as HTMLElement).click();
-    expect(world.value).toBe("ekotori");
-    (carousel.querySelector('[aria-label="Next map"]') as HTMLElement).click();
-    expect(world.value).toBe("island");
-    (carousel.querySelector('[aria-label="Previous map"]') as HTMLElement).click();
-    expect(world.value).toBe("ekotori");
-    const track = carousel.querySelector('[role="radiogroup"]')!;
+    const track = maps.querySelector('[role="radiogroup"]')!;
     track.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
     expect(world.value).toBe("island");
     track.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     expect(world.value).toBe("forest");
-    expect(document.activeElement).toBe(carousel.querySelector('[data-value="forest"]'));
+    expect(document.activeElement).toBe(maps.querySelector('[data-value="forest"]'));
+    const drones = document.getElementById("welcomeDroneSelectCarousel")!;
+    (drones.querySelector('[aria-label="Next drone"]') as HTMLElement).click();
+    expect((document.getElementById("welcomeDroneSelect") as HTMLSelectElement).value).toBe("axisflying-manta5-dc");
     (document.querySelector('#welcomeDroneSelectCarousel [data-value="axisflying-manta5-dc"]') as HTMLElement).click();
     document.getElementById("welcomePlayBtn")!.click();
     expect(localStorage.getItem("drone_sim_world")).toBe("forest");

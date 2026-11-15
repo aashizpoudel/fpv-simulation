@@ -14,6 +14,8 @@ export interface DroneSimModule {
   _dronesim_init(pointer: number, length: number): number;
   _dronesim_free(handle: number): void;
   _dronesim_reset(handle: number): void;
+  /** Restore pack charge. Rotor speed and the flight controller stay as they are. */
+  _dronesim_replace_battery(handle: number): void;
   /** values: 10 bytes [type, RC rates R/P/Y, expo R/P/Y, super rates R/P/Y] in Betaflight units. */
   _dronesim_set_rates(handle: number, values: number, length: number): number;
   /** values: 9 bytes [roll P/I/D, pitch P/I/D, yaw P/I/D] in Betaflight units; disarmed only. */

@@ -25,10 +25,32 @@ afterEach(() => {
 });
 
 describe("welcome gamepad status", () => {
+  const gamepadOption = () =>
+    document.querySelector<HTMLOptionElement>('#welcomeControlSelect option[value="gamepad"]')!;
+  const control = () => document.getElementById("welcomeControlSelect") as HTMLSelectElement;
+
   it("shows not detected with a detect button when no gamepad is present", () => {
     dispose = setupWelcomeGamepadStatus();
     expect(status()).toBe("Gamepad not detected");
     expect(button().textContent).toBe("Detect gamepad");
+    expect(gamepadOption().disabled).toBe(true);
+  });
+
+  it("keeps Radio / Gamepad unselectable until a controller is detected", () => {
+    control().value = "gamepad";
+    dispose = setupWelcomeGamepadStatus();
+    expect(gamepadOption().disabled).toBe(true);
+    expect(control().value).toBe("keyboard");
+
+    pads = [pad(0)];
+    window.dispatchEvent(gamepadEvent("gamepadconnected", pad(0)));
+    expect(gamepadOption().disabled).toBe(false);
+
+    control().value = "gamepad";
+    pads = [];
+    window.dispatchEvent(gamepadEvent("gamepaddisconnected", pad(0)));
+    expect(gamepadOption().disabled).toBe(true);
+    expect(control().value).toBe("keyboard");
   });
 
   it("shows detected with a reset button when a gamepad is already present", () => {

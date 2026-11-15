@@ -94,6 +94,38 @@ describe("DroneSimPhysics (Unified Betaflight + Motor WASM)", () => {
     expect(telemetry.batteryVoltage).toBeLessThan(4.35);
   });
 
+  it("replaces the battery while the motors are running and again from an empty pack", () => {
+    const wasm = (sim as unknown as { wasm: DroneSimModule; handle: number }).wasm;
+    const handle = (sim as unknown as { handle: number }).handle;
+    for (let i = 0; i < 4000; i++) wasm._dronesim_step(handle, 1, 1, 1, 1, 0, 1, 0.001);
+    const drained = wasm._dronesim_charge(handle);
+    const rpm = wasm._dronesim_rpm(handle, 0);
+    const place = { ...sim.getTelemetry().localPosition };
+    expect(drained).toBeLessThan(0.99);
+    expect(rpm).toBeGreaterThan(1000);
+
+    sim.swapBattery();
+    expect(wasm._dronesim_charge(handle)).toBeGreaterThan(0.99);
+    expect(wasm._dronesim_rpm(handle, 0)).toBe(rpm);
+    expect(sim.getTelemetry().localPosition).toEqual(place);
+    expect(sim.getTelemetry().armed).toBe(false);
+    expect(sim.getTelemetry().crashed).toBe(false);
+
+    wasm._dronesim_step(handle, 1, 1, 1, 1, 0, 1, 0.001);
+    expect(wasm._dronesim_charge(handle)).toBeGreaterThan(0.98);
+    expect(wasm._dronesim_rpm(handle, 0)).toBeGreaterThan(1000);
+
+    const view = new DataView(wasm.HEAPU8.buffer);
+    view.setFloat64(handle + 136, 0, true);
+    view.setFloat64(handle + 584, 0, true);
+    wasm._dronesim_step(handle, 1, 1, 1, 1, 0, 1, 0.001);
+    expect(wasm._dronesim_charge(handle)).toBeLessThan(0.01);
+    sim.swapBattery();
+    wasm._dronesim_step(handle, 1, 1, 1, 1, 0, 1, 0.001);
+    expect(wasm._dronesim_charge(handle)).toBeGreaterThan(0.98);
+    expect(sim.getTelemetry().localPosition).toEqual(place);
+  });
+
   it("increases thrust when the map surface is within one rotor diameter", async () => {
     const floor = {
       vertices: new Float32Array([

@@ -77,6 +77,9 @@ export class SimulationRuntime {
         this.pendingReset = true;
         this.lastTime = undefined;
         break;
+      case "swap-battery":
+        this.engine.swapBattery();
+        break;
       case "collision":
         if (command.kind === "map") this.engine.createMapCollider(command.data);
         else this.engine.createPropCollider(command.data);

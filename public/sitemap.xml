@@ -1,9 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://www.fpvsim.top/</loc>
-    <lastmod>2026-10-04</lastmod>
+    <lastmod>2026-11-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://www.fpvsim.top/thumbnails/maps/island.jpg</image:loc>
+      <image:title>Island</image:title>
+      <image:caption>Town and river</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.fpvsim.top/thumbnails/maps/forest.jpg</image:loc>
+      <image:title>Forest</image:title>
+      <image:caption>Mixed forest</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.fpvsim.top/thumbnails/maps/dedust.jpg</image:loc>
+      <image:title>Dust2</image:title>
+      <image:caption>Counter-Strike classic</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.fpvsim.top/thumbnails/maps/factory-splat.jpg</image:loc>
+      <image:title>Factory</image:title>
+      <image:caption>Factory interior</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.fpvsim.top/thumbnails/maps/ekotori.jpg</image:loc>
+      <image:title>Ekotori</image:title>
+      <image:caption>Indoor rooms</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://www.fpvsim.top/thumbnails/maps/home.jpg</image:loc>
+      <image:title>Home</image:title>
+      <image:caption>Furnished house and yard</image:caption>
+    </image:image>
   </url>
 </urlset>

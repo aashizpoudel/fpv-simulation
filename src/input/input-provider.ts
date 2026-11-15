@@ -10,6 +10,7 @@ export type InputActionCallbacks = {
   onSwitchFlightMode?: () => void;
   onToggleRecording?: () => void;
   onToggleHelp?: () => void;
+  onSwapBattery?: () => void;
   onInputSourceChanged?: (source: InputSourceKind) => void;
   onGamepadAvailabilityChanged?: (available: boolean) => void;
 };

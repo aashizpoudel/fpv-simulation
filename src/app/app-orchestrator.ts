@@ -84,6 +84,7 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     roofHeight: options.worldConfig?.roofHeight,
     backend: "dronesim",
     ...options.simulationOptions,
+    ...(options.worldConfig?.spawnYaw !== undefined ? { spawnYaw: options.worldConfig.spawnYaw } : {}),
   }, options.simulationExecution);
   const audioEngine = new DroneAudioEngine(config);
   const unsubscribeAudioVolume = subscribeAudioVolume(volume => audioEngine.setVolume(volume));
@@ -206,6 +207,10 @@ export async function startApp(options: AppOrchestratorOptions): Promise<AppSess
     callbacks: {
       onReset: () => {
         if (flightStarted && !replay) resetRequested = true;
+      },
+      onSwapBattery: () => {
+        // Allowed in every flight state: disarmed, airborne, crashed, and replay.
+        if (flightStarted && simulationClient.ready) simulationClient.swapBattery();
       },
       onToggleCamera: () => {
         if (!flightStarted || vrActive) return;

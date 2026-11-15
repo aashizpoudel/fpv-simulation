@@ -44,6 +44,7 @@ try {
         '_dronesim_init',
         '_dronesim_free',
         '_dronesim_reset',
+        '_dronesim_replace_battery',
         '_dronesim_set_rates',
         '_dronesim_set_pid_rate_config',
         '_dronesim_step',

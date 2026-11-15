@@ -48,6 +48,31 @@ describe("KeyboardInputProvider", () => {
     provider.dispose();
   });
 
+  it("replaces the battery when B is pressed", () => {
+    const callbacks = {
+      onReset: vi.fn(),
+      onToggleCamera: vi.fn(),
+      onSwapBattery: vi.fn(),
+    };
+    const provider = new KeyboardInputProvider({ callbacks });
+    provider.init();
+
+    fireKeyboardEvent("keydown", "b");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "b", repeat: true }));
+    const button = document.createElement("button");
+    document.body.append(button);
+    button.dispatchEvent(new KeyboardEvent("keydown", { key: "b", bubbles: true }));
+    const field = document.createElement("input");
+    document.body.append(field);
+    field.dispatchEvent(new KeyboardEvent("keydown", { key: "b", bubbles: true }));
+    expect(callbacks.onSwapBattery).toHaveBeenCalledTimes(2);
+    button.remove();
+    field.remove();
+    expect(provider.read(1).reset).toBe(false);
+
+    provider.dispose();
+  });
+
   it("triggers recording and help callbacks when G and H are pressed", () => {
     const callbacks = {
       onReset: vi.fn(),

@@ -101,8 +101,14 @@ export class KeyboardInputProvider implements InputProvider {
     this.speedBoostMultiplier = options.speedBoostMultiplier ?? 2;
 
     this.handleKeyDown = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLElement && /INPUT|SELECT|TEXTAREA|BUTTON/.test(event.target.tagName)) return;
       const key = event.key.toLowerCase();
+      const tag = event.target instanceof HTMLElement ? event.target.tagName : "";
+      const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+      // A pack change is allowed while a button has focus, and while the aircraft is flying.
+      if (!typing && !event.repeat && key === "b") {
+        this.callbacks.onSwapBattery?.();
+      }
+      if (typing || tag === "BUTTON") return;
       if (this.flightInputEnabled) {
         if (key.startsWith("arrow") || key === " ") event.preventDefault();
         this.keys[key] = true;

@@ -129,6 +129,15 @@ impl MotorPlant {
         self.previous_current_amp = self.battery_config.electronics_current_amp;
     }
 
+    /// Install a pack at the configured starting charge. Rotor speed stays as it is.
+    /// Returns the open-circuit voltage after sag from the current that was already flowing.
+    pub fn replace_battery(&mut self) -> f64 {
+        self.charge_ah =
+            self.battery_config.capacity_ah * self.battery_config.initial_charge_fraction;
+        self.battery_config
+            .voltage(self.charge_ah, self.previous_current_amp)
+    }
+
     /// Advance one tick. Commands are ESC duty fractions from 0 to 1.
     /// A nonpositive or nonfinite `dt_s` reads current output without advancing state.
     pub fn step(

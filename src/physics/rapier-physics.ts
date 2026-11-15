@@ -27,6 +27,7 @@ export class RapierPhysics {
   private rotorOffsets?: Vec3[];
   private droneTelemetry: DroneTelemetry;
   private startPosition: Vec3;
+  private startRotation = { x: 0, y: 0, z: 0, w: 1 };
   private mapCollision?: CollisionData;
   private mapCollisionParts: CollisionPart[] = [];
   private propCollision?: CollisionData;
@@ -59,6 +60,12 @@ export class RapierPhysics {
 
   public setRoofHeight(height: number): void {
     this.roofHeight = height;
+  }
+
+  /** Heading about world +Z. Zero faces +X. */
+  public setSpawnYaw(yaw: number): void {
+    const half = yaw / 2;
+    this.startRotation = { x: 0, y: 0, z: Math.sin(half), w: Math.cos(half) };
   }
 
   private emptyTelemetry(): DroneTelemetry {
@@ -159,6 +166,7 @@ export class RapierPhysics {
         startPosition.y,
         startPosition.z + this.spawnHeight,
       )
+      .setRotation(this.startRotation)
       .setLinearDamping(this.config.linearDamping)
       .setAngularDamping(this.config.angularDamping)
       .setCcdEnabled(true);
@@ -246,6 +254,14 @@ export class RapierPhysics {
     this.reset();
   }
 
+  /** Install a pack at the starting charge. The aircraft stays where it is. */
+  public swapBattery(): void {
+    this.battery.reset();
+    this.droneTelemetry.batteryVoltage = this.battery.voltage;
+    this.droneTelemetry.batteryCharge = this.battery.charge;
+    this.droneTelemetry.batteryCurrent = this.battery.current;
+  }
+
   public reset(): void {
     this.battery.reset();
     this.touchingLastStep = false;
@@ -260,7 +276,7 @@ export class RapierPhysics {
         { ...this.startPosition, z: this.startPosition.z + this.spawnHeight },
         true,
       );
-      this.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+      this.body.setRotation(this.startRotation, true);
       this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       this.body.resetForces(true);
@@ -271,6 +287,7 @@ export class RapierPhysics {
         z: this.startPosition.z + this.spawnHeight,
       };
     }
+    this.droneTelemetry.localOrientation = { ...this.startRotation };
   }
 
   public dispose(): void {

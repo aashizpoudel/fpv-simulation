@@ -100,7 +100,7 @@ export const Manta5DeadCatConfig: DroneConfig = {
     const dy = 0.0926; // lateral half-spacing
     const armHeight = 0.0;
     // No-load anchor. At 23.4 V the plant settles at the published 1741.5 g.
-    const maxThrustPerRotor = 20.26;
+    const maxThrustPerRotor = 10.13;
 
     return [
       { name: "frontRight", position: { x: +dx, y: -dy, z: armHeight }, maxThrust: maxThrustPerRotor },

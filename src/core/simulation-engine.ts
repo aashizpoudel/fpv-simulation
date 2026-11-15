@@ -15,6 +15,8 @@ export type SimulationEngineOptions = {
   maxSubSteps?: number;
   clampZ?: number;
   roofHeight?: number;
+  /** Heading about world +Z, in radians. Zero faces +X. */
+  spawnYaw?: number;
   config?: DroneConfig;
   physics?: PhysicsBackend;
   backend?: "rapier" | "dronesim";
@@ -40,6 +42,15 @@ export class SimulationEngine {
     this.raceProps?.reset();
     this.lastTelemetry = this.physics.getTelemetry();
   }
+
+  /** Install a pack at the starting charge. Position, attitude, and rotor speed stay. */
+  public swapBattery(): void {
+    this.physics.swapBattery();
+    const fresh = this.physics.getTelemetry();
+    this.lastTelemetry.batteryVoltage = fresh.batteryVoltage;
+    this.lastTelemetry.batteryCharge = fresh.batteryCharge;
+    this.lastTelemetry.batteryCurrent = fresh.batteryCurrent;
+  }
   private accumulator = 0;
   public droppedTime = 0;
   public simulationTime = 0;
@@ -47,6 +58,7 @@ export class SimulationEngine {
   private maxSubSteps: number;
   private clampZ: number;
   private roofHeight: number;
+  private spawnYaw: number;
   private lastTelemetry: DroneTelemetry;
 
   constructor(options: SimulationEngineOptions = {}) {
@@ -68,6 +80,7 @@ export class SimulationEngine {
       throw new Error("Invalid simulation cadence");
     this.clampZ = options.clampZ ?? -Infinity;
     this.roofHeight = options.roofHeight ?? Infinity;
+    this.spawnYaw = options.spawnYaw ?? 0;
     this.lastTelemetry = this.physics.getTelemetry();
   }
 
@@ -75,6 +88,7 @@ export class SimulationEngine {
     if (Number.isFinite(this.roofHeight)) {
       this.physics.setRoofHeight(this.roofHeight);
     }
+    this.physics.setSpawnYaw(this.spawnYaw);
     await this.physics.init(startPosition);
     this.lastTelemetry = this.physics.getTelemetry();
   }

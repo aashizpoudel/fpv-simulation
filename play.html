@@ -20,12 +20,12 @@
         <meta property="og:description" content="Fly an FPV drone on the De Dust 2 map for free in your browser. Explore Factory and Ekotori with a keyboard, gamepad or USB radio. No installation required." />
         <meta property="og:url" content="https://www.fpvsim.top/" />
         <meta property="og:image" content="https://www.fpvsim.top/og-fpv-simulator.jpg" />
-        <meta property="og:image:alt" content="Side-by-side renders of the Factory and Ekotori Gaussian splat maps used in the FPV drone simulator." />
+        <meta property="og:image:alt" content="Factory and Ekotori maps in the free FPV drone simulator." />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Free FPV Drone Simulator with Dust2 Map | FPV Sim" />
         <meta name="twitter:description" content="Fly an FPV drone on the De Dust 2 map for free in your browser. Explore Factory and Ekotori with a keyboard, gamepad or USB radio. No installation required." />
         <meta name="twitter:image" content="https://www.fpvsim.top/og-fpv-simulator.jpg" />
-        <meta name="twitter:image:alt" content="Factory and Ekotori Gaussian splat maps in the free FPV drone simulator." />
+        <meta name="twitter:image:alt" content="Factory and Ekotori maps in the free FPV drone simulator." />
         <script type="application/ld+json">
         {
             "@context": "https://schema.org",
@@ -208,11 +208,12 @@
                         <div class="settings-title">Environment</div>
                         <label id="worldSelectLabel">Environment
                             <select id="worldSelect">
-                                <option value="island">Island (GLB Mesh)</option>
-                                <option value="forest">Forest (Procedural)</option>
-                                <option value="dedust">Dedust 2 (GLB Mesh)</option>
-                                <option value="factory-splat">Factory (Gaussian Splats)</option>
-                                <option value="ekotori">Ekotori (Gaussian Splats)</option>
+                                <option value="island">Island — Town and river</option>
+                                <option value="forest">Forest — Mixed forest</option>
+                                <option value="dedust">Dust2 — Counter-Strike classic</option>
+                                <option value="factory-splat">Factory — Factory interior</option>
+                                <option value="ekotori">Ekotori — Indoor rooms</option>
+                                <option value="home">Home — Furnished house and yard</option>
                             </select>
                         </label>
                     </div>
@@ -419,6 +420,12 @@
                     <p>Converted for this simulator, with a locally generated collision mesh.</p>
                 </div>
                 <div class="settings-group">
+                    <h2 class="settings-title">Home</h2>
+                    <p>Furnished house interior. Doors and windows stay open.</p>
+                    <p><a href="https://polyhaven.com/a/alps_field" target="_blank" rel="noopener noreferrer">Alps Field</a> HDRI by Andreas Mischok, via Poly Haven. <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">CC0</a>.</p>
+                    <p>Surface textures from <a href="https://ambientcg.com/" target="_blank" rel="noopener noreferrer">ambientCG</a>. <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">CC0</a>.</p>
+                </div>
+                <div class="settings-group">
                     <h2 class="settings-title">Drone audio</h2>
                     <p><a href="https://bigsoundbank.com/drone-6-s3550.html" target="_blank" rel="noopener noreferrer">Drone #6 (sound 3550)</a> by Joseph Sardin, via BigSoundBank.</p>
                     <p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">CC0 / public domain</a>.</p>
@@ -463,6 +470,7 @@
                     <div class="help-section">
                         <div class="help-section-title">Simulation &amp; Shortcuts</div>
                         <div class="control-row"><span class="key-badge">R</span><span>Reset drone to spawn</span></div>
+                        <div class="control-row"><span class="key-badge">B</span><span>Replace the battery (disarmed, flying, or crashed)</span></div>
                         <div class="control-row"><span class="key-badge">F</span><span>Toggle mode (Angle / Acro)</span></div>
                         <div class="control-row"><span class="key-badge">C</span><span>Toggle camera (FPV / Third / Orbit)</span></div>
                         <div class="control-row"><span class="key-badge">G</span><span>Start / Stop recording</span></div>
